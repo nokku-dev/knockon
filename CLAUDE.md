@@ -7,23 +7,26 @@ If-Then / habit stacking 型の習慣アプリ（nokku 配下）。起点アン�
 ## 技術スタック
 
 - 形態: モバイル先行（iOS 先行可）、クロスプラットフォームを後続で。
-- 永続化: **ローカル正準**（v1 で同期は持たない）。
-- 位置: **OS 標準ジオフェンス**（iOS Core Location / Android Location）。**有料地図 API 禁止**。
-- フレームワーク選定は未確定 = ADR 化対象（`library` / `architecture` タグ）。nokku の既存パターン（Capacitor モバイル / Tauri）は有力候補だが、選定前に判断ログを書く。
+- **フレームワーク: Expo（React Native）/ managed workflow + EAS Build**（[ADR-0007](docs/decisions/0007-expo-react-native-stack.md)）。time-to-device 最優先で確定。bare workflow へ降りるのは Phase 1 実使用で障害が出た場合のみ。
+- 永続化: **`expo-sqlite` でローカル正準**（v1 で同期は持たない）。`(ノード, 日付, bool)` のみを保存（[ADR-0001](docs/decisions/0001-chain-data-model.md)）。
+- 位置: **`expo-location` の region monitoring**（OS 標準ジオフェンス）。**有料地図 API 禁止**（[ADR-0003](docs/decisions/0003-firing-logic.md)）。
+- 通知: **`expo-notifications`**（ローカル通知のみ・サーバ push は v1 非スコープ）。
 
 ## ビルド・テストコマンド
 
-- スタック確定後に確定（ADR 化対象）。確定までコマンドは仮。
-- `pnpm install` — 依存関係インストール
-- `pnpm test` — テスト実行
-- `pnpm build` — ビルド
+Expo の標準慣例に従う。具体的なスクリプト・依存バージョンは Phase 0 着手時（`expo init` 実行・`package.json` 確定時）に定める。
+
+- `npm install` / `pnpm install` — 依存関係インストール
+- `npx expo start` — 開発サーバ起動
+- `npm test` — Jest（`jest-expo` プリセット）でテスト
+- `eas build` — 本番ビルド（実機・配布用）
 
 ## ディレクトリ構成
 
-- `docs/` — `SPEC.md`（仕様 v0.3）/ `PLAN.md`（実装順序）/ `DESIGN-SYSTEM.md`（v0.2）/ `KNOWLEDGE.md`（失敗パターン）
+- `docs/` — `SPEC.md`（仕様 v0.4）/ `PLAN.md`（実装順序）/ `DESIGN-SYSTEM.md`（v0.2）/ `KNOWLEDGE.md`（失敗パターン）
 - `docs/decisions/` — ADR（判断ログ）
 - `reference/` — デザイン参照 HTML（**使い捨て前提・出荷物ではない**。実装の規範は SPEC/DESIGN-SYSTEM 側）
-- アプリ本体のソース構成はスタック確定後に定義（ADR 化対象）
+- アプリ本体のソース構成は Phase 0 着手時に Expo 慣例（`app/` または `src/`、`app.json` / `eas.json` 等）で固める（[ADR-0007](docs/decisions/0007-expo-react-native-stack.md)）。
 
 ## Augmentation原則（このプロジェクト固有）
 
