@@ -1,0 +1,2250 @@
+{
+  "version": "2.11",
+  "children": [
+    {
+      "type": "frame",
+      "id": "qU45p",
+      "x": 0,
+      "y": 0,
+      "name": "Phase 1 タイトル",
+      "width": 3210,
+      "height": 160,
+      "fill": "#0F0F12",
+      "layout": "vertical",
+      "gap": 8,
+      "padding": 32,
+      "children": [
+        {
+          "type": "text",
+          "id": "hLJsi",
+          "name": "titleText",
+          "fill": "#F4F4F2",
+          "content": "knockon — Phase 1 画面構想",
+          "fontFamily": "Inter",
+          "fontSize": 36,
+          "fontWeight": "700",
+          "letterSpacing": -0.5
+        },
+        {
+          "type": "text",
+          "id": "plLTT",
+          "name": "subTitle",
+          "fill": "#A0A0A0",
+          "textGrowth": "fixed-width",
+          "width": 3120,
+          "content": "PLAN PR-1.1 〜 PR-1.6 / DESIGN-SYSTEM v0.2 dark mode 準拠 / 不変条件: 線は 1 本連続スパイン・形変化は 円→星 の 1 回・禁止 UI なし",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "M8t0Ao",
+      "x": 0,
+      "y": 200,
+      "name": "PR-1.1 Today (シード表示のみ)",
+      "width": 390,
+      "height": 844,
+      "fill": "#16161A",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": [
+        24,
+        32,
+        24,
+        24
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "RLQ9z",
+          "name": "label11",
+          "fill": "#7A7A82",
+          "textGrowth": "fixed-width",
+          "width": 334,
+          "content": "PR-1.1 完了状態 — シード Today 表示のみ",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "m4HPfd",
+          "name": "h11",
+          "fill": "#F4F4F2",
+          "content": "Today",
+          "fontFamily": "Inter",
+          "fontSize": 28,
+          "fontWeight": "700",
+          "letterSpacing": -0.5
+        },
+        {
+          "type": "frame",
+          "id": "eX1YZ",
+          "name": "チェーン (PR-1.1)",
+          "width": "fill_container",
+          "fill": "#00000000",
+          "layout": "vertical",
+          "gap": 12,
+          "children": [
+            {
+              "type": "text",
+              "id": "UqD8e",
+              "name": "anchor11",
+              "fill": "#7F7F7C",
+              "content": "起床",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "mlPIJ",
+              "name": "chainTitle11",
+              "fill": "#F4F4F2",
+              "content": "朝のルーティン",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "Q5J7n",
+              "name": "nodes11",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Y3iq7r",
+                  "name": "n11a",
+                  "fill": "#F4F4F2",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "水を飲む",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "tP1VG",
+                  "name": "n11b",
+                  "fill": "#F4F4F2",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "ストレッチ",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "xQOwL",
+                  "name": "n11c",
+                  "fill": "#F4F4F2",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "机に向かう",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "VHGZQ",
+          "name": "spacer11",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#00000000"
+        },
+        {
+          "type": "text",
+          "id": "WZ19m",
+          "name": "note11",
+          "fill": "#5A5A60",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "スコープ: タップ反応なし / 線なし / マーカーなし。\n起動 → 永続化 → 再起動後も同じ表示。",
+          "lineHeight": 1.5,
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "uJnCI",
+      "x": 470,
+      "y": 200,
+      "name": "PR-1.2 Today (チェックオフ)",
+      "width": 390,
+      "height": 844,
+      "fill": "#16161A",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": [
+        24,
+        32,
+        24,
+        24
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "fsgFM",
+          "name": "label12",
+          "fill": "#7A7A82",
+          "textGrowth": "fixed-width",
+          "width": 334,
+          "content": "PR-1.2 完了状態 — ノード単位チェックオフ",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "D8xNZ",
+          "name": "h12",
+          "fill": "#F4F4F2",
+          "content": "Today",
+          "fontFamily": "Inter",
+          "fontSize": 28,
+          "fontWeight": "700",
+          "letterSpacing": -0.5
+        },
+        {
+          "type": "frame",
+          "id": "FaYAh",
+          "name": "chain12",
+          "width": "fill_container",
+          "fill": "#00000000",
+          "layout": "vertical",
+          "gap": 12,
+          "children": [
+            {
+              "type": "text",
+              "id": "DA5Q5",
+              "name": "anchor12",
+              "fill": "#7F7F7C",
+              "content": "起床",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "hVLqq",
+              "name": "chainTitle12",
+              "fill": "#F4F4F2",
+              "content": "朝のルーティン",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "ny31k",
+              "name": "nodes12",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "E2XQ01",
+                  "name": "row12a",
+                  "width": "fill_container",
+                  "fill": "#00000000",
+                  "gap": 16,
+                  "padding": [
+                    10,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "S2qrz0",
+                      "name": "m12a",
+                      "fill": "#EAEAE8",
+                      "width": 14,
+                      "height": 14
+                    },
+                    {
+                      "type": "text",
+                      "id": "parpv",
+                      "name": "t12a",
+                      "fill": "#F4F4F2",
+                      "content": "水を飲む",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "mV5Ga",
+                  "name": "row12b",
+                  "width": "fill_container",
+                  "fill": "#00000000",
+                  "gap": 16,
+                  "padding": [
+                    10,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "VfEK4",
+                      "name": "m12b",
+                      "width": 14,
+                      "height": 14,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1.5,
+                        "fill": "#5A5A60"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "id": "ePvrS",
+                      "name": "t12b",
+                      "fill": "#F4F4F2",
+                      "content": "ストレッチ",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "b1jNB",
+                  "name": "row12c",
+                  "width": "fill_container",
+                  "fill": "#00000000",
+                  "gap": 16,
+                  "padding": [
+                    10,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "UEJSy",
+                      "name": "m12c",
+                      "width": 14,
+                      "height": 14,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1.5,
+                        "fill": "#5A5A60"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "id": "CPkdS",
+                      "name": "t12c",
+                      "fill": "#F4F4F2",
+                      "content": "机に向かう",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "APZK4",
+          "name": "spacer12",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#00000000"
+        },
+        {
+          "type": "text",
+          "id": "bcW1h",
+          "name": "note12",
+          "fill": "#5A5A60",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "タップで丸が --grow #EAEAE8 に塗り替わる。\n再起動後も保持。連鎖判定はゆるい (各ノード独立)。",
+          "lineHeight": 1.5,
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "mBcMZ",
+      "x": 940,
+      "y": 200,
+      "name": "PR-1.3 Today (1本連続スパイン)",
+      "width": 390,
+      "height": 844,
+      "fill": "#16161A",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": [
+        24,
+        32,
+        24,
+        24
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "u3QApp",
+          "name": "label13",
+          "fill": "#7A7A82",
+          "textGrowth": "fixed-width",
+          "width": 334,
+          "content": "PR-1.3 完了状態 — 1 本連続スパイン描画",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "Kjw0S",
+          "name": "h13",
+          "fill": "#F4F4F2",
+          "content": "Today",
+          "fontFamily": "Inter",
+          "fontSize": 28,
+          "fontWeight": "700",
+          "letterSpacing": -0.5
+        },
+        {
+          "type": "frame",
+          "id": "L79d0J",
+          "name": "chain13",
+          "width": "fill_container",
+          "fill": "#00000000",
+          "layout": "vertical",
+          "gap": 12,
+          "children": [
+            {
+              "type": "text",
+              "id": "jCLEU",
+              "name": "anchor13",
+              "fill": "#7F7F7C",
+              "content": "起床",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "c3DIfz",
+              "name": "chainTitle13",
+              "fill": "#F4F4F2",
+              "content": "朝のルーティン",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "S0zsO",
+              "name": "nodes13",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "V2yHtc",
+                  "name": "row13anchor",
+                  "width": "fill_container",
+                  "height": 36,
+                  "fill": "#00000000",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "bTC6N",
+                      "name": "rail13anchor",
+                      "width": 14,
+                      "height": 36,
+                      "fill": "#00000000",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "WIOe2",
+                          "x": 6,
+                          "y": 18,
+                          "name": "rail13anchorRect",
+                          "fill": "#EAEAE8",
+                          "width": 2,
+                          "height": 18
+                        },
+                        {
+                          "type": "ellipse",
+                          "id": "P9zRd",
+                          "x": 3,
+                          "y": 13,
+                          "name": "anchorDot",
+                          "fill": "#EAEAE8",
+                          "width": 8,
+                          "height": 8
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "z7LMx",
+                      "name": "anchorText13",
+                      "fill": "#5A5A60",
+                      "content": "起点アンカー",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "rdy9I",
+                  "name": "row13a",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#00000000",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Bh7B4",
+                      "name": "rail13a",
+                      "width": 14,
+                      "height": 44,
+                      "fill": "#00000000",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "qSo6D",
+                          "x": 6,
+                          "y": 0,
+                          "name": "rail13aTop",
+                          "fill": "#EAEAE8",
+                          "width": 2,
+                          "height": 22
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "EESEZ",
+                          "x": 6,
+                          "y": 22,
+                          "name": "rail13aBot",
+                          "fill": "#2A2A32",
+                          "width": 2,
+                          "height": 22
+                        },
+                        {
+                          "type": "ellipse",
+                          "id": "m5M2sA",
+                          "x": 0,
+                          "y": 15,
+                          "name": "m13a",
+                          "fill": "#EAEAE8",
+                          "width": 14,
+                          "height": 14
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "qBCat",
+                      "name": "t13a",
+                      "fill": "#F4F4F2",
+                      "content": "水を飲む",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "rUdP7",
+                  "name": "row13b",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#00000000",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "LL8tT",
+                      "name": "rail13b",
+                      "width": 14,
+                      "height": 44,
+                      "fill": "#00000000",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "VHsJw",
+                          "x": 6,
+                          "y": 0,
+                          "name": "rail13bRect",
+                          "fill": "#2A2A32",
+                          "width": 2,
+                          "height": 44
+                        },
+                        {
+                          "type": "ellipse",
+                          "id": "N55P7",
+                          "x": 0,
+                          "y": 15,
+                          "name": "m13b",
+                          "width": 14,
+                          "height": 14,
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1.5,
+                            "fill": "#5A5A60"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "Y138jR",
+                      "name": "t13b",
+                      "fill": "#F4F4F2",
+                      "content": "ストレッチ",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Q2bA5",
+                  "name": "row13c",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#00000000",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Enpun",
+                      "name": "rail13c",
+                      "width": 14,
+                      "height": 44,
+                      "fill": "#00000000",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "xTYQR",
+                          "x": 6,
+                          "y": 0,
+                          "name": "rail13cRect",
+                          "fill": "#2A2A32",
+                          "width": 2,
+                          "height": 22
+                        },
+                        {
+                          "type": "ellipse",
+                          "id": "Jn9Yo",
+                          "x": 0,
+                          "y": 15,
+                          "name": "m13c",
+                          "width": 14,
+                          "height": 14,
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1.5,
+                            "fill": "#5A5A60"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "n4Ctkg",
+                      "name": "t13c",
+                      "fill": "#F4F4F2",
+                      "content": "机に向かう",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "a7wuW",
+          "name": "spacer13",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#00000000"
+        },
+        {
+          "type": "text",
+          "id": "aNAZL",
+          "name": "note13",
+          "fill": "#5A5A60",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "線は連続実行範囲を表す (派生計算)。\n水を飲むまで --grow、それ以降は --line-bg。\nゆるい連鎖判定 = 飛んだ後続も独立点灯可能。\n14D ウィンドウは API 受口だけ実装し描画は当日のみ。",
+          "lineHeight": 1.5,
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "W1uCrZ",
+      "x": 1410,
+      "y": 200,
+      "name": "PR-1.4 チェーン一覧 (手動発火)",
+      "width": 390,
+      "height": 844,
+      "fill": "#16161A",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": [
+        24,
+        32,
+        24,
+        24
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "yKt0t",
+          "name": "label14",
+          "fill": "#7A7A82",
+          "textGrowth": "fixed-width",
+          "width": 334,
+          "content": "PR-1.4 完了状態 — チェーン一覧 (手動発火)",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "KBfw1",
+          "name": "h14",
+          "fill": "#F4F4F2",
+          "content": "チェーン",
+          "fontFamily": "Inter",
+          "fontSize": 28,
+          "fontWeight": "700",
+          "letterSpacing": -0.5
+        },
+        {
+          "type": "frame",
+          "id": "e4z0T4",
+          "name": "tabs14",
+          "width": "fill_container",
+          "fill": "#00000000",
+          "gap": 24,
+          "padding": [
+            0,
+            0,
+            12,
+            0
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "N4IrQ",
+              "name": "tabActive",
+              "fill": "#00000000",
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ZJrX5",
+                  "name": "tabActiveLabel",
+                  "fill": "#F4F4F2",
+                  "content": "active",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "rectangle",
+                  "id": "a6MOC",
+                  "name": "tabActiveBar",
+                  "fill": "#EAEAE8",
+                  "width": 48,
+                  "height": 2
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "TEuYT",
+              "name": "tabStocked",
+              "fill": "#00000000",
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "wFnX2",
+                  "name": "tabStockedLabel",
+                  "fill": "#5A5A60",
+                  "content": "stocked",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "P0BMrp",
+          "name": "listFrame",
+          "width": "fill_container",
+          "fill": "#00000000",
+          "layout": "vertical",
+          "gap": 12,
+          "children": [
+            {
+              "type": "frame",
+              "id": "bUFAS",
+              "name": "card14a",
+              "width": "fill_container",
+              "fill": "#1E1E24",
+              "cornerRadius": 14,
+              "layout": "vertical",
+              "gap": 8,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "lrfq7",
+                  "name": "card14aRow",
+                  "width": "fill_container",
+                  "fill": "#00000000",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "O7s3Wj",
+                      "name": "card14aAnchor",
+                      "fill": "#7F7F7C",
+                      "content": "起床",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "D8zr8",
+                      "name": "card14aDivider",
+                      "fill": "#5A5A60",
+                      "content": "·",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "B4ybqn",
+                      "name": "card14aCount",
+                      "fill": "#7F7F7C",
+                      "content": "3 ノード",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "SU4p8",
+                  "name": "card14aTitle",
+                  "fill": "#F4F4F2",
+                  "content": "朝のルーティン",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "C8Evof",
+              "name": "card14b",
+              "width": "fill_container",
+              "fill": "#1E1E24",
+              "cornerRadius": 14,
+              "layout": "vertical",
+              "gap": 8,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "WDNsS",
+                  "name": "card14bRow",
+                  "width": "fill_container",
+                  "fill": "#00000000",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "xLBYE",
+                      "name": "card14bAnchor",
+                      "fill": "#7F7F7C",
+                      "content": "PC を開く",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "x2ne8",
+                      "name": "card14bDivider",
+                      "fill": "#5A5A60",
+                      "content": "·",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "CKLfO",
+                      "name": "card14bCount",
+                      "fill": "#7F7F7C",
+                      "content": "4 ノード",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "j4Gux",
+                  "name": "card14bTitle",
+                  "fill": "#F4F4F2",
+                  "content": "仕事を始める",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "PVDli",
+              "name": "card14c",
+              "width": "fill_container",
+              "fill": "#1E1E24",
+              "cornerRadius": 14,
+              "layout": "vertical",
+              "gap": 8,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "MwOWm",
+                  "name": "card14cRow",
+                  "width": "fill_container",
+                  "fill": "#00000000",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "S5o43",
+                      "name": "card14cAnchor",
+                      "fill": "#7F7F7C",
+                      "content": "就寝前",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "G8ZHE",
+                      "name": "card14cDivider",
+                      "fill": "#5A5A60",
+                      "content": "·",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "q7dpk",
+                      "name": "card14cCount",
+                      "fill": "#7F7F7C",
+                      "content": "2 ノード",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "Jgm54",
+                  "name": "card14cTitle",
+                  "fill": "#F4F4F2",
+                  "content": "夜のルーティン",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "enf2k",
+          "name": "spacer14",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#00000000"
+        },
+        {
+          "type": "text",
+          "id": "q4ha1U",
+          "name": "note14",
+          "fill": "#5A5A60",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "カードタップ = 手動発火 (Today に発火状態で出現)。\n起動時 DB 自動初期化 + シード未投入チェック。\nstocked タブは v1 でフィルタ切替のみ。",
+          "lineHeight": 1.5,
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "K4YLIQ",
+      "x": 2350,
+      "y": 200,
+      "name": "PR-1.5 Today (時刻アンカー + 通知)",
+      "width": 390,
+      "height": 844,
+      "fill": "#16161A",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": [
+        24,
+        32,
+        24,
+        24
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "ncD3p",
+          "name": "label15",
+          "fill": "#7A7A82",
+          "textGrowth": "fixed-width",
+          "width": 334,
+          "content": "PR-1.5 完了状態 — 発火直後の Today (時刻アンカー)",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "bElUD",
+          "name": "banner",
+          "width": "fill_container",
+          "fill": "#2A2A32",
+          "cornerRadius": 14,
+          "gap": 12,
+          "padding": 14,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "d9Y4p",
+              "name": "bannerIcon",
+              "width": 36,
+              "height": 36,
+              "fill": "#1E1E24",
+              "cornerRadius": 8,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "S68Op",
+                  "x": 14,
+                  "y": 14,
+                  "name": "bannerDot",
+                  "fill": "#E0574C",
+                  "width": 8,
+                  "height": 8
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ZrFtP",
+              "name": "bannerText",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "layout": "vertical",
+              "gap": 2,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Rs0kD",
+                  "name": "bannerTitle",
+                  "fill": "#F4F4F2",
+                  "content": "knockon",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "qxMQn",
+                  "name": "bannerBody",
+                  "fill": "#C8C8C2",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "朝のルーティン — 起床",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "e9O2K",
+              "name": "bannerTime",
+              "fill": "#7F7F7C",
+              "content": "7:30",
+              "fontFamily": "Inter",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "bYyeP",
+          "name": "h15",
+          "fill": "#F4F4F2",
+          "content": "Today",
+          "fontFamily": "Inter",
+          "fontSize": 28,
+          "fontWeight": "700",
+          "letterSpacing": -0.5
+        },
+        {
+          "type": "frame",
+          "id": "XgjCt",
+          "name": "chain15",
+          "width": "fill_container",
+          "fill": "#00000000",
+          "layout": "vertical",
+          "gap": 12,
+          "children": [
+            {
+              "type": "frame",
+              "id": "z7XL2w",
+              "name": "anchorRow15",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "FiOT2",
+                  "name": "anchorPill",
+                  "fill": "#2A2A32",
+                  "cornerRadius": 999,
+                  "gap": 6,
+                  "padding": [
+                    4,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "lvkMb",
+                      "name": "anchorPillDot",
+                      "fill": "#E0574C",
+                      "width": 6,
+                      "height": 6
+                    },
+                    {
+                      "type": "text",
+                      "id": "Z6SVs",
+                      "name": "anchorPillText",
+                      "fill": "#E0574C",
+                      "content": "07:30 発火中",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "ZesKw",
+                  "name": "anchor15",
+                  "fill": "#7F7F7C",
+                  "content": "起床",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "j4DHW1",
+              "name": "chainTitle15",
+              "fill": "#F4F4F2",
+              "content": "朝のルーティン",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "udqRn",
+              "name": "nodes15",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "H5aOnF",
+                  "name": "row15anchor",
+                  "width": "fill_container",
+                  "height": 36,
+                  "fill": "#00000000",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "N74w5Q",
+                      "name": "rail15anchor",
+                      "width": 14,
+                      "height": 36,
+                      "fill": "#00000000",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "FlCK2",
+                          "x": 6,
+                          "y": 18,
+                          "name": "rail15anchorRect",
+                          "fill": "#2A2A32",
+                          "width": 2,
+                          "height": 18
+                        },
+                        {
+                          "type": "ellipse",
+                          "id": "rb61n",
+                          "x": 3,
+                          "y": 13,
+                          "name": "anchorDot15",
+                          "fill": "#E0574C",
+                          "width": 8,
+                          "height": 8
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "s8hDWf",
+                      "name": "anchorText15",
+                      "fill": "#E0574C",
+                      "content": "起点アンカー (発火直後)",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Lqw6S",
+                  "name": "row15a",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#00000000",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "f9Hr8",
+                      "name": "rail15a",
+                      "width": 14,
+                      "height": 44,
+                      "fill": "#00000000",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "nb4Cz",
+                          "x": 6,
+                          "y": 0,
+                          "name": "rail15aRect",
+                          "fill": "#2A2A32",
+                          "width": 2,
+                          "height": 44
+                        },
+                        {
+                          "type": "ellipse",
+                          "id": "fBEgZ",
+                          "x": 0,
+                          "y": 15,
+                          "name": "m15a",
+                          "width": 14,
+                          "height": 14,
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1.5,
+                            "fill": "#5A5A60"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "i9N69v",
+                      "name": "t15a",
+                      "fill": "#F4F4F2",
+                      "content": "水を飲む",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "l4nv6c",
+                  "name": "row15b",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#00000000",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "JTBqw",
+                      "name": "rail15b",
+                      "width": 14,
+                      "height": 44,
+                      "fill": "#00000000",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "vK2fk",
+                          "x": 6,
+                          "y": 0,
+                          "name": "rail15bRect",
+                          "fill": "#2A2A32",
+                          "width": 2,
+                          "height": 44
+                        },
+                        {
+                          "type": "ellipse",
+                          "id": "iLQHq",
+                          "x": 0,
+                          "y": 15,
+                          "name": "m15b",
+                          "width": 14,
+                          "height": 14,
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1.5,
+                            "fill": "#5A5A60"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "h5osP",
+                      "name": "t15b",
+                      "fill": "#F4F4F2",
+                      "content": "ストレッチ",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Zh21G",
+                  "name": "row15c",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#00000000",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "S7hncF",
+                      "name": "rail15c",
+                      "width": 14,
+                      "height": 44,
+                      "fill": "#00000000",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "vUEfq",
+                          "x": 6,
+                          "y": 0,
+                          "name": "rail15cRect",
+                          "fill": "#2A2A32",
+                          "width": 2,
+                          "height": 22
+                        },
+                        {
+                          "type": "ellipse",
+                          "id": "Q0RHC",
+                          "x": 0,
+                          "y": 15,
+                          "name": "m15c",
+                          "width": 14,
+                          "height": 14,
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1.5,
+                            "fill": "#5A5A60"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "QEhe2",
+                      "name": "t15c",
+                      "fill": "#F4F4F2",
+                      "content": "机に向かう",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "ACadd",
+          "name": "spacer15",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#00000000"
+        },
+        {
+          "type": "text",
+          "id": "aCc21",
+          "name": "note15",
+          "fill": "#5A5A60",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "起点アンカー (kind='time') の今日発火判定 (純粋関数)\n+ ローカル通知スケジュール (expo-notifications)。\n発火中ピル / accent ドットは「今日発火中」の指示色。\nノックモーション (達成時に線が一段スッと伸びる) はここから乗る。",
+          "lineHeight": 1.5,
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "G8DfC6",
+      "x": 2820,
+      "y": 200,
+      "name": "PR-1.6 場所登録 (現在地)",
+      "width": 390,
+      "height": 844,
+      "fill": "#16161A",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": [
+        24,
+        32,
+        24,
+        24
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "l7tER",
+          "name": "label16",
+          "fill": "#7A7A82",
+          "textGrowth": "fixed-width",
+          "width": 334,
+          "content": "PR-1.6 完了状態 — 場所アンカー (現在地登録)",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "z2pOm",
+          "name": "topbar16",
+          "width": "fill_container",
+          "fill": "#00000000",
+          "padding": [
+            0,
+            0,
+            8,
+            0
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "RsyQW",
+              "name": "cancelBtn",
+              "fill": "#7F7F7C",
+              "content": "キャンセル",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "wmdo3",
+              "name": "sheetTitle",
+              "fill": "#F4F4F2",
+              "content": "起点アンカーを場所に設定",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "u1IVR",
+              "name": "saveBtn",
+              "fill": "#5A5A60",
+              "content": "保存",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "qKeWv",
+          "name": "section16a",
+          "width": "fill_container",
+          "fill": "#1E1E24",
+          "cornerRadius": 14,
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "LMvAy",
+              "name": "sec16aLabel",
+              "fill": "#7F7F7C",
+              "content": "現在地",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "i3reP",
+              "name": "sec16aCoord",
+              "fill": "#F4F4F2",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "35.6586° N, 139.7454° E",
+              "fontFamily": "Inter",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "B6Zwj",
+              "name": "sec16aMeta",
+              "fill": "#5A5A60",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "精度 ±12m / 取得 2026-05-18 23:42",
+              "fontFamily": "Inter",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "Lpm1s",
+              "name": "sec16aBtn",
+              "width": "fill_container",
+              "fill": "#2A2A32",
+              "cornerRadius": 999,
+              "padding": [
+                12,
+                16
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "s281G",
+                  "name": "sec16aBtnLabel",
+                  "fill": "#F4F4F2",
+                  "content": "現在地を再取得",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "L1uuD",
+          "name": "section16b",
+          "width": "fill_container",
+          "fill": "#1E1E24",
+          "cornerRadius": 14,
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "M7Y2c",
+              "name": "sec16bLabel",
+              "fill": "#7F7F7C",
+              "content": "発火半径",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "lyTg9",
+              "name": "sec16bChips",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "X8a8JW",
+                  "name": "chip50",
+                  "width": "fill_container",
+                  "fill": "#2A2A32",
+                  "cornerRadius": 999,
+                  "padding": [
+                    10,
+                    12
+                  ],
+                  "justifyContent": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "q1a2nk",
+                      "name": "chip50Label",
+                      "fill": "#A0A0A0",
+                      "content": "50m",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "V2ZVJR",
+                  "name": "chip100",
+                  "width": "fill_container",
+                  "fill": "#EAEAE8",
+                  "cornerRadius": 999,
+                  "padding": [
+                    10,
+                    12
+                  ],
+                  "justifyContent": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Ol0oG",
+                      "name": "chip100Label",
+                      "fill": "#1A1A19",
+                      "content": "100m",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "p7jj1",
+                  "name": "chip200",
+                  "width": "fill_container",
+                  "fill": "#2A2A32",
+                  "cornerRadius": 999,
+                  "padding": [
+                    10,
+                    12
+                  ],
+                  "justifyContent": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tJSeh",
+                      "name": "chip200Label",
+                      "fill": "#A0A0A0",
+                      "content": "200m",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "qnujq",
+          "name": "section16c",
+          "width": "fill_container",
+          "fill": "#1E1E24",
+          "cornerRadius": 14,
+          "gap": 12,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "HzDJ2",
+              "name": "sec16cIcon",
+              "width": 24,
+              "height": 24,
+              "fill": "#00000000",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "Pbo96",
+                  "x": 0,
+                  "y": 0,
+                  "name": "sec16cIconCircle",
+                  "width": 24,
+                  "height": 24,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1.5,
+                    "fill": "#5A5A60"
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "PEA8C",
+                  "x": 10,
+                  "y": 4,
+                  "name": "sec16cIconI",
+                  "fill": "#5A5A60",
+                  "content": "i",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "mRftI",
+              "name": "sec16cText",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "BHvhZ",
+                  "name": "sec16cTitle",
+                  "fill": "#F4F4F2",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Always 拒否時のフォールバック",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "APLdH",
+                  "name": "sec16cBody",
+                  "fill": "#A0A0A0",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "位置情報の Always が許可されていなくても、Today から手動で発火できます。再要求ループや誘導モーダルは出しません。",
+                  "lineHeight": 1.5,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "iJOYu",
+          "name": "spacer16",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#00000000"
+        },
+        {
+          "type": "text",
+          "id": "A7K9vw",
+          "name": "note16",
+          "fill": "#5A5A60",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "OS 標準ジオフェンス (region monitoring) で登録。\n地図検索 / 任意地点登録は v1 非スコープ (ADR-0003)。\nジオフェンス登録数上限はキューイングで吸収。",
+          "lineHeight": 1.5,
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "lTTsy",
+      "x": 1880,
+      "y": 200,
+      "name": "PR-1.5 時刻アンカー設定",
+      "width": 390,
+      "height": 844,
+      "fill": "#16161A",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": [
+        24,
+        32,
+        24,
+        24
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "lAF86",
+          "name": "label15s",
+          "fill": "#7A7A82",
+          "textGrowth": "fixed-width",
+          "width": 334,
+          "content": "PR-1.5 完了状態 — 起点アンカー (時刻) 設定",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "T82DB1",
+          "name": "topbar15s",
+          "width": "fill_container",
+          "fill": "#00000000",
+          "padding": [
+            0,
+            0,
+            8,
+            0
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "PoDbh",
+              "name": "cancel15s",
+              "fill": "#7F7F7C",
+              "content": "キャンセル",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "x4Upa",
+              "name": "title15s",
+              "fill": "#F4F4F2",
+              "content": "起点アンカーを時刻に設定",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "hZNj5",
+              "name": "save15s",
+              "fill": "#EAEAE8",
+              "content": "保存",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "bbHzf",
+          "name": "sec15sTime",
+          "width": "fill_container",
+          "fill": "#1E1E24",
+          "cornerRadius": 14,
+          "layout": "vertical",
+          "gap": 8,
+          "padding": [
+            20,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "A3afYS",
+              "name": "sec15sTimeLabel",
+              "fill": "#7F7F7C",
+              "content": "発火時刻",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "wweLv",
+              "name": "sec15sTimeBig",
+              "fill": "#00000000",
+              "gap": 4,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "qD6Zq",
+                  "name": "sec15sHour",
+                  "fill": "#F4F4F2",
+                  "content": "07",
+                  "fontFamily": "Inter",
+                  "fontSize": 56,
+                  "fontWeight": "700",
+                  "letterSpacing": -2
+                },
+                {
+                  "type": "text",
+                  "id": "JK6pB",
+                  "name": "sec15sColon",
+                  "fill": "#5A5A60",
+                  "content": ":",
+                  "fontFamily": "Inter",
+                  "fontSize": 56,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "Z3r69H",
+                  "name": "sec15sMin",
+                  "fill": "#F4F4F2",
+                  "content": "30",
+                  "fontFamily": "Inter",
+                  "fontSize": 56,
+                  "fontWeight": "700",
+                  "letterSpacing": -2
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "Rvo7l",
+              "name": "sec15sTimeHint",
+              "fill": "#5A5A60",
+              "content": "毎日この時刻に発火 (純粋関数で判定)",
+              "fontFamily": "Inter",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "CRh3V",
+              "name": "sec15sTimeBtn",
+              "fill": "#2A2A32",
+              "cornerRadius": 999,
+              "padding": [
+                10,
+                16
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Ud9q4",
+                  "name": "sec15sTimeBtnLabel",
+                  "fill": "#F4F4F2",
+                  "content": "時刻を変更",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "600"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "chMKn",
+          "name": "sec15sNotif",
+          "width": "fill_container",
+          "fill": "#1E1E24",
+          "cornerRadius": 14,
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "XfsIE",
+              "name": "sec15sNotifTitleRow",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "YKQhB",
+                  "name": "sec15sNotifLabel",
+                  "fill": "#F4F4F2",
+                  "content": "ローカル通知",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "cXdub",
+                  "name": "sec15sNotifStatusPill",
+                  "fill": "#2A2A32",
+                  "cornerRadius": 999,
+                  "gap": 6,
+                  "padding": [
+                    4,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "O8WHs",
+                      "name": "sec15sNotifDot",
+                      "fill": "#7CD27A",
+                      "width": 6,
+                      "height": 6
+                    },
+                    {
+                      "type": "text",
+                      "id": "u83coK",
+                      "name": "sec15sNotifStatusText",
+                      "fill": "#7CD27A",
+                      "content": "許可済み",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "HK5d4",
+              "name": "sec15sNotifBody",
+              "fill": "#A0A0A0",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "アプリを起動していなくても 7:30 に通知。expo-notifications のローカル通知のみ使用 (サーバ push なし)。",
+              "lineHeight": 1.5,
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "JHMx8",
+          "name": "sec15sFallback",
+          "width": "fill_container",
+          "fill": "#1E1E24",
+          "cornerRadius": 14,
+          "gap": 12,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "tWhyA",
+              "name": "sec15sFallbackIconBox",
+              "width": 24,
+              "height": 24,
+              "fill": "#00000000",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "ETdrk",
+                  "x": 0,
+                  "y": 0,
+                  "name": "sec15sFallbackIconCircle",
+                  "width": 24,
+                  "height": 24,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1.5,
+                    "fill": "#5A5A60"
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "USRzs",
+                  "x": 10,
+                  "y": 4,
+                  "name": "sec15sFallbackIconI",
+                  "fill": "#5A5A60",
+                  "content": "i",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "r0Ted",
+              "name": "sec15sFallbackText",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "du8hq",
+                  "name": "sec15sFallbackTitle",
+                  "fill": "#F4F4F2",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "通知が届かなくても OK",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "FmEgc",
+                  "name": "sec15sFallbackBody",
+                  "fill": "#A0A0A0",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "アプリ起動時にも発火判定をします。Today からの手動発火も常に可能なので、通知を見落としても運用は止まりません。",
+                  "lineHeight": 1.5,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "KevPF",
+          "name": "spacer15s",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#00000000"
+        },
+        {
+          "type": "text",
+          "id": "KdTcP",
+          "name": "note15s",
+          "fill": "#5A5A60",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "v1 では time は単一値 (毎日同時刻)。\n曜日マップは Action のバリアント側で扱う (SPEC §2)。\n通知許可が無くてもアプリは劣化動作で機能する (ANT)。",
+          "lineHeight": 1.5,
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        }
+      ]
+    }
+  ]
+}
