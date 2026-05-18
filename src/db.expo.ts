@@ -9,10 +9,10 @@ export const createExpoSqliteClient = async (
   return {
     exec: (sql) => db.execAsync(sql),
     run: async (sql, params) => {
-      await db.runAsync(sql, ...(params as SQLite.SQLiteBindValue[] ?? []));
+      await db.runAsync(sql, ...((params ?? []) as SQLite.SQLiteBindValue[]));
     },
     all: async <T>(sql: string, params?: readonly unknown[]) =>
-      db.getAllAsync<T>(sql, ...(params as SQLite.SQLiteBindValue[] ?? [])),
+      db.getAllAsync<T>(sql, ...((params ?? []) as SQLite.SQLiteBindValue[])),
     close: () => db.closeAsync(),
   };
 };

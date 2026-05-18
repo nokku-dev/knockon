@@ -16,7 +16,9 @@ export type Seed = {
   initialAchievements: Achievement[];
 };
 
-export const buildPersonalChainSeed = (): Seed => {
+export const buildPersonalChainSeed = (
+  createdAt: string = new Date().toISOString(),
+): Seed => {
   const anchor: Anchor = {
     id: 'anchor-wake',
     title: '起床',
@@ -38,7 +40,7 @@ export const buildPersonalChainSeed = (): Seed => {
     title: '朝のルーティン',
     anchorId: anchor.id,
     status: 'active',
-    createdAt: '2026-05-18T00:00:00Z',
+    createdAt,
   };
 
   const nodes: Node[] = actions.map((action, index) => ({

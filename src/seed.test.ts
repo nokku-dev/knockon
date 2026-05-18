@@ -15,7 +15,7 @@ describe('seed — 自分のチェーン1本のラウンドトリップ (Phase 0
   test('シード投入後、コードからチェーン全体を読み出せる', async () => {
     const db = createBetterSqliteClient(':memory:');
     await initSchema(db);
-    const payload = buildPersonalChainSeed();
+    const payload = buildPersonalChainSeed('2026-05-18T00:00:00Z');
     await seed(db, payload);
 
     const chains = await listChains(db, 'active');
@@ -40,11 +40,11 @@ describe('seed — 自分のチェーン1本のラウンドトリップ (Phase 0
   test('達成記録の往復: 飛ばし達成でもゆるい連鎖判定で独立に集計される', async () => {
     const db = createBetterSqliteClient(':memory:');
     await initSchema(db);
-    const payload = buildPersonalChainSeed();
+    const payload = buildPersonalChainSeed('2026-05-18T00:00:00Z');
     await seed(db, payload);
 
     const date = '2026-05-18';
-    const [first, _skipped, third] = payload.nodes;
+    const [first, skipped, third] = payload.nodes;
     await recordAchievement(db, {
       nodeId: first!.id,
       date,
@@ -61,7 +61,7 @@ describe('seed — 自分のチェーン1本のラウンドトリップ (Phase 0
     expect(records).toHaveLength(2);
 
     expect(isNodeAchievedOn(records, first!.id, date)).toBe(true);
-    expect(isNodeAchievedOn(records, payload.nodes[1]!.id, date)).toBe(false);
+    expect(isNodeAchievedOn(records, skipped!.id, date)).toBe(false);
     expect(isNodeAchievedOn(records, third!.id, date)).toBe(true);
     expect(countAchievedNodesOn(records, allNodeIds, date)).toBe(2);
 
