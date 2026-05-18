@@ -32,12 +32,12 @@
 
 | # | PR タイトル | 完了条件 | 依存追加 | スコープ外 |
 |---|---|---|---|---|
-| **1.1** | `feat: Phase 1.1 — Expo Dev Build で実機到達 + シード Today 表示` | iOS 実機で Expo 起動 → シードチェーン1本のノードリストが表示される | jest-expo 並走（[ADR-0008](./docs/decisions/0008-test-strategy-ts-jest-bettersqlite.md)）/ `react-native-safe-area-context` | チェックオフ・線・通知 |
-| **1.2** | `feat: Phase 1.2 — ノード単位チェックオフ` | タップで `recordAchievement` → 当日の達成状態が UI に反映 / 再起動後も保持 | — | 線描画・手動発火 UI |
+| **1.1** | `feat: Phase 1.1 — Expo Dev Build で実機到達 + シード Today 表示` | iOS 実機で Expo 起動 → シードチェーン1本のノードリストが表示される | `react-native-safe-area-context`（`expo-sqlite` は Phase 0 で導入済み） | チェックオフ・線・通知・RN コンポーネントテスト |
+| **1.2** | `feat: Phase 1.2 — ノード単位チェックオフ` | タップで `recordAchievement` → 当日の達成状態が UI に反映 / 再起動後も保持 | `jest-expo` 並走（最初の RN コンポーネントテストとなるため・[ADR-0008](./docs/decisions/0008-test-strategy-ts-jest-bettersqlite.md) §決定3） | 線描画・手動発火 UI |
 | **1.3** | `feat: Phase 1.3 — 1 本連続スパインの最小描画` | 当日の達成集合から線の塗り範囲を派生計算（domain 層）→ View でレンダリング。14D ウィンドウは API 受口だけ実装し描画は当日のみ | `react-native-svg`（最小・ADR 化候補） | 7/31 切替（v1 非スコープ）・形変化アニメ |
 | **1.4** | `feat: Phase 1.4 — 手動発火 + DB 自動初期化` | アプリ起動時に DB 初期化＋シード未投入なら自動投入 / 一覧から発火するチェーンを選ぶ動線 | — | 自動発火 |
 | **1.5** | `feat: Phase 1.5 — 時刻アンカー自動発火 + ローカル通知` | 起点アンカー (kind='time') の今日発火判定（純粋関数）+ ローカル通知スケジュール | `expo-notifications` | 場所発火 |
-| **1.6** | `feat: Phase 1.6 — 場所アンカー（OS ジオフェンス）+ 現在地登録` | 現在地登録 UI（最小）/ ジオフェンス登録 / Always 拒否時の手動フォールバック | `expo-location` | 地図検索（v1 非スコープ・[ADR-0003](./docs/decisions/0003-firing-logic.md)） |
+| **1.6** | `feat: Phase 1.6 — 場所アンカー（OS ジオフェンス）+ 現在地登録` | 現在地登録 UI（最小）/ ジオフェンス登録 / Always 拒否時の手動フォールバック | `expo-location` | 地図検索（v1 非スコープ・[ADR-0003](./docs/decisions/0003-firing-logic.md)）/ Always 再要求ループ・許可誘導 UI（ADR-0003 §「決定」第 5 項で禁止） |
 
 ### Phase 1 の判断ポイント
 
@@ -47,9 +47,10 @@
 
 ### Phase 1 で発生し得る ADR 化候補
 
-- **ADR-0009 (案)**: `react-native-svg` の採用（1.3 着手前）/ 代替: View 矩形による線表現
-- **ADR-0010 (案)**: 状態管理の選択（1.2-1.3 で UI 状態が増えてきたら）— Zustand / Jotai / React Context / useState だけで通す、いずれを採るか
-- **ADR-0011 (案)**: jest-expo の並走追加方法（1.1 で並走 multi-project 化するときの設定パターン）
+「先に固定」ではなく、各 PR 着手時に必要になったら立てる。**[ADR-0008](./docs/decisions/0008-test-strategy-ts-jest-bettersqlite.md) 等で既に手順が書かれている範囲で済めば新規 ADR は不要**。
+
+- **ADR-0009 (案)**: `react-native-svg` の採用（PR-1.3 着手前）/ 代替: View 矩形による線表現
+- **ADR-0010 (案)**: 状態管理の選択 — **発動条件: PR-1.4 完了後の実使用で `useState` + repository 直接呼び出しでは捌けない状態が出てきた場合のみ**。Zustand / Jotai / React Context / useState 継続のいずれを採るか。早期検証ゲート（[ADR-0006](./docs/decisions/0006-phase1-completion-and-scope-narrowing.md)）に従い「実使用で不便が出るまで立てない」
 
 ## Phase 2 — チェーン編集（実使用で不便だと判明した分だけ）
 
