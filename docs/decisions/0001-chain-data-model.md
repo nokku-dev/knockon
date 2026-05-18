@@ -47,4 +47,4 @@ knockon は If-Then / habit stacking 型の習慣アプリで、差別化の核�
 
 - 実装側のハードガードレール: 派生値カラムの追加・キャッシュテーブル・非正規化はレビューで弾く。リポジトリ層は `(ノード, 日付, bool)` の書き込み / 読み出しのみを露出し、集約は domain 層の純粋関数として実装する。
 - 後で覆すコスト: モデル変更は **データマイグレーション必須** で、永続化フォーマット・派生関数・UI 全層に波及する。覆すなら新規 ADR を作って本 ADR を `supersedes` に指定し、本 ADR の status を `superseded` にする。
-- 関連する未 back-fill 判断: ゆるい連鎖判定（[SPEC.md](../../SPEC.md) §2「達成・連鎖判定」）、弱い輪の v1 廃止、デザイン方針転換 v0→v0.2、命名 knockon は別 ADR として独立に back-fill する。本 ADR では扱わない。
+- 関連する back-fill: ゆるい連鎖判定は [0002](./0002-loose-chain-judgement.md)、デザイン方針転換 v0→v0.2 と弱い輪の v1 廃止は [0004](./0004-design-direction-v02.md)、命名 knockon は [0005](./0005-product-name-knockon.md) に独立 ADR として back-fill 済み。
