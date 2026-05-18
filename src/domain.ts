@@ -68,3 +68,6 @@ export const countAchievedNodesOn = (
     (acc, id) => acc + (isNodeAchievedOn(achievements, id, date) ? 1 : 0),
     0,
   );
+
+export const shouldSeed = (existingChains: readonly Chain[]): boolean =>
+  existingChains.length === 0;

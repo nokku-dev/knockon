@@ -1,5 +1,5 @@
-import type { Achievement } from './domain';
-import { countAchievedNodesOn, isNodeAchievedOn } from './domain';
+import type { Achievement, Chain } from './domain';
+import { countAchievedNodesOn, isNodeAchievedOn, shouldSeed } from './domain';
 
 describe('isNodeAchievedOn', () => {
   const achievements: Achievement[] = [
@@ -45,5 +45,23 @@ describe('countAchievedNodesOn (ゆるい連鎖判定の基礎: 各ノード独�
     expect(
       countAchievedNodesOn(achievements, ['n1', 'n2', 'n3'], '2026-05-17'),
     ).toBe(0);
+  });
+});
+
+describe('shouldSeed (起動時シード判定: 既存チェーン 0 件のときだけ投入)', () => {
+  const chain: Chain = {
+    id: 'c1',
+    title: '朝のルーティン',
+    anchorId: 'a1',
+    status: 'active',
+    createdAt: '2026-05-18T00:00:00Z',
+  };
+
+  test('チェーンが 0 件なら true', () => {
+    expect(shouldSeed([])).toBe(true);
+  });
+
+  test('チェーンが 1 件以上あれば false', () => {
+    expect(shouldSeed([chain])).toBe(false);
   });
 });
