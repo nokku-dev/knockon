@@ -12,6 +12,9 @@
     },
     "android": {
       "package": "co.nokku.knockon"
-    }
+    },
+    "plugins": [
+      "expo-asset"
+    ]
   }
 }
