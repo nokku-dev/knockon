@@ -1,3 +1,22 @@
 # Claude Code - 個人設定（git管理外）
 CLAUDE.local.md
 .claude/settings.local.json
+
+# Dependencies
+node_modules/
+
+# Build / Cache
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+
+# Native
+ios/
+android/
+
+# Local DB / Misc
+*.db
+*.db-journal
+.DS_Store
+

@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "knockon",
+    "slug": "knockon",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "co.nokku.knockon"
+    },
+    "android": {
+      "package": "co.nokku.knockon"
+    }
+  }
+}
