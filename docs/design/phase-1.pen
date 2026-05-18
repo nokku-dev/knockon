@@ -7,7 +7,7 @@
       "x": 0,
       "y": 0,
       "name": "Phase 1 タイトル",
-      "width": 2740,
+      "width": 3210,
       "height": 160,
       "fill": "#0F0F12",
       "layout": "vertical",
@@ -31,7 +31,7 @@
           "name": "subTitle",
           "fill": "#A0A0A0",
           "textGrowth": "fixed-width",
-          "width": 2600,
+          "width": 3120,
           "content": "PLAN PR-1.1 〜 PR-1.6 / DESIGN-SYSTEM v0.2 dark mode 準拠 / 不変条件: 線は 1 本連続スパイン・形変化は 円→星 の 1 回・禁止 UI なし",
           "fontFamily": "Inter",
           "fontSize": 14,
@@ -1063,7 +1063,7 @@
     {
       "type": "frame",
       "id": "K4YLIQ",
-      "x": 1880,
+      "x": 2350,
       "y": 200,
       "name": "PR-1.5 Today (時刻アンカー + 通知)",
       "width": 390,
@@ -1085,7 +1085,7 @@
           "fill": "#7A7A82",
           "textGrowth": "fixed-width",
           "width": 334,
-          "content": "PR-1.5 完了状態 — 時刻アンカー自動発火 + ローカル通知",
+          "content": "PR-1.5 完了状態 — 発火直後の Today (時刻アンカー)",
           "fontFamily": "Inter",
           "fontSize": 12,
           "fontWeight": "500"
@@ -1514,7 +1514,7 @@
     {
       "type": "frame",
       "id": "G8DfC6",
-      "x": 2350,
+      "x": 2820,
       "y": 200,
       "name": "PR-1.6 場所登録 (現在地)",
       "width": 390,
@@ -1870,6 +1870,375 @@
           "textGrowth": "fixed-width",
           "width": "fill_container",
           "content": "OS 標準ジオフェンス (region monitoring) で登録。\n地図検索 / 任意地点登録は v1 非スコープ (ADR-0003)。\nジオフェンス登録数上限はキューイングで吸収。",
+          "lineHeight": 1.5,
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "lTTsy",
+      "x": 1880,
+      "y": 200,
+      "name": "PR-1.5 時刻アンカー設定",
+      "width": 390,
+      "height": 844,
+      "fill": "#16161A",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": [
+        24,
+        32,
+        24,
+        24
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "lAF86",
+          "name": "label15s",
+          "fill": "#7A7A82",
+          "textGrowth": "fixed-width",
+          "width": 334,
+          "content": "PR-1.5 完了状態 — 起点アンカー (時刻) 設定",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "T82DB1",
+          "name": "topbar15s",
+          "width": "fill_container",
+          "fill": "#00000000",
+          "padding": [
+            0,
+            0,
+            8,
+            0
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "PoDbh",
+              "name": "cancel15s",
+              "fill": "#7F7F7C",
+              "content": "キャンセル",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "x4Upa",
+              "name": "title15s",
+              "fill": "#F4F4F2",
+              "content": "起点アンカーを時刻に設定",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "hZNj5",
+              "name": "save15s",
+              "fill": "#EAEAE8",
+              "content": "保存",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "bbHzf",
+          "name": "sec15sTime",
+          "width": "fill_container",
+          "fill": "#1E1E24",
+          "cornerRadius": 14,
+          "layout": "vertical",
+          "gap": 8,
+          "padding": [
+            20,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "A3afYS",
+              "name": "sec15sTimeLabel",
+              "fill": "#7F7F7C",
+              "content": "発火時刻",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "wweLv",
+              "name": "sec15sTimeBig",
+              "fill": "#00000000",
+              "gap": 4,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "qD6Zq",
+                  "name": "sec15sHour",
+                  "fill": "#F4F4F2",
+                  "content": "07",
+                  "fontFamily": "Inter",
+                  "fontSize": 56,
+                  "fontWeight": "700",
+                  "letterSpacing": -2
+                },
+                {
+                  "type": "text",
+                  "id": "JK6pB",
+                  "name": "sec15sColon",
+                  "fill": "#5A5A60",
+                  "content": ":",
+                  "fontFamily": "Inter",
+                  "fontSize": 56,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "Z3r69H",
+                  "name": "sec15sMin",
+                  "fill": "#F4F4F2",
+                  "content": "30",
+                  "fontFamily": "Inter",
+                  "fontSize": 56,
+                  "fontWeight": "700",
+                  "letterSpacing": -2
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "Rvo7l",
+              "name": "sec15sTimeHint",
+              "fill": "#5A5A60",
+              "content": "毎日この時刻に発火 (純粋関数で判定)",
+              "fontFamily": "Inter",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "CRh3V",
+              "name": "sec15sTimeBtn",
+              "fill": "#2A2A32",
+              "cornerRadius": 999,
+              "padding": [
+                10,
+                16
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Ud9q4",
+                  "name": "sec15sTimeBtnLabel",
+                  "fill": "#F4F4F2",
+                  "content": "時刻を変更",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "600"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "chMKn",
+          "name": "sec15sNotif",
+          "width": "fill_container",
+          "fill": "#1E1E24",
+          "cornerRadius": 14,
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "XfsIE",
+              "name": "sec15sNotifTitleRow",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "YKQhB",
+                  "name": "sec15sNotifLabel",
+                  "fill": "#F4F4F2",
+                  "content": "ローカル通知",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "cXdub",
+                  "name": "sec15sNotifStatusPill",
+                  "fill": "#2A2A32",
+                  "cornerRadius": 999,
+                  "gap": 6,
+                  "padding": [
+                    4,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "O8WHs",
+                      "name": "sec15sNotifDot",
+                      "fill": "#7CD27A",
+                      "width": 6,
+                      "height": 6
+                    },
+                    {
+                      "type": "text",
+                      "id": "u83coK",
+                      "name": "sec15sNotifStatusText",
+                      "fill": "#7CD27A",
+                      "content": "許可済み",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "HK5d4",
+              "name": "sec15sNotifBody",
+              "fill": "#A0A0A0",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "アプリを起動していなくても 7:30 に通知。expo-notifications のローカル通知のみ使用 (サーバ push なし)。",
+              "lineHeight": 1.5,
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "JHMx8",
+          "name": "sec15sFallback",
+          "width": "fill_container",
+          "fill": "#1E1E24",
+          "cornerRadius": 14,
+          "gap": 12,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "tWhyA",
+              "name": "sec15sFallbackIconBox",
+              "width": 24,
+              "height": 24,
+              "fill": "#00000000",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "ETdrk",
+                  "x": 0,
+                  "y": 0,
+                  "name": "sec15sFallbackIconCircle",
+                  "width": 24,
+                  "height": 24,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1.5,
+                    "fill": "#5A5A60"
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "USRzs",
+                  "x": 10,
+                  "y": 4,
+                  "name": "sec15sFallbackIconI",
+                  "fill": "#5A5A60",
+                  "content": "i",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "r0Ted",
+              "name": "sec15sFallbackText",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "du8hq",
+                  "name": "sec15sFallbackTitle",
+                  "fill": "#F4F4F2",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "通知が届かなくても OK",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "FmEgc",
+                  "name": "sec15sFallbackBody",
+                  "fill": "#A0A0A0",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "アプリ起動時にも発火判定をします。Today からの手動発火も常に可能なので、通知を見落としても運用は止まりません。",
+                  "lineHeight": 1.5,
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "KevPF",
+          "name": "spacer15s",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#00000000"
+        },
+        {
+          "type": "text",
+          "id": "KdTcP",
+          "name": "note15s",
+          "fill": "#5A5A60",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "v1 では time は単一値 (毎日同時刻)。\n曜日マップは Action のバリアント側で扱う (SPEC §2)。\n通知許可が無くてもアプリは劣化動作で機能する (ANT)。",
           "lineHeight": 1.5,
           "fontFamily": "Inter",
           "fontSize": 12,
