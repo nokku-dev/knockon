@@ -23,6 +23,17 @@ PR-1.2 ではタップでの再描画が入る = 毎回の `loadToday()` 呼び�
 - **`useEffect` クリーンアップ**: `loadToday().then(setView).catch(setError).finally(setLoading)` が unmount 後に setState を呼ぶ可能性。`let cancelled = false` ガード or `AbortController` 相当の打ち切り機構を入れる。Fast Refresh / HMR / 画面遷移で踏む。
 - **iOS 起動確認**: PR #8 では Android のみ通電確認。iOS Simulator または実機で同じ動作を確認する（場合により別 PR で対処）。
 
+## Phase 1 実機運用中に観察する CRUD 着手シグナル
+
+Phase 1 はチェーン / アクションの CRUD を含まない（シードチェーン 1 本固定）。ただし「Today 回す検証で必要になれば欲しい」という方針なので、実機運用中に以下のシグナルが出たら CRUD 着手を判断する。
+
+- **A. シード書き換え + 再ビルド が週 2 回以上** → Phase 2 前倒し着手
+- **B. 「このノード今日は飛ばしたい / 順序変えたい」を実機操作中に思う** → 編集 UI 最小実装 (並び替え + 削除のみ) を mid-Phase 1 で追加判断
+- **C. 検証チェーンが 1 本では足りず別チェーンを足したくなる** → チェーン新規作成だけ先行実装（編集は後送り）
+- **D. アンカー（時刻 / 場所）を毎週変えたくなる** → PR-1.5/1.6 でカバー済みなのでスコープ通り進める
+
+逆に **シード書き換えだけで 2 週間以上回せている → CRUD 不要のまま Phase 1 完了** に倒す（早期検証ゲート [ADR-0006](docs/decisions/0006-phase1-completion-and-scope-narrowing.md) 遵守）。
+
 ## 完了
 
 <!-- 直近の完了タスク。/retro の振り返り対象 -->
