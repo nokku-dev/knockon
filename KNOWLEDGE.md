@@ -59,3 +59,19 @@
 - **原因**: 抽象的な原則だけで、機械的に確認できる物理シグナルを持っていなかった。
 - **解決**: 「ドメイン層ファイル (`src/domain.ts` など) の `import` 文がゼロ（または同レイヤー内の型 import のみ）」をレビュー観点に追加。`grep "^import" src/domain.ts` で一発検証できる。Phase 0 では実際に import 文ゼロを実現している。
 - **教訓**: 抽象原則を運用するには、機械的に検証できる物理シグナルとセットにする。レイヤー依存原則は import グラフで可視化できる。後で `madge` や ESLint の `no-restricted-imports` で自動化する余地もあるが、当面は目視 + grep で十分。
+
+## K-008: Expo Go を dev クライアントとして使う限り、プロジェクト SDK はストア側 Expo Go によって外圧的に決まる
+
+- **状況**: Phase 1.1 実機検証で Android Expo Go が Play Store 自動更新で SDK 53 → 54 に上がり、プロジェクト SDK 53 では `PlatformConstants could not be found` で起動不能になった。Expo Go はストアから上がった SDK バージョンより古いプロジェクトをロードできない。
+- **問題**: ADR-0007 で「Expo SDK 更新サイクルへの追従コストが発生する。v1 は年 1-2 回の SDK 更新を許容」と書いていたが、これは「自分のペースで上げるコスト」を想定したものだった。実運用では Expo Go ストア更新が外圧として SDK 移行を **随時** 強制する構造になっており、夜から朝にかけて Expo Go が勝手に上がる可能性がある。
+- **原因**: managed workflow + Expo Go の組み合わせでは、dev クライアントの SDK 制約条件をストア側（Apple/Google）がコントロールする。「依存バージョンを自分が決める」という前提が成立しない。
+- **解決**: (a) Expo Go ベースの開発を続けるなら SDK は常に最新追従する。(b) 特定 SDK にピン留めしたいなら EAS Dev Build に移行して自前で SDK バージョン管理する。(c) Phase 1 中は EAS Free tier の制約と time-to-device 優先から (a) を取る（ADR-0007 §トレードオフに反映済み）。
+- **教訓**: SDK バージョンは「ストア側がいつでも上げる可能性のある外部入力」として扱う。Phase 1.5/1.6 で時刻/場所アンカーを実装した後に SDK 強制移行が来ると壊れる可能性が高いため、その時点で **EAS Dev Build への移行判断を再評価** する。長期実機運用フェーズに入る前に Dev Build に降りるのが安全。
+
+## K-009: `expo install` / SDK バンプは tsconfig / babel.config / package.json / app.json に予期せぬ書き換えをする
+
+- **状況**: PR #8 (Phase 1.1) で SDK 54 へのバンプ過程で、(a) `babel-preset-expo` が transitive から外れ devDep への明示追加が必要、(b) `tsconfig.json` が `expo/tsconfig.base` への `extends` を自動付与され `module: preserve` / `customConditions` を要求して TS 5.3 + `moduleResolution: node` と非互換、(c) `app.json` の plugins 配列に `expo-asset` が自動付与、(d) `typescript` が誤って dependencies と devDependencies の両方に入った、という副作用に連続的に踏んだ。
+- **問題**: 「依存バージョンを上げる」だけの操作だと思っていたが、ビルド設定全体に副作用が及ぶ。1 回の `expo install` で 3-4 ファイルが同時に書き換わり、ts-jest / type-check / Metro bundling のどれかが連鎖的に壊れる。
+- **原因**: Expo の標準セットアップは「自分が決めた tsconfig / babel config」を尊重しない前提があり、SDK 間でデフォルト挙動が変わる（`expo install` 内部の config plugin hook が tsconfig まで触る）。
+- **解決**: `expo install` / SDK バンプ後は **必ず `git status` で diff 対象を確認**し、最低 `package.json` / `tsconfig.json` / `babel.config.js` / `app.json` の 4 ファイルを開く。`tsconfig.json` の `extends` 自動付与は黙って受け入れて整合させる方が、毎回戦うよりコストが低い（TS 5.8+ と `moduleResolution: bundler` で動く）。
+- **教訓**: SDK バンプは「依存バージョン更新」ではなく「ビルドツールチェイン更新」として扱う。Phase 1 残り (1.2-1.6) でも `expo install` を叩く局面が出る（`expo-notifications` / `expo-location` 等）ので、その都度この 4 ファイルを diff チェック。CLAUDE.md §レビューロールにチェック項目として明記。
