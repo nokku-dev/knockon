@@ -53,6 +53,7 @@ superseded-by: []
 - React Native の起動コスト・JS スレッドの制約・OTA 更新依存は受け入れる。Phase 1 の N=1 規模では実害なし。
 - managed workflow を基本にすることで、将来 bare に降りる必要が出た場合のコストを抱える。これは Phase 1 後の実使用で判断する。
 - Expo SDK 更新サイクルへの追従コストが発生する。v1 スコープでは年 1-2 回の SDK 更新を許容。
+- **Expo Go を dev クライアントとして使う限り、プロジェクト SDK バージョンはストア側 Expo Go の SDK によって外圧的に決まる**（ストア更新で Expo Go が新 SDK に上がると、旧 SDK のプロジェクトは `PlatformConstants` 等の TurboModule 不整合で起動不能になる）。年 1-2 回の許容は **自分のペースで上げるコスト** を想定していたが、実際は Expo Go ストア更新で随時強制される運用になる。SDK ピン留めしたい時点で EAS Dev Build への移行が必要（Phase 1.1 時点では追従で運用）。Phase 1.1 で SDK 53→54 への一斉バンプを踏んだのはこの構造の最初の発現。
 - **EAS の有料プラン課金は [ADR-0003](./0003-firing-logic.md) の「有料地図 API 禁止」とは別レイヤー**: ADR-0003 / [CLAUDE.md](../../CLAUDE.md) §6 の「有料 API 禁止」は **ランタイムで従量課金が発生する地図 / Places API** を対象とする禁則で、ビルドインフラ（EAS Build / EAS Submit）の課金とは独立した話。v1 は EAS Free tier の範囲で運用し、ビルドキュー混雑等で必要になった場合のみ有料プラン課金を判断する（ランタイムコストではないため ADR-0003 の趣旨と矛盾しない）。
 
 ## 想定される影響
