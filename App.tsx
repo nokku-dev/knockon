@@ -104,6 +104,9 @@ export default function App() {
     };
   }, []);
 
+  // 楽観更新: タップで UI を即時反転 → 非同期で永続化。
+  // Phase 1.2 では DB エラー時の rollback を入れない (SQLite ローカル同期書込で
+  // ほぼ失敗しない前提)。実使用で乖離が観測されたら rollback or リトライを判断する。
   const handleToggle = useCallback(
     async (nodeId: string) => {
       if (!data) return;
