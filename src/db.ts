@@ -5,6 +5,11 @@ export interface DbClient {
   close?(): Promise<void>;
 }
 
+// 外部キー (REFERENCES) は SQL 上で宣言しているが、SQLite はデフォルト
+// PRAGMA foreign_keys=OFF のため FK 制約は実際には強制されない。Phase 1 は
+// シードチェーン 1 本固定で削除経路がないため実害なし。Phase 2 でチェーン /
+// アンカー削除を追加するときに `PRAGMA foreign_keys=ON` 有効化 + ON DELETE
+// CASCADE を全リレーションに足すかを判断する (PR #17 review M-2)。
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS anchors (
   id TEXT PRIMARY KEY,
@@ -46,8 +51,17 @@ CREATE TABLE IF NOT EXISTS achievements (
   PRIMARY KEY (node_id, date)
 );
 
+-- ADR-0012: アンカー発火イベント。1 日 1 回の不可逆事実。
+-- 時刻/場所共通。発火 record があれば「今日発火済み」扱い (Today の発火中ピル表示)。
+CREATE TABLE IF NOT EXISTS anchor_firings (
+  anchor_id TEXT NOT NULL REFERENCES anchors(id),
+  date TEXT NOT NULL,
+  PRIMARY KEY (anchor_id, date)
+);
+
 CREATE INDEX IF NOT EXISTS idx_nodes_chain_order ON nodes(chain_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_achievements_date ON achievements(date);
+CREATE INDEX IF NOT EXISTS idx_anchor_firings_date ON anchor_firings(date);
 `;
 
 export const initSchema = (client: DbClient): Promise<void> =>

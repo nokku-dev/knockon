@@ -33,6 +33,12 @@ const ChainCard = ({ item: { chain, anchor, nodeCount }, onPress }: ChainCardPro
             <Text style={styles.anchorTime}>{anchor.time}</Text>
           </>
         )}
+        {anchor.kind === 'place' && anchor.radiusMeters != null && (
+          <>
+            <Text style={styles.divider}>·</Text>
+            <Text style={styles.anchorTime}>{anchor.radiusMeters}m</Text>
+          </>
+        )}
         <Text style={styles.divider}>·</Text>
         <Text style={styles.nodeCount}>{nodeCount} ノード</Text>
       </View>

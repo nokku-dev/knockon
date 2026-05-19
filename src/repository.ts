@@ -3,6 +3,7 @@ import type {
   Achievement,
   Action,
   Anchor,
+  AnchorFiring,
   Chain,
   IsoDate,
   Node,
@@ -47,6 +48,11 @@ type AchievementRow = {
   achieved: number;
 };
 
+type AnchorFiringRow = {
+  anchor_id: string;
+  date: string;
+};
+
 const rowToAnchor = (r: AnchorRow): Anchor => ({
   id: r.id,
   title: r.title,
@@ -85,6 +91,11 @@ const rowToAchievement = (r: AchievementRow): Achievement => ({
   nodeId: r.node_id,
   date: r.date,
   achieved: r.achieved === 1,
+});
+
+const rowToAnchorFiring = (r: AnchorFiringRow): AnchorFiring => ({
+  anchorId: r.anchor_id,
+  date: r.date,
 });
 
 export const insertAnchor = (db: DbClient, anchor: Anchor): Promise<void> =>
@@ -222,4 +233,28 @@ export const listAchievementsForNodes = async (
     params,
   );
   return rows.map(rowToAchievement);
+};
+
+// ADR-0012: アンカー発火イベントの記録。1 日 1 回の不可逆事実。
+// 同 (anchor_id, date) で 2 回目以降の INSERT は OR IGNORE で握り潰す。
+export const recordAnchorFiring = (
+  db: DbClient,
+  firing: AnchorFiring,
+): Promise<void> =>
+  db.run(
+    `INSERT OR IGNORE INTO anchor_firings (anchor_id, date) VALUES (?, ?)`,
+    [firing.anchorId, firing.date],
+  );
+
+// 指定アンカーの指定日付の発火 record を取得 (今日発火済み判定に使う)。
+export const listAnchorFiringsForDate = async (
+  db: DbClient,
+  anchorId: string,
+  date: IsoDate,
+): Promise<AnchorFiring[]> => {
+  const rows = await db.all<AnchorFiringRow>(
+    `SELECT * FROM anchor_firings WHERE anchor_id = ? AND date = ?`,
+    [anchorId, date],
+  );
+  return rows.map(rowToAnchorFiring);
 };

@@ -27,9 +27,11 @@ export type TodayScreenProps = {
   nodes: readonly TodayNode[];
   achievements: AchievementMap;
   onToggleNode: (nodeId: string) => void;
-  // 時刻アンカーが今日発火状態かどうか。true のとき起点アンカー横に accent ピル
-  // を出す。Today に出るかどうか自体とは独立 (ADR-0003 §自動発火は便利化レイヤー)。
-  timeAnchorFiringNow?: boolean;
+  // ADR-0012: アンカー発火イベントモデル。今日 anchor_firings に record が
+  // あるかどうか (時刻/場所共通)。true のとき起点アンカー横に accent ピル
+  // を出す。発火後は範囲を出る・時刻を巻き戻るなどしてもその日中は true。
+  // Today に出るかどうか自体とは独立 (ADR-0003 §自動発火は便利化レイヤー)。
+  anchorFiredToday?: boolean;
 };
 
 // SPINE_X は SVG viewport 内の縦線中心 x 座標。MARKER_RADIUS=7 + strokeWidth=1.5
@@ -50,7 +52,7 @@ export const TodayScreen = ({
   nodes,
   achievements,
   onToggleNode,
-  timeAnchorFiringNow = false,
+  anchorFiredToday = false,
 }: TodayScreenProps) => {
   const domainNodes = nodes.map((n) => n.node);
   const lastAchievedIdx = lastAchievedNodeIndex(domainNodes, achievements);
@@ -73,20 +75,34 @@ export const TodayScreen = ({
     <ScrollView contentContainerStyle={styles.scroll}>
       <Text style={styles.heading}>Today</Text>
       <View style={styles.anchorRow}>
-        {timeAnchorFiringNow && anchor.kind === 'time' && anchor.time && (
+        {anchorFiredToday && anchor.kind === 'time' && anchor.time && (
           <View style={styles.firingPill} accessibilityLabel="発火中">
             <View style={styles.firingDot} />
             <Text style={styles.firingPillText}>{anchor.time} 発火中</Text>
           </View>
         )}
+        {anchorFiredToday && anchor.kind === 'place' && (
+          <View style={styles.firingPill} accessibilityLabel="発火中">
+            <View style={styles.firingDot} />
+            <Text style={styles.firingPillText}>範囲内 発火中</Text>
+          </View>
+        )}
         <Text style={styles.anchorText}>{anchor.title}</Text>
-        {/* 発火中ピルが時刻を兼ねるので、ピル非表示時のみ控えめに時刻を併記する */}
-        {!timeAnchorFiringNow && anchor.kind === 'time' && anchor.time && (
+        {/* 発火中ピルが情報を兼ねるので、ピル非表示時のみ控えめに併記する */}
+        {!anchorFiredToday && anchor.kind === 'time' && anchor.time && (
           <>
             <Text style={styles.anchorDivider}>·</Text>
             <Text style={styles.anchorTimeText}>{anchor.time}</Text>
           </>
         )}
+        {!anchorFiredToday &&
+          anchor.kind === 'place' &&
+          anchor.radiusMeters != null && (
+            <>
+              <Text style={styles.anchorDivider}>·</Text>
+              <Text style={styles.anchorTimeText}>{anchor.radiusMeters}m</Text>
+            </>
+          )}
       </View>
       <Text style={styles.chainTitle}>{chain.title}</Text>
 
