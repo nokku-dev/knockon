@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
 import type { Anchor, Chain } from './domain';
@@ -24,7 +24,9 @@ export type UseAnchorSettingsResult = {
   error: string | null;
   loading: boolean;
   saving: boolean;
-  saveTimeAnchor: (time: string) => Promise<void>;
+  // 成功なら true / 失敗なら false。呼び出し側はこれを見て router.back() を出し分け
+  // (失敗時にモーダルを閉じると沈黙の失敗になるため)。
+  saveTimeAnchor: (time: string) => Promise<boolean>;
 };
 
 const findChain = async (chainId: string): Promise<Chain | null> => {
@@ -40,8 +42,10 @@ export const useAnchorSettings = (
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     let cancelled = false;
     (async () => {
       try {
@@ -67,12 +71,16 @@ export const useAnchorSettings = (
     })();
     return () => {
       cancelled = true;
+      mountedRef.current = false;
     };
   }, [chainId]);
 
+  // 成功なら true / 失敗なら false を返す。呼び出し側 (AnchorRoute) は
+  // 成功時のみ router.back() でモーダルを閉じる方針 (失敗時に閉じると
+  // 沈黙の失敗になるため)。unmount 後の setState は mountedRef でガード。
   const saveTimeAnchor = useCallback(
-    async (time: string) => {
-      if (!data) return;
+    async (time: string): Promise<boolean> => {
+      if (!data) return false;
       setSaving(true);
       try {
         const db = await getExpoSqliteClient();
@@ -85,11 +93,15 @@ export const useAnchorSettings = (
           radiusMeters: null,
         };
         await updateAnchor(db, nextAnchor);
-        setData({ ...data, anchor: nextAnchor });
+        if (mountedRef.current) setData({ ...data, anchor: nextAnchor });
+        return true;
       } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : String(e));
+        if (mountedRef.current) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        return false;
       } finally {
-        setSaving(false);
+        if (mountedRef.current) setSaving(false);
       }
     },
     [data],

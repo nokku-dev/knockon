@@ -153,7 +153,7 @@ describe('TodayScreen', () => {
     expect(queryByText(/発火中/)).toBeNull();
   });
 
-  test('anchor.kind=time のとき設定時刻が控えめに表示される (発火していなくても)', () => {
+  test('anchor.kind=time + 発火していないとき設定時刻が控えめに表示される', () => {
     const { getByText } = render(
       <TodayScreen
         chain={chain}
@@ -165,6 +165,22 @@ describe('TodayScreen', () => {
       />,
     );
     expect(getByText('07:30')).toBeTruthy();
+  });
+
+  test('発火中ピル表示時は通常の時刻表示は出さない (DESIGN-SYSTEM 整合 / 二重表示防止)', () => {
+    const { queryAllByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={timeAnchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+        timeAnchorFiringNow={true}
+      />,
+    );
+    // 「07:30 発火中」のピルにだけ含まれて、それ単独の時刻表示はない
+    expect(queryAllByText('07:30').length).toBe(0);
+    expect(queryAllByText('07:30 発火中').length).toBe(1);
   });
 
   test('anchor.kind=behavior のとき時刻表示は出ない', () => {

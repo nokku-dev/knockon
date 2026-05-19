@@ -80,7 +80,8 @@ export const TodayScreen = ({
           </View>
         )}
         <Text style={styles.anchorText}>{anchor.title}</Text>
-        {anchor.kind === 'time' && anchor.time && (
+        {/* 発火中ピルが時刻を兼ねるので、ピル非表示時のみ控えめに時刻を併記する */}
+        {!timeAnchorFiringNow && anchor.kind === 'time' && anchor.time && (
           <>
             <Text style={styles.anchorDivider}>·</Text>
             <Text style={styles.anchorTimeText}>{anchor.time}</Text>

@@ -8,6 +8,7 @@ import {
   COLOR_BG,
   COLOR_FG,
   COLOR_FG_SOFT,
+  COLOR_SURFACE,
 } from '../../src/tokens';
 import { useAnchorSettings } from '../../src/useAnchorSettings';
 
@@ -19,9 +20,15 @@ export default function AnchorRoute() {
   );
 
   const handleSave = async (time: string) => {
-    await saveTimeAnchor(time);
-    router.back();
+    const ok = await saveTimeAnchor(time);
+    if (ok) router.back();
+    // ok=false ならエラーバナーを画面下部に表示してモーダルを閉じない (沈黙の
+    // 失敗を避ける)。ユーザーは再試行できる。
   };
+
+  // 初期ロード失敗 (チェーン / アンカーが見つからない) はそのまま全画面エラー扱い。
+  // 保存後エラーは AnchorSettingsScreen を保持したまま下部バナーで通知する。
+  const isInitialLoadFailure = !loading && (!data || (!!error && !data));
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
@@ -30,19 +37,26 @@ export default function AnchorRoute() {
         <View style={styles.center}>
           <ActivityIndicator color={COLOR_FG} />
         </View>
-      ) : error ? (
-        <Text style={styles.error}>{error}</Text>
-      ) : !data ? (
-        <Text style={styles.soft}>チェーンが見つかりません</Text>
-      ) : (
-        <AnchorSettingsScreen
-          chain={data.chain}
-          anchor={data.anchor}
-          saving={saving}
-          onCancel={() => router.back()}
-          onSave={handleSave}
-        />
-      )}
+      ) : isInitialLoadFailure ? (
+        <Text style={error ? styles.error : styles.soft}>
+          {error ?? 'チェーンが見つかりません'}
+        </Text>
+      ) : data ? (
+        <View style={styles.body}>
+          <AnchorSettingsScreen
+            chain={data.chain}
+            anchor={data.anchor}
+            saving={saving}
+            onCancel={() => router.back()}
+            onSave={handleSave}
+          />
+          {error && (
+            <View style={styles.saveErrorBanner}>
+              <Text style={styles.saveErrorText}>保存に失敗しました: {error}</Text>
+            </View>
+          )}
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -51,6 +65,9 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: COLOR_BG,
+  },
+  body: {
+    flex: 1,
   },
   center: {
     flex: 1,
@@ -64,5 +81,16 @@ const styles = StyleSheet.create({
   soft: {
     color: COLOR_FG_SOFT,
     padding: 24,
+  },
+  saveErrorBanner: {
+    backgroundColor: COLOR_SURFACE,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderTopWidth: 0.5,
+    borderTopColor: COLOR_ACCENT,
+  },
+  saveErrorText: {
+    color: COLOR_ACCENT,
+    fontSize: 12,
   },
 });
