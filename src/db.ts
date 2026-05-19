@@ -5,6 +5,11 @@ export interface DbClient {
   close?(): Promise<void>;
 }
 
+// 外部キー (REFERENCES) は SQL 上で宣言しているが、SQLite はデフォルト
+// PRAGMA foreign_keys=OFF のため FK 制約は実際には強制されない。Phase 1 は
+// シードチェーン 1 本固定で削除経路がないため実害なし。Phase 2 でチェーン /
+// アンカー削除を追加するときに `PRAGMA foreign_keys=ON` 有効化 + ON DELETE
+// CASCADE を全リレーションに足すかを判断する (PR #17 review M-2)。
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS anchors (
   id TEXT PRIMARY KEY,

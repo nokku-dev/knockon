@@ -142,6 +142,12 @@ export const useTodayData = (): UseTodayDataResult => {
           // UI を block しないよう base 表示後に非同期で。一度発火したら以後の focus
           // 復帰時は loadToday 内で alreadyFired = true を見て GPS を skip する
           // (ADR-0012)。
+          //
+          // 既知の小さな race (P2 で判断、PR #17 review M-1): 連続 focus が短時間で
+          // 走ると両方の loadToday が alreadyFired=false を観測して GPS を 2 回引く
+          // 経路がある。recordAnchorFiring は INSERT OR IGNORE なので DB 正準性は
+          // 保たれる (二重 record 発生せず) が、GPS 取得バッテリーが少し余計に走る。
+          // Phase 1 規模で実害なし。Phase 2 で in-flight ref ガードを足すか判断。
           if (d.anchor.kind === 'place' && !d.anchorFiredToday) {
             const firing = await detectPlaceFiringByGps(d.anchor);
             if (cancelled || !firing) return;

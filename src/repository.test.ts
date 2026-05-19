@@ -311,4 +311,19 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
     expect(rows).toEqual([]);
     await teardown(db);
   });
+
+  test('存在しない anchor_id への INSERT は (test env では) FK 制約で reject される', async () => {
+    // 注: test env (better-sqlite3) は FK on デフォルトのため reject。
+    // 一方 prod env (expo-sqlite / vanilla SQLite) は FK off デフォルトのため
+    // 同じ INSERT が orphan record として通る。Phase 1 は削除経路なしで実害
+    // なし、Phase 2 で foreign_keys=ON 有効化 + ON DELETE CASCADE を全リレー
+    // ションに足すかを判断する (PR #17 review M-2/M-3、src/db.ts §冒頭コメント
+    // 参照)。本テストは test env での挙動を固定するだけで、prod env との
+    // 乖離が存在することの注意喚起 (K-006 の限界事例)。
+    const db = await setup();
+    await expect(
+      recordAnchorFiring(db, { anchorId: 'nonexistent', date: '2026-05-19' }),
+    ).rejects.toThrow(/FOREIGN KEY/);
+    await teardown(db);
+  });
 });
