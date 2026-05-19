@@ -75,3 +75,27 @@
 - **原因**: Expo の標準セットアップは「自分が決めた tsconfig / babel config」を尊重しない前提があり、SDK 間でデフォルト挙動が変わる（`expo install` 内部の config plugin hook が tsconfig まで触る）。
 - **解決**: `expo install` / SDK バンプ後は **必ず `git status` で diff 対象を確認**し、最低 `package.json` / `tsconfig.json` / `babel.config.js` / `app.json` の 4 ファイルを開く。`tsconfig.json` の `extends` 自動付与は黙って受け入れて整合させる方が、毎回戦うよりコストが低い（TS 5.8+ と `moduleResolution: bundler` で動く）。
 - **教訓**: SDK バンプは「依存バージョン更新」ではなく「ビルドツールチェイン更新」として扱う。Phase 1 残り (1.2-1.6) でも `expo install` を叩く局面が出る（`expo-notifications` / `expo-location` 等）ので、その都度この 4 ファイルを diff チェック。CLAUDE.md §レビューロールにチェック項目として明記。
+
+## K-010: 楽観更新パターンは rollback / stale closure / 同時実行の 3 トラップを内包する — 判断したことを暗黙にしない
+
+- **状況**: PR #11 (Phase 1.2) で Today のタップ → UI 即時反転 → `recordAchievement` で永続化、という楽観更新パターンを実装した。`useCallback(..., [data])` で `data` を closure に取り込み、失敗時の rollback も入れなかった。
+- **問題**: (1) closure 内の `data` を参照しているため、連打すると stale な `data.achievements` を基準に 2 重 UPSERT が発生しうる。(2) `recordAchievement` 失敗時に UI を rollback しないと UI/DB が乖離する。どちらも N=3 シードでは表示上ほぼ顕在化しないが、設計判断としては存在している。
+- **原因**: 楽観更新パターンは「stale closure」「rollback」「同時実行」の 3 トラップを内包するが、N=3 ではどれも目に見えにくく、暗黙の判断にしやすい。
+- **解決**: 楽観更新を書く時点で「functional update か `[data]` 依存か」「rollback ありか / 失敗を受容するか」を明示的に判断し、コードコメントで残す。PR #11 では `App.tsx` の `handleToggle` に「Phase 1.2 では rollback を入れない (SQLite ローカル同期書込でほぼ失敗しない前提)」を明記。
+- **教訓**: 「受容する」も立派な判断だが暗黙にしない。N が増えるシグナル (連打感がある UI / マルチデバイス同期が来る / 達成ノード数が 10+ になる) を観測したら functional update + rollback への移行を判断する。CLAUDE.md §レビューロールに「楽観更新の rollback / stale closure / 同時実行への対処が暗黙か明示か」チェック項目として明記。
+
+## K-011: Android edge-to-edge (SDK 53+ デフォルト) で root view が透ける → `expo-system-ui.setBackgroundColorAsync` を root file の top-level で呼ぶ
+
+- **状況**: PR #11 (Phase 1.2) で Android Expo Go SDK 54 で起動するとシステムナビバー周辺が白く透けた。`SafeAreaProvider` / `SafeAreaView` の bg は適用されているのに、最下部だけ白い。
+- **問題**: Android edge-to-edge がデフォルト ON のため、システムナビバーは透明で背後のアプリ色が透ける。`SafeAreaView` の bg は JS レイヤの View なので native root view までは届かない。
+- **原因**: `userInterfaceStyle: 'dark'` だけでは native root view の bg が制御できない。RN の `SafeAreaProvider` / `SafeAreaView` は JS 階層の bg であり、Android 12+ の透明ナビバー越しに透けるのは native root view。
+- **解決**: `expo-system-ui.setBackgroundColorAsync('#16161A')` を `App.tsx` の module top-level (コンポーネント外) で呼ぶ。`expo-system-ui` の JSDoc が公式に「root file outside of your component」と推奨。Promise は `void` で意図的に握り潰す。
+- **教訓**: ダークテーマアプリで Android を触るときは `userInterfaceStyle` だけでは透けが残る。SDK 53+ の edge-to-edge 既定挙動を前提に `expo-system-ui` を 1 行入れるパターンを使う。Phase 1.5/1.6 で別ダークサーフェスを足す場合も同じ対処。
+
+## K-012: Metro バンドルキャッシュで古い JS が動く → 「コード変えたのに動きが変わらない」を見たら最初に `--clear`
+
+- **状況**: PR #11 で `App.tsx` を書き換えてから Expo Go で起動したが、PR-1.1 と同じ画面 (マーカーなし / タップ無反応) のままだった。Metro が古いバンドルを serve していた。
+- **問題**: `npx expo start` を再起動せず、また `--clear` も付けないと、Metro のキャッシュが効いたままで JS 変更が反映されない。ユーザーから見ると「実装したはずなのに動かない」となり、コード起因のバグを疑って時間を浪費する。
+- **原因**: Metro はバンドル成果物を `.expo/` 配下にキャッシュする。`npx expo start` 再起動しても Metro 自身のメモリキャッシュは無効化されるが、ファイルキャッシュは残る。
+- **解決**: 「コード変えたのに動きが変わらない」を見たら最初に Metro キャッシュを疑う。`Ctrl+C` で停止 → `npx expo start --clear` で再起動 → Expo Go で Reload。これで直れば原因確定。
+- **教訓**: Phase 1 では `expo install` / SDK 設定変更 / ファイル切り出しが頻発するので、Metro キャッシュ起因の「動かない」を踏むことが繰り返される。デバッグ第一手として `--clear` を反射神経にする。PR ブランチ切替時 (Phase 内で feature/PR-1.x を行き来する場合) も要注意。
