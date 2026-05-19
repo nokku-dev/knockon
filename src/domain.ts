@@ -96,3 +96,28 @@ export const todayIsoDate = (now: Date): IsoDate => {
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 };
+
+// 線（スパイン）の --grow 範囲を派生する関数。
+// 「達成済みノード範囲モデル」(ADR-0010) — アンカーから最後に達成済みのノードまで
+// を --grow で繋ぐ。途中に未達ノードがあっても両端が達成済みなら線は繋がる扱い。
+// 返り値: 最後に達成済みのノードのインデックス。全ノード未達なら -1。
+export const lastAchievedNodeIndex = (
+  nodes: readonly Node[],
+  achievements: AchievementMap,
+): number => {
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    if (achievements[nodes[i]!.id] === true) return i;
+  }
+  return -1;
+};
+
+export const groupAchievementsByDate = (
+  achievements: readonly Achievement[],
+): Readonly<Record<IsoDate, AchievementMap>> => {
+  const grouped: Record<IsoDate, Record<string, boolean>> = {};
+  for (const a of achievements) {
+    const day = (grouped[a.date] ??= {});
+    day[a.nodeId] = a.achieved;
+  }
+  return grouped;
+};
