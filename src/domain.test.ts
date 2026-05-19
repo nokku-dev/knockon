@@ -1,7 +1,9 @@
-import type { Achievement, Chain } from './domain';
+import type { Achievement, Chain, Node } from './domain';
 import {
   countAchievedNodesOn,
+  groupAchievementsByDate,
   isNodeAchievedOn,
+  lastAchievedNodeIndex,
   shouldSeed,
   toAchievementMap,
   todayIsoDate,
@@ -122,5 +124,66 @@ describe('todayIsoDate (Date → YYYY-MM-DD; ローカルタイムゾーンで�
 
   test('境界の月末', () => {
     expect(todayIsoDate(new Date(2026, 11, 31, 23, 59, 59))).toBe('2026-12-31');
+  });
+});
+
+describe('lastAchievedNodeIndex (達成済みノード範囲モデル: ADR-0010)', () => {
+  const node = (id: string, orderIndex: number): Node => ({
+    id,
+    chainId: 'c1',
+    orderIndex,
+    kind: 'action',
+    actionId: `act-${id}`,
+  });
+  const nodes: Node[] = [node('n1', 0), node('n2', 1), node('n3', 2)];
+
+  test('全ノード未達 → -1 (スパイン --grow 範囲なし)', () => {
+    expect(lastAchievedNodeIndex(nodes, {})).toBe(-1);
+  });
+
+  test('n1 のみ達成 → 0 (anchor → n1 が --grow)', () => {
+    expect(lastAchievedNodeIndex(nodes, { n1: true })).toBe(0);
+  });
+
+  test('n1, n2 達成 → 1 (anchor → n2 が --grow)', () => {
+    expect(lastAchievedNodeIndex(nodes, { n1: true, n2: true })).toBe(1);
+  });
+
+  test('飛ばし達成 (n1 と n3 のみ) → 2 (達成済みノード範囲モデル: n3 まで線が繋がる)', () => {
+    expect(lastAchievedNodeIndex(nodes, { n1: true, n3: true })).toBe(2);
+  });
+
+  test('n3 のみ達成 (アンカー → n3 まで全部 --grow / 途中 n1 n2 未達でも繋がる)', () => {
+    expect(lastAchievedNodeIndex(nodes, { n3: true })).toBe(2);
+  });
+
+  test('全ノード達成 → nodes.length - 1 (スパイン全域 --grow)', () => {
+    expect(
+      lastAchievedNodeIndex(nodes, { n1: true, n2: true, n3: true }),
+    ).toBe(2);
+  });
+
+  test('achieved=false (明示的未達記録) は達成扱いしない', () => {
+    expect(lastAchievedNodeIndex(nodes, { n1: false })).toBe(-1);
+  });
+});
+
+describe('groupAchievementsByDate (14D ウィンドウ用 API 受口: 日付別 nodeId→bool マップ)', () => {
+  const records: Achievement[] = [
+    { nodeId: 'n1', date: '2026-05-18', achieved: true },
+    { nodeId: 'n2', date: '2026-05-18', achieved: false },
+    { nodeId: 'n1', date: '2026-05-19', achieved: true },
+    { nodeId: 'n3', date: '2026-05-19', achieved: true },
+  ];
+
+  test('日付ごとに nodeId→bool に分かれる', () => {
+    expect(groupAchievementsByDate(records)).toEqual({
+      '2026-05-18': { n1: true, n2: false },
+      '2026-05-19': { n1: true, n3: true },
+    });
+  });
+
+  test('空配列 → 空オブジェクト', () => {
+    expect(groupAchievementsByDate([])).toEqual({});
   });
 });
