@@ -58,6 +58,21 @@ describe('ChainListScreen', () => {
 
   test('items が空のとき空状態テキストが表示される', () => {
     const { getByText } = render(<ChainListScreen items={[]} />);
-    expect(getByText('active チェーンがありません')).toBeTruthy();
+    expect(getByText('チェーンがまだありません')).toBeTruthy();
+  });
+
+  test('onSelectChain 未指定のとき accessibilityRole=button が付かない (非インタラクティブ View)', () => {
+    const { getByLabelText } = render(<ChainListScreen items={items} />);
+    const el = getByLabelText('朝のルーティン');
+    // onSelectChain 未指定では Pressable を出さない (Augmentation 原則: 反応しない要素を出さない)
+    expect(el.props.accessibilityRole).toBeUndefined();
+  });
+
+  test('onSelectChain 指定時は accessibilityRole=button が付く', () => {
+    const { getByLabelText } = render(
+      <ChainListScreen items={items} onSelectChain={() => {}} />,
+    );
+    const el = getByLabelText('朝のルーティン');
+    expect(el.props.accessibilityRole).toBe('button');
   });
 });

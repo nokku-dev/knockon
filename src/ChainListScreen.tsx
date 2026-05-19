@@ -10,7 +10,48 @@ import type { ChainListItem } from './useChainListData';
 
 export type ChainListScreenProps = {
   items: readonly ChainListItem[];
+  // 未指定のとき各カードは非インタラクティブ View としてレンダリングされる。
+  // Phase 1 では発火動線 UI を配線していない (全シードチェーンは Today に自動表示
+  // される前提) ため未指定運用。タップしても何も起きない Pressable を出すと
+  // Augmentation 原則 (期待を作って空振りしない) に反するので構造的に分岐する。
   onSelectChain?: (chainId: string) => void;
+};
+
+type ChainCardProps = {
+  item: ChainListItem;
+  onPress?: (chainId: string) => void;
+};
+
+const ChainCard = ({ item: { chain, anchor, nodeCount }, onPress }: ChainCardProps) => {
+  const content = (
+    <>
+      <View style={styles.meta}>
+        <Text style={styles.anchor}>{anchor.title}</Text>
+        <Text style={styles.divider}>·</Text>
+        <Text style={styles.nodeCount}>{nodeCount} ノード</Text>
+      </View>
+      <Text style={styles.title}>{chain.title}</Text>
+    </>
+  );
+
+  if (!onPress) {
+    return (
+      <View style={styles.card} accessibilityLabel={chain.title}>
+        {content}
+      </View>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={() => onPress(chain.id)}
+      accessibilityRole="button"
+      accessibilityLabel={chain.title}
+      style={styles.card}
+    >
+      {content}
+    </Pressable>
+  );
 };
 
 export const ChainListScreen = ({
@@ -20,23 +61,11 @@ export const ChainListScreen = ({
   <ScrollView contentContainerStyle={styles.scroll}>
     <Text style={styles.heading}>チェーン</Text>
     {items.length === 0 ? (
-      <Text style={styles.empty}>active チェーンがありません</Text>
+      <Text style={styles.empty}>チェーンがまだありません</Text>
     ) : (
       <View style={styles.list}>
-        {items.map(({ chain, anchor, nodeCount }) => (
-          <Pressable
-            key={chain.id}
-            onPress={() => onSelectChain?.(chain.id)}
-            accessibilityLabel={chain.title}
-            style={styles.card}
-          >
-            <View style={styles.meta}>
-              <Text style={styles.anchor}>{anchor.title}</Text>
-              <Text style={styles.divider}>·</Text>
-              <Text style={styles.nodeCount}>{nodeCount} ノード</Text>
-            </View>
-            <Text style={styles.title}>{chain.title}</Text>
-          </Pressable>
+        {items.map((item) => (
+          <ChainCard key={item.chain.id} item={item} onPress={onSelectChain} />
         ))}
       </View>
     )}

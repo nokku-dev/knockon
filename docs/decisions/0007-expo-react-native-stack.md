@@ -61,5 +61,6 @@ superseded-by: []
 - **同 PR で同期更新が必要**: [CLAUDE.md](../../CLAUDE.md) §技術スタック（Expo で確定）/ §ビルド・テストコマンド（Expo 標準に従う旨を明記）/ §ディレクトリ構成（Phase 0 着手時に Expo 慣例で固める）の文言を本 ADR に揃える。
 - **Phase 0 着手時の作業**: `expo init` での雛形生成、`package.json` スクリプト群の確定、`tsconfig.json`、`jest-expo` 設定、`app.json` / `eas.json` の初期化。これらは本 ADR の決定の自然な帰結であり、追加 ADR は不要（具体的な依存バージョン選定で迷う場合のみ別 ADR）。
 - **既存 ADR との整合**: [0001](./0001-chain-data-model.md)（データモデル）/ [0003](./0003-firing-logic.md)（発火ロジック）と整合。supersede 関係なし。[0006](./0006-phase1-completion-and-scope-narrowing.md) の早期検証ゲートが本 ADR の選定基準を支配しているため、6 → 7 の依存関係を本文で明示。
+- **派生 ADR**: ナビゲーションは [ADR-0011](./0011-expo-router-for-navigation.md) で `expo-router` (ファイルベースルーティング、`app/` ディレクトリ) を採用。本 ADR の Expo 採用を前提に画面構成を確定する。本 ADR と矛盾しないが、エントリポイントは `App.tsx` から `expo-router/entry` に変更されているため、本 ADR を読み戻すときに `App.tsx` を再生成しないこと。
 - **後で覆すコスト**: Expo → bare RN へ降りるのは Phase 1 後の実使用で困った場合のみ実施（managed workflow 上で `npx expo prebuild` 経由）。Expo → 他フレームワーク（Flutter / ネイティブ / Capacitor）へ全面移行するコストは Phase 1 規模を超えるため、現時点では想定しない。覆す場合は本 ADR を `superseded` にする新規 ADR が必要。
 - **これは v1 の確定事項である**。Phase 0 / 1 着手後に「やはり Capacitor で書き直す」などの再検討は **行わない**。実機ビルドの障害が出た場合は本 ADR と別 ADR の両方を見直す。
