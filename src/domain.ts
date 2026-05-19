@@ -71,3 +71,28 @@ export const countAchievedNodesOn = (
 
 export const shouldSeed = (existingChains: readonly Chain[]): boolean =>
   existingChains.length === 0;
+
+export type AchievementMap = Readonly<Record<string, boolean>>;
+
+export const toAchievementMap = (
+  achievements: readonly Achievement[],
+  date: IsoDate,
+): AchievementMap => {
+  const map: Record<string, boolean> = {};
+  for (const a of achievements) {
+    if (a.date === date) map[a.nodeId] = a.achieved;
+  }
+  return map;
+};
+
+export const toggleAchievementInMap = (
+  map: AchievementMap,
+  nodeId: string,
+): AchievementMap => ({ ...map, [nodeId]: !(map[nodeId] ?? false) });
+
+export const todayIsoDate = (now: Date): IsoDate => {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};

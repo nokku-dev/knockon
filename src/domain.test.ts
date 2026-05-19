@@ -1,5 +1,12 @@
 import type { Achievement, Chain } from './domain';
-import { countAchievedNodesOn, isNodeAchievedOn, shouldSeed } from './domain';
+import {
+  countAchievedNodesOn,
+  isNodeAchievedOn,
+  shouldSeed,
+  toAchievementMap,
+  todayIsoDate,
+  toggleAchievementInMap,
+} from './domain';
 
 describe('isNodeAchievedOn', () => {
   const achievements: Achievement[] = [
@@ -63,5 +70,57 @@ describe('shouldSeed (起動時シード判定: 既存チェーン 0 件のと�
 
   test('チェーンが 1 件以上あれば false', () => {
     expect(shouldSeed([chain])).toBe(false);
+  });
+});
+
+describe('toAchievementMap (該当日付の Achievement[] を nodeId→bool 化)', () => {
+  const records: Achievement[] = [
+    { nodeId: 'n1', date: '2026-05-18', achieved: true },
+    { nodeId: 'n2', date: '2026-05-18', achieved: false },
+    { nodeId: 'n3', date: '2026-05-17', achieved: true },
+  ];
+
+  test('対象日付のみマップに入る', () => {
+    expect(toAchievementMap(records, '2026-05-18')).toEqual({
+      n1: true,
+      n2: false,
+    });
+  });
+
+  test('該当 0 件なら空オブジェクト', () => {
+    expect(toAchievementMap(records, '2026-05-16')).toEqual({});
+  });
+});
+
+describe('toggleAchievementInMap (純粋に反転コピーを返す)', () => {
+  test('未登録 nodeId は false 起点で true に反転', () => {
+    expect(toggleAchievementInMap({}, 'n1')).toEqual({ n1: true });
+  });
+
+  test('true → false に反転', () => {
+    expect(toggleAchievementInMap({ n1: true }, 'n1')).toEqual({ n1: false });
+  });
+
+  test('false → true に反転、他キーは保持', () => {
+    expect(toggleAchievementInMap({ n1: false, n2: true }, 'n1')).toEqual({
+      n1: true,
+      n2: true,
+    });
+  });
+
+  test('元のオブジェクトは破壊しない', () => {
+    const original = { n1: true };
+    toggleAchievementInMap(original, 'n1');
+    expect(original).toEqual({ n1: true });
+  });
+});
+
+describe('todayIsoDate (Date → YYYY-MM-DD; ローカルタイムゾーンで切り出し)', () => {
+  test('1 桁の月/日はゼロ埋めされる', () => {
+    expect(todayIsoDate(new Date(2026, 0, 3, 12, 0, 0))).toBe('2026-01-03');
+  });
+
+  test('境界の月末', () => {
+    expect(todayIsoDate(new Date(2026, 11, 31, 23, 59, 59))).toBe('2026-12-31');
   });
 });
