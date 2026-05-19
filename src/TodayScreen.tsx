@@ -9,6 +9,14 @@ import type {
   Node,
 } from './domain';
 import { lastAchievedNodeIndex } from './domain';
+import {
+  COLOR_BG,
+  COLOR_FG,
+  COLOR_FG_FAINT,
+  COLOR_FG_SOFT,
+  COLOR_GROW,
+  COLOR_LINE_BG,
+} from './tokens';
 
 export type TodayNode = { node: Node; action: Action };
 
@@ -20,6 +28,10 @@ export type TodayScreenProps = {
   onToggleNode: (nodeId: string) => void;
 };
 
+// SPINE_X は SVG viewport 内の縦線中心 x 座標。MARKER_RADIUS=7 + strokeWidth=1.5
+// のとき、左端は (SPINE_X - 7 - 0.75) で計算される。viewport の左端を割らないよう
+// SPINE_X >= MARKER_RADIUS + strokeWidth/2 + safety を満たすこと (K-013)。
+// MARKER_RADIUS か strokeWidth を変更したらこの式の整合を再確認。
 const SPINE_X = 9;
 const SPINE_COLUMN_WIDTH = 28;
 const ANCHOR_ROW_HEIGHT = 36;
@@ -27,11 +39,6 @@ const NODE_ROW_HEIGHT = 44;
 const MARKER_RADIUS = 7;
 const ANCHOR_DOT_RADIUS = 4;
 const SPINE_STROKE = 2;
-
-const COLOR_GROW = '#EAEAE8';
-const COLOR_LINE_BG = '#2A2A32';
-const COLOR_BG = '#16161A';
-const COLOR_FAINT = '#5A5A60';
 
 export const TodayScreen = ({
   chain,
@@ -45,6 +52,9 @@ export const TodayScreen = ({
   const anchorCenterY = ANCHOR_ROW_HEIGHT / 2;
   const nodeMarkerCenterY = (idx: number) =>
     ANCHOR_ROW_HEIGHT + idx * NODE_ROW_HEIGHT + NODE_ROW_HEIGHT / 2;
+  // nodes 0 件のとき lastNodeY と filledEndY はともに anchorCenterY となり、Line は
+  // ゼロ長で描画レス相当。Phase 1 は seed 1 本前提なので実際には到達しない経路だが、
+  // Phase 2 で CRUD が入ると瞬間的に発生し得るため安全側に倒している。
   const lastNodeY =
     nodes.length > 0 ? nodeMarkerCenterY(nodes.length - 1) : anchorCenterY;
   // ADR-0010: 達成済みノード範囲モデル — 線は anchor → 最後に達成済みのノード
@@ -100,7 +110,7 @@ export const TodayScreen = ({
                 cy={nodeMarkerCenterY(idx)}
                 r={MARKER_RADIUS}
                 fill={achieved ? COLOR_GROW : COLOR_BG}
-                stroke={achieved ? COLOR_GROW : COLOR_FAINT}
+                stroke={achieved ? COLOR_GROW : COLOR_FG_FAINT}
                 strokeWidth={1.5}
               />
             );
@@ -138,19 +148,18 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   heading: {
-    color: '#F4F4F2',
+    color: COLOR_FG,
     fontSize: 28,
     fontWeight: '700',
     letterSpacing: -0.5,
     marginBottom: 24,
   },
   anchorText: {
-    color: '#F4F4F2',
-    opacity: 0.52,
+    color: COLOR_FG_SOFT,
     fontSize: 14,
   },
   chainTitle: {
-    color: '#F4F4F2',
+    color: COLOR_FG,
     fontSize: 20,
     fontWeight: '600',
     marginBottom: 12,
@@ -168,11 +177,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   anchorRowLabel: {
-    color: COLOR_FAINT,
+    color: COLOR_FG_FAINT,
     fontSize: 12,
   },
   nodeText: {
-    color: '#F4F4F2',
+    color: COLOR_FG,
     fontSize: 16,
   },
 });
