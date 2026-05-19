@@ -112,6 +112,26 @@ export const lastAchievedNodeIndex = (
   return -1;
 };
 
+// 時刻アンカーが今日「発火状態」かを判定する純粋関数。
+// 「発火状態」= その日の現在時刻が anchor.time 以降に到達している。
+// 「Today に出るかどうか」とは独立した別軸 (Today 表示は Phase 1.4 Q2=B で
+// 全 active シードチェーン)。本関数は UI の発火中ピル / 通知判断のみに使う。
+export const isTimeAnchorFiringNow = (
+  anchor: Anchor,
+  now: Date,
+): boolean => {
+  if (anchor.kind !== 'time' || !anchor.time) return false;
+  const parts = anchor.time.split(':');
+  if (parts.length !== 2) return false;
+  const hh = parseInt(parts[0]!, 10);
+  const mm = parseInt(parts[1]!, 10);
+  if (Number.isNaN(hh) || Number.isNaN(mm)) return false;
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return false;
+  const fireMinutes = hh * 60 + mm;
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  return nowMinutes >= fireMinutes;
+};
+
 export const groupAchievementsByDate = (
   achievements: readonly Achievement[],
 ): Readonly<Record<IsoDate, AchievementMap>> => {

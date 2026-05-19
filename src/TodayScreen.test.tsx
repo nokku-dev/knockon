@@ -62,6 +62,16 @@ const renderScreen = (
     />,
   );
 
+const timeAnchor: Anchor = {
+  id: 'a1',
+  title: '起床',
+  kind: 'time',
+  time: '07:30',
+  latitude: null,
+  longitude: null,
+  radiusMeters: null,
+};
+
 describe('TodayScreen', () => {
   test('起点アンカー・チェーンタイトル・ノード列が表示される', () => {
     const { getByText } = renderScreen();
@@ -99,5 +109,90 @@ describe('TodayScreen', () => {
     expect(getByLabelText('水を飲む').props.accessibilityState.checked).toBe(true);
     expect(getByLabelText('ストレッチ').props.accessibilityState.checked).toBe(false);
     expect(getByLabelText('机に向かう').props.accessibilityState.checked).toBe(true);
+  });
+
+  test('timeAnchorFiringNow=true + 時刻アンカー → 発火中ピル表示', () => {
+    const { getByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={timeAnchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+        timeAnchorFiringNow={true}
+      />,
+    );
+    expect(getByText('07:30 発火中')).toBeTruthy();
+  });
+
+  test('timeAnchorFiringNow=false → 発火中ピルなし', () => {
+    const { queryByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={timeAnchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+        timeAnchorFiringNow={false}
+      />,
+    );
+    expect(queryByText('07:30 発火中')).toBeNull();
+  });
+
+  test('timeAnchorFiringNow=true でも anchor.kind=behavior なら発火中ピルなし', () => {
+    const { queryByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={anchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+        timeAnchorFiringNow={true}
+      />,
+    );
+    expect(queryByText(/発火中/)).toBeNull();
+  });
+
+  test('anchor.kind=time + 発火していないとき設定時刻が控えめに表示される', () => {
+    const { getByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={timeAnchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+        timeAnchorFiringNow={false}
+      />,
+    );
+    expect(getByText('07:30')).toBeTruthy();
+  });
+
+  test('発火中ピル表示時は通常の時刻表示は出さない (DESIGN-SYSTEM 整合 / 二重表示防止)', () => {
+    const { queryAllByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={timeAnchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+        timeAnchorFiringNow={true}
+      />,
+    );
+    // 「07:30 発火中」のピルにだけ含まれて、それ単独の時刻表示はない
+    expect(queryAllByText('07:30').length).toBe(0);
+    expect(queryAllByText('07:30 発火中').length).toBe(1);
+  });
+
+  test('anchor.kind=behavior のとき時刻表示は出ない', () => {
+    const { queryByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={anchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+      />,
+    );
+    expect(queryByText('07:30')).toBeNull();
   });
 });

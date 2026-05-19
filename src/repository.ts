@@ -102,6 +102,27 @@ export const insertAnchor = (db: DbClient, anchor: Anchor): Promise<void> =>
     ],
   );
 
+export const updateAnchor = (db: DbClient, anchor: Anchor): Promise<void> =>
+  db.run(
+    `UPDATE anchors
+        SET title = ?,
+            kind = ?,
+            time = ?,
+            latitude = ?,
+            longitude = ?,
+            radius_meters = ?
+      WHERE id = ?`,
+    [
+      anchor.title,
+      anchor.kind,
+      anchor.time,
+      anchor.latitude,
+      anchor.longitude,
+      anchor.radiusMeters,
+      anchor.id,
+    ],
+  );
+
 export const insertAction = (db: DbClient, action: Action): Promise<void> =>
   db.run(`INSERT INTO actions (id, title, variants_json) VALUES (?, ?, ?)`, [
     action.id,
