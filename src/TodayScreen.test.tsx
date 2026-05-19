@@ -72,6 +72,16 @@ const timeAnchor: Anchor = {
   radiusMeters: null,
 };
 
+const placeAnchor: Anchor = {
+  id: 'a1',
+  title: '自宅',
+  kind: 'place',
+  time: null,
+  latitude: 35.6586,
+  longitude: 139.7454,
+  radiusMeters: 100,
+};
+
 describe('TodayScreen', () => {
   test('起点アンカー・チェーンタイトル・ノード列が表示される', () => {
     const { getByText } = renderScreen();
@@ -111,7 +121,7 @@ describe('TodayScreen', () => {
     expect(getByLabelText('机に向かう').props.accessibilityState.checked).toBe(true);
   });
 
-  test('timeAnchorFiringNow=true + 時刻アンカー → 発火中ピル表示', () => {
+  test('anchorFiredToday=true + 時刻アンカー → 発火中ピル表示', () => {
     const { getByText } = render(
       <TodayScreen
         chain={chain}
@@ -119,13 +129,13 @@ describe('TodayScreen', () => {
         nodes={todayNodes}
         achievements={{}}
         onToggleNode={() => {}}
-        timeAnchorFiringNow={true}
+        anchorFiredToday={true}
       />,
     );
     expect(getByText('07:30 発火中')).toBeTruthy();
   });
 
-  test('timeAnchorFiringNow=false → 発火中ピルなし', () => {
+  test('anchorFiredToday=false → 発火中ピルなし', () => {
     const { queryByText } = render(
       <TodayScreen
         chain={chain}
@@ -133,13 +143,13 @@ describe('TodayScreen', () => {
         nodes={todayNodes}
         achievements={{}}
         onToggleNode={() => {}}
-        timeAnchorFiringNow={false}
+        anchorFiredToday={false}
       />,
     );
     expect(queryByText('07:30 発火中')).toBeNull();
   });
 
-  test('timeAnchorFiringNow=true でも anchor.kind=behavior なら発火中ピルなし', () => {
+  test('anchorFiredToday=true でも anchor.kind=behavior なら発火中ピルなし', () => {
     const { queryByText } = render(
       <TodayScreen
         chain={chain}
@@ -147,7 +157,7 @@ describe('TodayScreen', () => {
         nodes={todayNodes}
         achievements={{}}
         onToggleNode={() => {}}
-        timeAnchorFiringNow={true}
+        anchorFiredToday={true}
       />,
     );
     expect(queryByText(/発火中/)).toBeNull();
@@ -161,7 +171,7 @@ describe('TodayScreen', () => {
         nodes={todayNodes}
         achievements={{}}
         onToggleNode={() => {}}
-        timeAnchorFiringNow={false}
+        anchorFiredToday={false}
       />,
     );
     expect(getByText('07:30')).toBeTruthy();
@@ -175,7 +185,7 @@ describe('TodayScreen', () => {
         nodes={todayNodes}
         achievements={{}}
         onToggleNode={() => {}}
-        timeAnchorFiringNow={true}
+        anchorFiredToday={true}
       />,
     );
     // 「07:30 発火中」のピルにだけ含まれて、それ単独の時刻表示はない
@@ -194,5 +204,35 @@ describe('TodayScreen', () => {
       />,
     );
     expect(queryByText('07:30')).toBeNull();
+  });
+
+  test('place アンカー + 範囲外 → 半径表示 (発火中ピルなし)', () => {
+    const { getByText, queryByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={placeAnchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+        anchorFiredToday={false}
+      />,
+    );
+    expect(getByText('100m')).toBeTruthy();
+    expect(queryByText(/発火中/)).toBeNull();
+  });
+
+  test('place アンカー + anchorFiredToday=true → 発火中ピル表示 + 半径は二重表示しない', () => {
+    const { getByText, queryAllByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={placeAnchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+        anchorFiredToday={true}
+      />,
+    );
+    expect(getByText('範囲内 発火中')).toBeTruthy();
+    expect(queryAllByText('100m').length).toBe(0);
   });
 });

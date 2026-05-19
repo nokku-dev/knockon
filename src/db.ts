@@ -46,8 +46,17 @@ CREATE TABLE IF NOT EXISTS achievements (
   PRIMARY KEY (node_id, date)
 );
 
+-- ADR-0012: アンカー発火イベント。1 日 1 回の不可逆事実。
+-- 時刻/場所共通。発火 record があれば「今日発火済み」扱い (Today の発火中ピル表示)。
+CREATE TABLE IF NOT EXISTS anchor_firings (
+  anchor_id TEXT NOT NULL REFERENCES anchors(id),
+  date TEXT NOT NULL,
+  PRIMARY KEY (anchor_id, date)
+);
+
 CREATE INDEX IF NOT EXISTS idx_nodes_chain_order ON nodes(chain_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_achievements_date ON achievements(date);
+CREATE INDEX IF NOT EXISTS idx_anchor_firings_date ON anchor_firings(date);
 `;
 
 export const initSchema = (client: DbClient): Promise<void> =>

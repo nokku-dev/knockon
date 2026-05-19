@@ -48,6 +48,13 @@ export type Achievement = {
   achieved: boolean;
 };
 
+// ADR-0012: アンカー発火イベント。1 日 1 回の不可逆事実。
+// 時刻/場所共通の発火モデル。
+export type AnchorFiring = {
+  anchorId: string;
+  date: IsoDate;
+};
+
 export const isNodeAchievedOn = (
   achievements: readonly Achievement[],
   nodeId: string,
@@ -111,6 +118,57 @@ export const lastAchievedNodeIndex = (
   }
   return -1;
 };
+
+// 地球を球とみなした 2 点間距離 (メートル)。Haversine 公式。
+// 場所アンカーの発火判定 (isPlaceAnchorFiringNow) で使う純粋関数。
+// 引数は度単位の (latitude, longitude)。返り値は m。
+const EARTH_RADIUS_METERS = 6_371_000;
+const toRadians = (deg: number): number => (deg * Math.PI) / 180;
+export const distanceMeters = (
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): number => {
+  const dLat = toRadians(b.latitude - a.latitude);
+  const dLng = toRadians(b.longitude - a.longitude);
+  const lat1 = toRadians(a.latitude);
+  const lat2 = toRadians(b.latitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(h));
+};
+
+// 場所アンカーが「発火状態」かを判定する純粋関数。
+// 発火 = anchor.kind='place' かつ currentPosition がアンカーの半径内。
+// Phase 1.6 は前景での距離判定のみ (Expo Go 制約で OS ジオフェンスは Phase 1.6b
+// 後送り)。位置が取得できない / 権限拒否のときは呼び出し側が false を返す経路。
+export const isPlaceAnchorFiringNow = (
+  anchor: Anchor,
+  currentPosition: { latitude: number; longitude: number },
+): boolean => {
+  if (anchor.kind !== 'place') return false;
+  if (
+    anchor.latitude == null ||
+    anchor.longitude == null ||
+    anchor.radiusMeters == null
+  )
+    return false;
+  const d = distanceMeters(
+    { latitude: anchor.latitude, longitude: anchor.longitude },
+    currentPosition,
+  );
+  return d <= anchor.radiusMeters;
+};
+
+// 今日アンカーが発火済みかどうかを判定する純粋関数 (ADR-0012)。
+// 発火 record が AnchorFiring 配列にあれば true。時刻/場所共通の判定。
+// 「今日まだ発火していない」のチェックにも使う (! を取って評価)。
+export const isAnchorFiringToday = (
+  firings: readonly AnchorFiring[],
+  anchorId: string,
+  date: IsoDate,
+): boolean =>
+  firings.some((f) => f.anchorId === anchorId && f.date === date);
 
 // 時刻アンカーが今日「発火状態」かを判定する純粋関数。
 // 「発火状態」= その日の現在時刻が anchor.time 以降に到達している。

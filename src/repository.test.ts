@@ -9,9 +9,11 @@ import {
   insertChain,
   insertNode,
   listAchievementsForNodes,
+  listAnchorFiringsForDate,
   listChains,
   listNodes,
   recordAchievement,
+  recordAnchorFiring,
 } from './repository';
 
 const setup = async (): Promise<DbClient> => {
@@ -192,7 +194,7 @@ describe('recordAchievement — 正準データ (ノード, 日付, bool) のみ
 });
 
 describe('スキーマの不変条件', () => {
-  test('派生値カラム (定着率・達成率・星種別など) を含むテーブルが存在しない', async () => {
+  test('達成記録テーブル: 派生値カラム (定着率・達成率・星種別など) を含まない (3 カラム固定)', async () => {
     const db = await setup();
     type ColumnRow = { name: string };
     const achievementCols = await db.all<ColumnRow>(
@@ -203,7 +205,18 @@ describe('スキーマの不変条件', () => {
     await teardown(db);
   });
 
-  test('旧「リンク=アンカー×アクション」テーブルが存在しない', async () => {
+  test('アンカー発火テーブル (ADR-0012): カラムは anchor_id と date のみ (2 カラム固定)', async () => {
+    const db = await setup();
+    type ColumnRow = { name: string };
+    const firingCols = await db.all<ColumnRow>(
+      `PRAGMA table_info(anchor_firings)`,
+    );
+    const colNames = firingCols.map((c) => c.name).sort();
+    expect(colNames).toEqual(['anchor_id', 'date']);
+    await teardown(db);
+  });
+
+  test('旧「リンク=アンカー×アクション」テーブルが存在しない / 正準データテーブルのみ', async () => {
     const db = await setup();
     type TableRow = { name: string };
     const tables = await db.all<TableRow>(
@@ -212,8 +225,90 @@ describe('スキーマの不変条件', () => {
     const tableNames = tables.map((t) => t.name);
     expect(tableNames).not.toContain('links');
     expect(tableNames.sort()).toEqual(
-      ['achievements', 'actions', 'anchors', 'chains', 'nodes'].sort(),
+      [
+        'achievements',
+        'actions',
+        'anchor_firings',
+        'anchors',
+        'chains',
+        'nodes',
+      ].sort(),
     );
+    await teardown(db);
+  });
+});
+
+describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
+  test('発火 record を 1 回 INSERT → その日の listAnchorFiringsForDate で取得できる', async () => {
+    const db = await setup();
+    await insertAnchor(db, {
+      id: 'a1',
+      title: '起床',
+      kind: 'time',
+      time: '07:30',
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' });
+    const rows = await listAnchorFiringsForDate(db, 'a1', '2026-05-19');
+    expect(rows).toEqual([{ anchorId: 'a1', date: '2026-05-19' }]);
+    await teardown(db);
+  });
+
+  test('同 (anchor_id, date) で 2 回目以降の INSERT は無視 (1 日 1 回の不可逆イベント)', async () => {
+    const db = await setup();
+    await insertAnchor(db, {
+      id: 'a1',
+      title: '起床',
+      kind: 'time',
+      time: '07:30',
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' });
+    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' });
+    const rows = await listAnchorFiringsForDate(db, 'a1', '2026-05-19');
+    expect(rows).toHaveLength(1);
+    await teardown(db);
+  });
+
+  test('別日の発火 record はそれぞれ独立に残る', async () => {
+    const db = await setup();
+    await insertAnchor(db, {
+      id: 'a1',
+      title: '起床',
+      kind: 'time',
+      time: '07:30',
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-18' });
+    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' });
+    expect(
+      await listAnchorFiringsForDate(db, 'a1', '2026-05-18'),
+    ).toHaveLength(1);
+    expect(
+      await listAnchorFiringsForDate(db, 'a1', '2026-05-19'),
+    ).toHaveLength(1);
+    await teardown(db);
+  });
+
+  test('該当日に record なし → 空配列', async () => {
+    const db = await setup();
+    await insertAnchor(db, {
+      id: 'a1',
+      title: '起床',
+      kind: 'time',
+      time: '07:30',
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    const rows = await listAnchorFiringsForDate(db, 'a1', '2026-05-19');
+    expect(rows).toEqual([]);
     await teardown(db);
   });
 });
