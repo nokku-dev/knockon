@@ -49,6 +49,26 @@ const itemsWithTime: ChainListItem[] = [
   },
 ];
 
+const placeAnchor = (
+  id: string,
+  title: string,
+  radiusMeters: number,
+): Anchor => ({
+  ...anchor(id, title),
+  kind: 'place',
+  latitude: 35.6586,
+  longitude: 139.7454,
+  radiusMeters,
+});
+
+const itemsWithPlace: ChainListItem[] = [
+  {
+    chain: chain('c1', '帰宅後ルーティン', 'a1'),
+    anchor: placeAnchor('a1', '自宅', 100),
+    nodeCount: 2,
+  },
+];
+
 describe('ChainListScreen', () => {
   test('チェーンタイトル / 起点アンカー / ノード数が表示される', () => {
     const { getByText } = render(<ChainListScreen items={items} />);
@@ -98,5 +118,10 @@ describe('ChainListScreen', () => {
   test('behavior アンカーのとき時刻表示は出ない', () => {
     const { queryByText } = render(<ChainListScreen items={items} />);
     expect(queryByText(/^\d{2}:\d{2}$/)).toBeNull();
+  });
+
+  test('場所アンカー (kind=place) のとき半径がカード meta に表示される', () => {
+    const { getByText } = render(<ChainListScreen items={itemsWithPlace} />);
+    expect(getByText('100m')).toBeTruthy();
   });
 });

@@ -15,15 +15,32 @@ import { useAnchorSettings } from '../../src/useAnchorSettings';
 export default function AnchorRoute() {
   const { chainId } = useLocalSearchParams<{ chainId: string }>();
   const router = useRouter();
-  const { data, error, loading, saving, saveTimeAnchor } = useAnchorSettings(
-    chainId ?? '',
-  );
+  const {
+    data,
+    error,
+    loading,
+    saving,
+    saveTimeAnchor,
+    savePlaceAnchor,
+    locationPermission,
+    locating,
+    fetchCurrentLocation,
+  } = useAnchorSettings(chainId ?? '');
 
-  const handleSave = async (time: string) => {
+  const handleSaveTime = async (time: string) => {
     const ok = await saveTimeAnchor(time);
     if (ok) router.back();
     // ok=false ならエラーバナーを画面下部に表示してモーダルを閉じない (沈黙の
     // 失敗を避ける)。ユーザーは再試行できる。
+  };
+
+  const handleSavePlace = async (payload: {
+    latitude: number;
+    longitude: number;
+    radiusMeters: number;
+  }) => {
+    const ok = await savePlaceAnchor(payload);
+    if (ok) router.back();
   };
 
   // 初期ロード失敗 (チェーン / アンカーが見つからない) はそのまま全画面エラー扱い。
@@ -47,8 +64,12 @@ export default function AnchorRoute() {
             chain={data.chain}
             anchor={data.anchor}
             saving={saving}
+            locationPermission={locationPermission}
+            locating={locating}
             onCancel={() => router.back()}
-            onSave={handleSave}
+            onSaveTime={handleSaveTime}
+            onSavePlace={handleSavePlace}
+            onFetchLocation={fetchCurrentLocation}
           />
           {error && (
             <View style={styles.saveErrorBanner}>

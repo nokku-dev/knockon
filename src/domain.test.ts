@@ -1,8 +1,17 @@
-import type { Achievement, Anchor, Chain, Node } from './domain';
+import type {
+  Achievement,
+  Anchor,
+  AnchorFiring,
+  Chain,
+  Node,
+} from './domain';
 import {
   countAchievedNodesOn,
+  distanceMeters,
   groupAchievementsByDate,
+  isAnchorFiringToday,
   isNodeAchievedOn,
+  isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
   lastAchievedNodeIndex,
   shouldSeed,
@@ -166,6 +175,111 @@ describe('lastAchievedNodeIndex (達成済みノード範囲モデル: ADR-0010)
 
   test('achieved=false (明示的未達記録) は達成扱いしない', () => {
     expect(lastAchievedNodeIndex(nodes, { n1: false })).toBe(-1);
+  });
+});
+
+describe('distanceMeters (Haversine 2 点間距離)', () => {
+  test('同じ点 → 0m', () => {
+    expect(
+      distanceMeters(
+        { latitude: 35.6586, longitude: 139.7454 },
+        { latitude: 35.6586, longitude: 139.7454 },
+      ),
+    ).toBe(0);
+  });
+
+  test('東京タワー → 増上寺 (公称約 400m) を許容誤差 50m 以内で計算', () => {
+    // 東京タワー
+    const a = { latitude: 35.6586, longitude: 139.7454 };
+    // 増上寺
+    const b = { latitude: 35.6577, longitude: 139.7488 };
+    const d = distanceMeters(a, b);
+    expect(d).toBeGreaterThan(300);
+    expect(d).toBeLessThan(500);
+  });
+
+  test('緯度 1 度 ≒ 111km 程度', () => {
+    const d = distanceMeters(
+      { latitude: 35.0, longitude: 139.0 },
+      { latitude: 36.0, longitude: 139.0 },
+    );
+    expect(d).toBeGreaterThan(110_000);
+    expect(d).toBeLessThan(112_000);
+  });
+});
+
+describe('isPlaceAnchorFiringNow (場所アンカーの発火判定)', () => {
+  const placeAnchor = (
+    lat: number | null,
+    lng: number | null,
+    radius: number | null,
+  ): Anchor => ({
+    id: 'a1',
+    title: '自宅',
+    kind: 'place',
+    time: null,
+    latitude: lat,
+    longitude: lng,
+    radiusMeters: radius,
+  });
+  const home = { latitude: 35.6586, longitude: 139.7454 };
+
+  test('現在地がアンカー位置と一致 (距離 0m < 100m) → true', () => {
+    expect(isPlaceAnchorFiringNow(placeAnchor(35.6586, 139.7454, 100), home)).toBe(true);
+  });
+
+  test('現在地がアンカーから半径内 (約 50m, 半径 100m) → true', () => {
+    // 北に約 50m
+    const near = { latitude: 35.6586 + 0.00045, longitude: 139.7454 };
+    expect(isPlaceAnchorFiringNow(placeAnchor(35.6586, 139.7454, 100), near)).toBe(true);
+  });
+
+  test('現在地がアンカー半径外 (約 200m, 半径 100m) → false', () => {
+    const far = { latitude: 35.6586 + 0.0018, longitude: 139.7454 };
+    expect(isPlaceAnchorFiringNow(placeAnchor(35.6586, 139.7454, 100), far)).toBe(false);
+  });
+
+  test('kind=time は常に false', () => {
+    const a: Anchor = {
+      id: 'a2',
+      title: '起床',
+      kind: 'time',
+      time: '07:30',
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    };
+    expect(isPlaceAnchorFiringNow(a, home)).toBe(false);
+  });
+
+  test('latitude / longitude / radiusMeters のどれかが null なら false (defensive)', () => {
+    expect(isPlaceAnchorFiringNow(placeAnchor(null, 139.7454, 100), home)).toBe(false);
+    expect(isPlaceAnchorFiringNow(placeAnchor(35.6586, null, 100), home)).toBe(false);
+    expect(isPlaceAnchorFiringNow(placeAnchor(35.6586, 139.7454, null), home)).toBe(false);
+  });
+});
+
+describe('isAnchorFiringToday (発火イベント記録の有無判定: ADR-0012)', () => {
+  const firings: AnchorFiring[] = [
+    { anchorId: 'a1', date: '2026-05-18' },
+    { anchorId: 'a1', date: '2026-05-19' },
+    { anchorId: 'a2', date: '2026-05-19' },
+  ];
+
+  test('該当 anchor の今日 record があれば true', () => {
+    expect(isAnchorFiringToday(firings, 'a1', '2026-05-19')).toBe(true);
+  });
+
+  test('該当 anchor の record があっても別日なら false', () => {
+    expect(isAnchorFiringToday(firings, 'a1', '2026-05-20')).toBe(false);
+  });
+
+  test('該当日付の record があっても別 anchor なら false', () => {
+    expect(isAnchorFiringToday(firings, 'a3', '2026-05-19')).toBe(false);
+  });
+
+  test('空配列なら常に false', () => {
+    expect(isAnchorFiringToday([], 'a1', '2026-05-19')).toBe(false);
   });
 });
 

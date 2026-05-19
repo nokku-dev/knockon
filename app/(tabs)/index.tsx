@@ -30,7 +30,7 @@ export default function TodayTab() {
           nodes={data.nodes}
           achievements={data.achievements}
           onToggleNode={handleToggle}
-          timeAnchorFiringNow={data.timeAnchorFiringNow}
+          anchorFiredToday={data.anchorFiredToday}
         />
       )}
     </SafeAreaView>
