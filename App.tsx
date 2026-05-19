@@ -1,36 +1,46 @@
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import * as SystemUI from 'expo-system-ui';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
+void SystemUI.setBackgroundColorAsync('#16161A');
+
 import { initSchema } from './src/db';
-import { createExpoSqliteClient } from './src/db.expo';
-import { shouldSeed } from './src/domain';
-import type { Action, Anchor, Chain, Node } from './src/domain';
+import { getExpoSqliteClient } from './src/db.expo';
+import {
+  shouldSeed,
+  toAchievementMap,
+  todayIsoDate,
+  toggleAchievementInMap,
+} from './src/domain';
+import type {
+  AchievementMap,
+  Anchor,
+  Chain,
+} from './src/domain';
 import {
   getAction,
   getAnchor,
+  listAchievementsForNodes,
   listChains,
   listNodes,
+  recordAchievement,
 } from './src/repository';
 import { buildPersonalChainSeed, seed } from './src/seed';
+import { TodayScreen } from './src/TodayScreen';
+import type { TodayNode } from './src/TodayScreen';
 
-type TodayNode = { node: Node; action: Action };
-
-type TodayView = {
+type TodayData = {
   chain: Chain;
   anchor: Anchor;
   nodes: TodayNode[];
+  achievements: AchievementMap;
+  today: string;
 };
 
-const loadToday = async (): Promise<TodayView | null> => {
-  const db = await createExpoSqliteClient();
+const loadToday = async (): Promise<TodayData | null> => {
+  const db = await getExpoSqliteClient();
   await initSchema(db);
 
   const existing = await listChains(db, 'active');
@@ -52,53 +62,92 @@ const loadToday = async (): Promise<TodayView | null> => {
       return action ? { node, action } : null;
     }),
   );
+  const validNodes = withActions.filter((x): x is TodayNode => x !== null);
+  const today = todayIsoDate(new Date());
+  const records = await listAchievementsForNodes(
+    db,
+    validNodes.map((n) => n.node.id),
+    today,
+    today,
+  );
 
   return {
     chain,
     anchor,
-    nodes: withActions.filter((x): x is TodayNode => x !== null),
+    nodes: validNodes,
+    achievements: toAchievementMap(records, today),
+    today,
   };
 };
 
 export default function App() {
-  const [view, setView] = useState<TodayView | null>(null);
+  const [data, setData] = useState<TodayData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     loadToday()
-      .then((v) => setView(v))
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : String(e)),
-      )
-      .finally(() => setLoading(false));
+      .then((d) => {
+        if (!cancelled) setData(d);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  // 楽観更新: タップで UI を即時反転 → 非同期で永続化。
+  // Phase 1.2 では DB エラー時の rollback を入れない (SQLite ローカル同期書込で
+  // ほぼ失敗しない前提)。実使用で乖離が観測されたら rollback or リトライを判断する。
+  const handleToggle = useCallback(
+    async (nodeId: string) => {
+      if (!data) return;
+      const nextAchievements = toggleAchievementInMap(
+        data.achievements,
+        nodeId,
+      );
+      setData({ ...data, achievements: nextAchievements });
+      try {
+        const db = await getExpoSqliteClient();
+        await recordAchievement(db, {
+          nodeId,
+          date: data.today,
+          achieved: nextAchievements[nodeId] ?? false,
+        });
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [data],
+  );
+
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider style={styles.root}>
       <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
         <StatusBar style="light" />
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <Text style={styles.heading}>Today</Text>
-
-          {loading ? (
-            <ActivityIndicator color="#F4F4F2" />
-          ) : error ? (
-            <Text style={styles.error}>{error}</Text>
-          ) : !view ? (
-            <Text style={styles.soft}>チェーンがありません</Text>
-          ) : (
-            <View style={styles.chain}>
-              <Text style={styles.anchor}>{view.anchor.title}</Text>
-              <Text style={styles.chainTitle}>{view.chain.title}</Text>
-              {view.nodes.map(({ node, action }) => (
-                <Text key={node.id} style={styles.node}>
-                  {action.title}
-                </Text>
-              ))}
-            </View>
-          )}
-        </ScrollView>
+        {loading ? (
+          <ActivityIndicator color="#F4F4F2" style={styles.center} />
+        ) : error ? (
+          <Text style={styles.error}>{error}</Text>
+        ) : !data ? (
+          <Text style={styles.soft}>チェーンがありません</Text>
+        ) : (
+          <TodayScreen
+            chain={data.chain}
+            anchor={data.anchor}
+            nodes={data.nodes}
+            achievements={data.achievements}
+            onToggleNode={handleToggle}
+          />
+        )}
       </SafeAreaView>
     </SafeAreaProvider>
   );
@@ -109,40 +158,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#16161A',
   },
-  scroll: {
+  center: {
+    marginTop: 40,
+  },
+  error: {
+    color: '#E0574C',
     padding: 24,
-  },
-  heading: {
-    color: '#F4F4F2',
-    fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-    marginBottom: 24,
-  },
-  chain: {
-    gap: 12,
-  },
-  anchor: {
-    color: '#F4F4F2',
-    fontSize: 14,
-    opacity: 0.52,
-  },
-  chainTitle: {
-    color: '#F4F4F2',
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  node: {
-    color: '#F4F4F2',
-    fontSize: 16,
-    paddingVertical: 10,
   },
   soft: {
     color: '#F4F4F2',
     opacity: 0.52,
-  },
-  error: {
-    color: '#E0574C',
+    padding: 24,
   },
 });
