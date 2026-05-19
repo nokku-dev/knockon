@@ -12,6 +12,7 @@ If-Then / habit stacking 型の習慣アプリ（nokku 配下）。起点アン�
 - 位置: **`expo-location` の region monitoring**（OS 標準ジオフェンス）。**有料地図 API 禁止**（[ADR-0003](docs/decisions/0003-firing-logic.md)）。
 - 通知: **`expo-notifications`**（ローカル通知のみ・サーバ push は v1 非スコープ）。
 - 描画: **`react-native-svg`**（1 本連続スパインの線・マーカー描画、[ADR-0009](docs/decisions/0009-react-native-svg-for-spine.md)）。Phase 1.5 のノックモーションも SVG 上で実装予定。
+- ナビゲーション: **`expo-router`** (ファイルベースルーティング、[ADR-0011](docs/decisions/0011-expo-router-for-navigation.md))。`app/` 配下が画面構成。Bottom Tabs で Today / チェーン を切替。
 
 ## ビルド・テストコマンド
 
@@ -27,7 +28,10 @@ Expo の標準慣例に従う。具体的なスクリプト・依存バージョ
 - `docs/` — `SPEC.md`（仕様 v0.4）/ `PLAN.md`（実装順序）/ `DESIGN-SYSTEM.md`（v0.2）/ `KNOWLEDGE.md`（失敗パターン）
 - `docs/decisions/` — ADR（判断ログ）
 - `reference/` — デザイン参照 HTML（**使い捨て前提・出荷物ではない**。実装の規範は SPEC/DESIGN-SYSTEM 側）
-- アプリ本体のソース構成は Phase 0 着手時に Expo 慣例（`app/` または `src/`、`app.json` / `eas.json` 等）で固める（[ADR-0007](docs/decisions/0007-expo-react-native-stack.md)）。
+- `app/` — `expo-router` のファイルベースルーティング（[ADR-0011](docs/decisions/0011-expo-router-for-navigation.md)）。`_layout.tsx` がルート、`(tabs)/` 配下が Bottom Tabs。
+- `src/` — domain 層（純粋関数）/ DB クライアント / repository / presentation コンポーネント / hooks / トークン。
+
+これらは [ADR-0007](docs/decisions/0007-expo-react-native-stack.md) の Expo 採用と [ADR-0011](docs/decisions/0011-expo-router-for-navigation.md) のナビ採用に基づく構成。
 
 ## Augmentation原則（このプロジェクト固有）
 

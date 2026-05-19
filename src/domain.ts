@@ -106,7 +106,8 @@ export const lastAchievedNodeIndex = (
   achievements: AchievementMap,
 ): number => {
   for (let i = nodes.length - 1; i >= 0; i--) {
-    if (achievements[nodes[i]!.id] === true) return i;
+    const node = nodes[i];
+    if (node && achievements[node.id] === true) return i;
   }
   return -1;
 };
