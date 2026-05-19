@@ -1,8 +1,9 @@
-import type { Achievement, Chain, Node } from './domain';
+import type { Achievement, Anchor, Chain, Node } from './domain';
 import {
   countAchievedNodesOn,
   groupAchievementsByDate,
   isNodeAchievedOn,
+  isTimeAnchorFiringNow,
   lastAchievedNodeIndex,
   shouldSeed,
   toAchievementMap,
@@ -165,6 +166,69 @@ describe('lastAchievedNodeIndex (達成済みノード範囲モデル: ADR-0010)
 
   test('achieved=false (明示的未達記録) は達成扱いしない', () => {
     expect(lastAchievedNodeIndex(nodes, { n1: false })).toBe(-1);
+  });
+});
+
+describe('isTimeAnchorFiringNow (時刻アンカーの今日発火判定)', () => {
+  const timeAnchor = (time: string | null): Anchor => ({
+    id: 'a1',
+    title: '起床',
+    kind: 'time',
+    time,
+    latitude: null,
+    longitude: null,
+    radiusMeters: null,
+  });
+  const behaviorAnchor: Anchor = {
+    id: 'a2',
+    title: '起床',
+    kind: 'behavior',
+    time: null,
+    latitude: null,
+    longitude: null,
+    radiusMeters: null,
+  };
+
+  test('kind=time, 現在時刻 ≥ anchor.time → true', () => {
+    expect(
+      isTimeAnchorFiringNow(timeAnchor('07:30'), new Date(2026, 4, 19, 8, 0)),
+    ).toBe(true);
+  });
+
+  test('kind=time, 現在時刻 = anchor.time ぴったり → true', () => {
+    expect(
+      isTimeAnchorFiringNow(timeAnchor('07:30'), new Date(2026, 4, 19, 7, 30)),
+    ).toBe(true);
+  });
+
+  test('kind=time, 現在時刻 < anchor.time → false', () => {
+    expect(
+      isTimeAnchorFiringNow(timeAnchor('07:30'), new Date(2026, 4, 19, 7, 0)),
+    ).toBe(false);
+  });
+
+  test('kind=behavior は常に false (時刻アンカーではない)', () => {
+    expect(
+      isTimeAnchorFiringNow(behaviorAnchor, new Date(2026, 4, 19, 23, 59)),
+    ).toBe(false);
+  });
+
+  test('time が null なら false', () => {
+    expect(
+      isTimeAnchorFiringNow(timeAnchor(null), new Date(2026, 4, 19, 12, 0)),
+    ).toBe(false);
+  });
+
+  test('time が不正フォーマットなら false (defensive)', () => {
+    expect(
+      isTimeAnchorFiringNow(timeAnchor('abc'), new Date(2026, 4, 19, 12, 0)),
+    ).toBe(false);
+    expect(
+      isTimeAnchorFiringNow(timeAnchor('25:30'), new Date(2026, 4, 19, 12, 0)),
+    ).toBe(false);
+    expect(
+      isTimeAnchorFiringNow(timeAnchor('07:99'), new Date(2026, 4, 19, 12, 0)),
+    ).toBe(false);
   });
 });
 

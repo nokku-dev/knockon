@@ -22,6 +22,12 @@ const chain = (id: string, title: string, anchorId: string): Chain => ({
   createdAt: '2026-05-19T00:00:00Z',
 });
 
+const timeAnchor = (id: string, title: string, time: string): Anchor => ({
+  ...anchor(id, title),
+  kind: 'time',
+  time,
+});
+
 const items: ChainListItem[] = [
   {
     chain: chain('c1', '朝のルーティン', 'a1'),
@@ -32,6 +38,14 @@ const items: ChainListItem[] = [
     chain: chain('c2', '夜のルーティン', 'a2'),
     anchor: anchor('a2', '就寝前'),
     nodeCount: 2,
+  },
+];
+
+const itemsWithTime: ChainListItem[] = [
+  {
+    chain: chain('c1', '朝のルーティン', 'a1'),
+    anchor: timeAnchor('a1', '起床', '07:30'),
+    nodeCount: 3,
   },
 ];
 
@@ -74,5 +88,15 @@ describe('ChainListScreen', () => {
     );
     const el = getByLabelText('朝のルーティン');
     expect(el.props.accessibilityRole).toBe('button');
+  });
+
+  test('時刻アンカー (kind=time) のとき設定時刻がカード meta に表示される', () => {
+    const { getByText } = render(<ChainListScreen items={itemsWithTime} />);
+    expect(getByText('07:30')).toBeTruthy();
+  });
+
+  test('behavior アンカーのとき時刻表示は出ない', () => {
+    const { queryByText } = render(<ChainListScreen items={items} />);
+    expect(queryByText(/^\d{2}:\d{2}$/)).toBeNull();
   });
 });

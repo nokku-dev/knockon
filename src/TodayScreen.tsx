@@ -10,6 +10,7 @@ import type {
 } from './domain';
 import { lastAchievedNodeIndex } from './domain';
 import {
+  COLOR_ACCENT,
   COLOR_BG,
   COLOR_FG,
   COLOR_FG_FAINT,
@@ -26,6 +27,9 @@ export type TodayScreenProps = {
   nodes: readonly TodayNode[];
   achievements: AchievementMap;
   onToggleNode: (nodeId: string) => void;
+  // 時刻アンカーが今日発火状態かどうか。true のとき起点アンカー横に accent ピル
+  // を出す。Today に出るかどうか自体とは独立 (ADR-0003 §自動発火は便利化レイヤー)。
+  timeAnchorFiringNow?: boolean;
 };
 
 // SPINE_X は SVG viewport 内の縦線中心 x 座標。MARKER_RADIUS=7 + strokeWidth=1.5
@@ -46,6 +50,7 @@ export const TodayScreen = ({
   nodes,
   achievements,
   onToggleNode,
+  timeAnchorFiringNow = false,
 }: TodayScreenProps) => {
   const domainNodes = nodes.map((n) => n.node);
   const lastAchievedIdx = lastAchievedNodeIndex(domainNodes, achievements);
@@ -67,7 +72,21 @@ export const TodayScreen = ({
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <Text style={styles.heading}>Today</Text>
-      <Text style={styles.anchorText}>{anchor.title}</Text>
+      <View style={styles.anchorRow}>
+        {timeAnchorFiringNow && anchor.kind === 'time' && anchor.time && (
+          <View style={styles.firingPill} accessibilityLabel="発火中">
+            <View style={styles.firingDot} />
+            <Text style={styles.firingPillText}>{anchor.time} 発火中</Text>
+          </View>
+        )}
+        <Text style={styles.anchorText}>{anchor.title}</Text>
+        {anchor.kind === 'time' && anchor.time && (
+          <>
+            <Text style={styles.anchorDivider}>·</Text>
+            <Text style={styles.anchorTimeText}>{anchor.time}</Text>
+          </>
+        )}
+      </View>
       <Text style={styles.chainTitle}>{chain.title}</Text>
 
       <View style={[styles.spineContainer, { height: svgHeight }]}>
@@ -154,9 +173,44 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     marginBottom: 24,
   },
+  anchorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
   anchorText: {
     color: COLOR_FG_SOFT,
     fontSize: 14,
+  },
+  anchorDivider: {
+    color: COLOR_FG_FAINT,
+    fontSize: 14,
+  },
+  anchorTimeText: {
+    color: COLOR_FG_SOFT,
+    fontSize: 14,
+    fontVariant: ['tabular-nums'],
+  },
+  firingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: COLOR_LINE_BG,
+  },
+  firingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLOR_ACCENT,
+  },
+  firingPillText: {
+    color: COLOR_ACCENT,
+    fontSize: 11,
+    fontWeight: '600',
   },
   chainTitle: {
     color: COLOR_FG,

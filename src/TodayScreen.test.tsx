@@ -62,6 +62,16 @@ const renderScreen = (
     />,
   );
 
+const timeAnchor: Anchor = {
+  id: 'a1',
+  title: '起床',
+  kind: 'time',
+  time: '07:30',
+  latitude: null,
+  longitude: null,
+  radiusMeters: null,
+};
+
 describe('TodayScreen', () => {
   test('起点アンカー・チェーンタイトル・ノード列が表示される', () => {
     const { getByText } = renderScreen();
@@ -99,5 +109,74 @@ describe('TodayScreen', () => {
     expect(getByLabelText('水を飲む').props.accessibilityState.checked).toBe(true);
     expect(getByLabelText('ストレッチ').props.accessibilityState.checked).toBe(false);
     expect(getByLabelText('机に向かう').props.accessibilityState.checked).toBe(true);
+  });
+
+  test('timeAnchorFiringNow=true + 時刻アンカー → 発火中ピル表示', () => {
+    const { getByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={timeAnchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+        timeAnchorFiringNow={true}
+      />,
+    );
+    expect(getByText('07:30 発火中')).toBeTruthy();
+  });
+
+  test('timeAnchorFiringNow=false → 発火中ピルなし', () => {
+    const { queryByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={timeAnchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+        timeAnchorFiringNow={false}
+      />,
+    );
+    expect(queryByText('07:30 発火中')).toBeNull();
+  });
+
+  test('timeAnchorFiringNow=true でも anchor.kind=behavior なら発火中ピルなし', () => {
+    const { queryByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={anchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+        timeAnchorFiringNow={true}
+      />,
+    );
+    expect(queryByText(/発火中/)).toBeNull();
+  });
+
+  test('anchor.kind=time のとき設定時刻が控えめに表示される (発火していなくても)', () => {
+    const { getByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={timeAnchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+        timeAnchorFiringNow={false}
+      />,
+    );
+    expect(getByText('07:30')).toBeTruthy();
+  });
+
+  test('anchor.kind=behavior のとき時刻表示は出ない', () => {
+    const { queryByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={anchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+      />,
+    );
+    expect(queryByText('07:30')).toBeNull();
   });
 });

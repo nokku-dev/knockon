@@ -27,6 +27,12 @@ const ChainCard = ({ item: { chain, anchor, nodeCount }, onPress }: ChainCardPro
     <>
       <View style={styles.meta}>
         <Text style={styles.anchor}>{anchor.title}</Text>
+        {anchor.kind === 'time' && anchor.time && (
+          <>
+            <Text style={styles.divider}>·</Text>
+            <Text style={styles.anchorTime}>{anchor.time}</Text>
+          </>
+        )}
         <Text style={styles.divider}>·</Text>
         <Text style={styles.nodeCount}>{nodeCount} ノード</Text>
       </View>
@@ -100,6 +106,11 @@ const styles = StyleSheet.create({
   anchor: {
     color: COLOR_FG_SOFT,
     fontSize: 12,
+  },
+  anchorTime: {
+    color: COLOR_FG_SOFT,
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
   },
   divider: {
     color: COLOR_FG_FAINT,

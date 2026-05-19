@@ -1,20 +1,31 @@
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { TodayScreen } from '../../src/TodayScreen';
+import { AnchorSettingsScreen } from '../../src/AnchorSettingsScreen';
 import {
   COLOR_ACCENT,
   COLOR_BG,
   COLOR_FG,
   COLOR_FG_SOFT,
 } from '../../src/tokens';
-import { useTodayData } from '../../src/useTodayData';
+import { useAnchorSettings } from '../../src/useAnchorSettings';
 
-export default function TodayTab() {
-  const { data, error, loading, handleToggle } = useTodayData();
+export default function AnchorRoute() {
+  const { chainId } = useLocalSearchParams<{ chainId: string }>();
+  const router = useRouter();
+  const { data, error, loading, saving, saveTimeAnchor } = useAnchorSettings(
+    chainId ?? '',
+  );
+
+  const handleSave = async (time: string) => {
+    await saveTimeAnchor(time);
+    router.back();
+  };
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
+      <Stack.Screen options={{ headerShown: false }} />
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={COLOR_FG} />
@@ -22,15 +33,14 @@ export default function TodayTab() {
       ) : error ? (
         <Text style={styles.error}>{error}</Text>
       ) : !data ? (
-        <Text style={styles.soft}>チェーンがありません</Text>
+        <Text style={styles.soft}>チェーンが見つかりません</Text>
       ) : (
-        <TodayScreen
+        <AnchorSettingsScreen
           chain={data.chain}
           anchor={data.anchor}
-          nodes={data.nodes}
-          achievements={data.achievements}
-          onToggleNode={handleToggle}
-          timeAnchorFiringNow={data.timeAnchorFiringNow}
+          saving={saving}
+          onCancel={() => router.back()}
+          onSave={handleSave}
         />
       )}
     </SafeAreaView>
