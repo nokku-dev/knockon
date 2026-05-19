@@ -2,6 +2,7 @@
   "expo": {
     "name": "knockon",
     "slug": "knockon",
+    "scheme": "knockon",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -14,7 +15,8 @@
       "package": "co.nokku.knockon"
     },
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      "expo-router"
     ]
   }
 }

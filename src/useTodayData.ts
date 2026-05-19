@@ -1,24 +1,12 @@
-import { StatusBar } from 'expo-status-bar';
-import * as SystemUI from 'expo-system-ui';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-void SystemUI.setBackgroundColorAsync('#16161A');
-
-import { initSchema } from './src/db';
-import { getExpoSqliteClient } from './src/db.expo';
+import { getExpoSqliteClient } from './db.expo';
 import {
-  shouldSeed,
   toAchievementMap,
   todayIsoDate,
   toggleAchievementInMap,
-} from './src/domain';
-import type {
-  AchievementMap,
-  Anchor,
-  Chain,
-} from './src/domain';
+} from './domain';
+import type { AchievementMap, Anchor, Chain } from './domain';
 import {
   getAction,
   getAnchor,
@@ -26,12 +14,10 @@ import {
   listChains,
   listNodes,
   recordAchievement,
-} from './src/repository';
-import { buildPersonalChainSeed, seed } from './src/seed';
-import { TodayScreen } from './src/TodayScreen';
-import type { TodayNode } from './src/TodayScreen';
+} from './repository';
+import type { TodayNode } from './TodayScreen';
 
-type TodayData = {
+export type TodayData = {
   chain: Chain;
   anchor: Anchor;
   nodes: TodayNode[];
@@ -41,12 +27,6 @@ type TodayData = {
 
 const loadToday = async (): Promise<TodayData | null> => {
   const db = await getExpoSqliteClient();
-  await initSchema(db);
-
-  const existing = await listChains(db, 'active');
-  if (shouldSeed(existing)) {
-    await seed(db, buildPersonalChainSeed());
-  }
 
   const chains = await listChains(db, 'active');
   const chain = chains[0];
@@ -80,7 +60,14 @@ const loadToday = async (): Promise<TodayData | null> => {
   };
 };
 
-export default function App() {
+export type UseTodayDataResult = {
+  data: TodayData | null;
+  error: string | null;
+  loading: boolean;
+  handleToggle: (nodeId: string) => Promise<void>;
+};
+
+export const useTodayData = (): UseTodayDataResult => {
   const [data, setData] = useState<TodayData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,7 +93,7 @@ export default function App() {
 
   // 楽観更新: タップで UI を即時反転 → 非同期で永続化。
   // Phase 1.2 では DB エラー時の rollback を入れない (SQLite ローカル同期書込で
-  // ほぼ失敗しない前提)。実使用で乖離が観測されたら rollback or リトライを判断する。
+  // ほぼ失敗しない前提)。実使用で乖離が観測されたら rollback or リトライを判断 (K-010)。
   const handleToggle = useCallback(
     async (nodeId: string) => {
       if (!data) return;
@@ -129,45 +116,5 @@ export default function App() {
     [data],
   );
 
-  return (
-    <SafeAreaProvider style={styles.root}>
-      <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
-        <StatusBar style="light" />
-        {loading ? (
-          <ActivityIndicator color="#F4F4F2" style={styles.center} />
-        ) : error ? (
-          <Text style={styles.error}>{error}</Text>
-        ) : !data ? (
-          <Text style={styles.soft}>チェーンがありません</Text>
-        ) : (
-          <TodayScreen
-            chain={data.chain}
-            anchor={data.anchor}
-            nodes={data.nodes}
-            achievements={data.achievements}
-            onToggleNode={handleToggle}
-          />
-        )}
-      </SafeAreaView>
-    </SafeAreaProvider>
-  );
-}
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#16161A',
-  },
-  center: {
-    marginTop: 40,
-  },
-  error: {
-    color: '#E0574C',
-    padding: 24,
-  },
-  soft: {
-    color: '#F4F4F2',
-    opacity: 0.52,
-    padding: 24,
-  },
-});
+  return { data, error, loading, handleToggle };
+};
