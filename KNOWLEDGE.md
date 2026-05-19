@@ -115,3 +115,35 @@
 - **原因**: SPEC レベルの言葉ベース整合性チェックでは「ビジュアルがマイナスを指差していないか」が検証できない。実機を触る前に判定するのが構造的に難しい。
 - **解決**: 実機で違和感を覚えたら ADR を超えて SPEC を改訂してよい。本 PR では (1) SPEC §2 と DESIGN-SYSTEM §4.1 を実装と同 PR で改訂、(2) 改訂理由を ADR-0010 として残し、影響を受ける ADR-0009 と SPEC / DESIGN-SYSTEM に双方向リンクを張った (K-005 ルール遵守)。
 - **教訓**: 早期検証ゲート ([ADR-0006](docs/decisions/0006-phase1-completion-and-scope-narrowing.md)) は「実装後の違和感→ADR 改訂」を正規ルートとして許容する。Phase 1.4-1.6 でも同じパターンが出る可能性があり (手動発火 UI / 自動発火 / 場所登録 UI)、「触ってみて違和感→ADR」のフローを禁忌にしない。K-003 「UI はモデル検証の道具として安く回す」と同じ精神。
+
+## K-015: ADR の「正準データは X のみ」全称禁則を後続 ADR で軸別に拡張するパターン
+
+- **状況**: [ADR-0001](docs/decisions/0001-chain-data-model.md) §決定4 で「永続化される正準データは `(ノード, 日付, bool)` のみ」と書いていたが、Phase 1.6 で「アンカー発火イベント」という別軸の事実 (派生値ではない) を保存する必要が出てきた。
+- **問題**: 文字通り読むと ADR-0001 の禁則条文に抵触する。supersede するほどではない (達成側の不変条件は維持される) が、片側リンクだけだと ADR-0001 単体読みで誤誘導される (K-005 の問題)。
+- **原因**: 初期 ADR の禁則条文を「他のすべての保存を禁じる絶対句」として書いてしまった。後で別軸の事実が出てきたとき、再解釈の余地が条文に組み込まれていない。
+- **解決**: 新規 ADR ([ADR-0012](docs/decisions/0012-anchor-firing-events.md)) で「ADR-0001 §決定4 を **ノード達成側の話** と再解釈」を明示し、ADR-0001 側にも逆参照 1 行を追加 (K-005 適用)。SPEC.md / CLAUDE.md の同期更新もセット。テーブルとしては別軸 (`achievements` / `anchor_firings`)、判断系譜としては双方向リンクで辿れる。
+- **教訓**: 「正準データは X のみ」のような全称禁止条文を書くときは、将来 X とは別軸の事実が出てきたら「軸別に分離して両者を共存させる」運用ルールを判断ログ運用に組み込む。ADR-0012 がそのテンプレ。新規 ADR で「先行 ADR §N を Y 側に限定の話として再解釈」+ 双方向逆参照 + 同期更新がセット。
+
+## K-016: 1 回発火イベントモデルは Augmentation 原則「離脱を指差さない」と整合する
+
+- **状況**: Phase 1.6 で場所アンカーを実装した当初、「範囲内なら発火中 / 範囲外なら非発火」の動的派生で UI を組んだ。
+- **問題**: ユーザーが範囲を出るとピルが消える挙動になり、「離脱を指差すビジュアル」になっていた。Celebrate 主の核 ([CLAUDE.md](CLAUDE.md) §Augmentation 原則 / [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) §0) と微妙に逆向き。
+- **原因**: 状態モデル (動的派生) とイベントモデル (1 回発火) を区別せずに、自然な実装である動的派生から入った。動的派生は「現在の状態」を可視化するため、ネガティブな状態 (範囲外 / 時刻巻き戻し) も等しく可視化してしまう。
+- **解決**: 「観測した事実 (発火が起きた)」だけを残し、「現在の状態 (範囲外)」を派生に出さない。一度発火した祝福がその日続く。[ADR-0012](docs/decisions/0012-anchor-firing-events.md) で時刻/場所共通の「1 日 1 回の不可逆発火」モデルに統一。`anchor_firings` テーブルに観測した事実を保存する。
+- **教訓**: Celebrate 主の UI を作るとき、「**状態** (今 X なら Y を表示)」より「**不可逆イベント** (X が起きたら以後 Y を表示)」のモデルが原則と整合しやすい。状態モデルを使う場合は「ネガティブ側 (X でなくなったら Y を消す)」を慎重にチェック。Phase 2 以降で同じ判断点が出たら本パターンを参照。
+
+## K-017: GPS / 重い非同期処理は base load から分離 → 非同期マージ + cancelled で unmount race ガード
+
+- **状況**: Phase 1.6 初期実装で `useTodayData.loadToday` の中で `getCurrentPosition()` を同期実行していたら Today のローディングが 20-30 秒 block した (focus 復帰のたびに GPS 取り直し)。
+- **問題**: ローディング状態を 1 つにまとめてしまうと、最も遅い処理に引きずられる。base data (チェーン・アンカー・達成記録) は < 100ms で取れるのに、GPS で全体が block される。
+- **原因**: 「単一のローディング状態」で全データを丸めて await する設計。React Native でも Web でも同じ罠を踏みやすい。
+- **解決**: `loadToday` は base data だけ取って即 `setData` → `setLoading(false)`。GPS は base 表示後に非同期で取り、結果を `setData((prev) => prev ? { ...prev, anchorFiredToday: true } : prev)` でマージ。unmount race は `cancelled` フラグで防ぐ。「一度発火後は GPS skip」最適化も発火イベント DB ([ADR-0012](docs/decisions/0012-anchor-firing-events.md)) で構造的に解決。
+- **教訓**: 重い非同期処理 (GPS / 大量 IO / 外部 API) は base load から分離する。ローディング状態を 1 段に丸めず、必要なら段階的に解決する。`cancelled` フラグは `useFocusEffect` / `useEffect` のセオリーとして必ず入れる。Phase 2 で別の重い非同期 (例: Notion API 連携) が出てきたら同じパターンを適用する。
+
+## K-018: test env (better-sqlite3) と prod env (expo-sqlite) で FK 制約のデフォルト挙動が違う
+
+- **状況**: PR #17 で `anchor_firings.anchor_id REFERENCES anchors(id)` を宣言した状態で、「存在しない anchor_id で `recordAnchorFiring` を呼んだら何が起こるか」のテストを書いた。
+- **問題**: テスト (better-sqlite3) は `FOREIGN KEY constraint failed` で reject されたが、prod (expo-sqlite / vanilla SQLite) は **デフォルト `PRAGMA foreign_keys=OFF` で orphan record が静かに通る**。つまり「test では制約違反として弾かれるが prod では通る」という乖離が発生する。
+- **原因**: better-sqlite3 はデフォルトで `foreign_keys=ON`、vanilla SQLite (expo-sqlite を含む) はデフォルトで OFF。両者は別々の C ライブラリビルドで歴史的にデフォルトが違う。[ADR-0008](docs/decisions/0008-test-strategy-ts-jest-bettersqlite.md) でテストに better-sqlite3 を採用したが、この挙動差は ADR-0008 着手時に意識していなかった。
+- **解決**: 当面は test env での挙動 (FK on で reject) をテストで固定 + コメントで「prod env では orphan record が通る」と注意喚起。Phase 2 でチェーン / アンカー削除を実装するときに `PRAGMA foreign_keys=ON` 有効化 + 全リレーションに `ON DELETE CASCADE` を足すかを判断する。`src/db.ts` SCHEMA_SQL §冒頭にもコメント記載。
+- **教訓**: K-006 のスキーマ不変条件テストは「スキーマ定義の存在」を機械検証するが、「FK 制約が実際に強制されるか」のレイヤーは test/prod 環境差で乖離しうる。同種の test/prod 差を踏まないために、SQLite の `PRAGMA` 設定差・トリガーの有無・ビューの定義差などはレビュー観点として持っておく。`expo-sqlite` で `PRAGMA foreign_keys=ON` を呼ぶか、それとも CHECK 制約 / アプリケーション層でガードするかは Phase 2 設計判断。
