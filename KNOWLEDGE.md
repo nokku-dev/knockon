@@ -99,3 +99,19 @@
 - **原因**: Metro はバンドル成果物を `.expo/` 配下にキャッシュする。`npx expo start` 再起動しても Metro 自身のメモリキャッシュは無効化されるが、ファイルキャッシュは残る。
 - **解決**: 「コード変えたのに動きが変わらない」を見たら最初に Metro キャッシュを疑う。`Ctrl+C` で停止 → `npx expo start --clear` で再起動 → Expo Go で Reload。これで直れば原因確定。
 - **教訓**: Phase 1 では `expo install` / SDK 設定変更 / ファイル切り出しが頻発するので、Metro キャッシュ起因の「動かない」を踏むことが繰り返される。デバッグ第一手として `--clear` を反射神経にする。PR ブランチ切替時 (Phase 内で feature/PR-1.x を行き来する場合) も要注意。
+
+## K-013: SVG の円マーカーは stroke 外側マージンを viewport で予約しないと左端クリップする
+
+- **状況**: PR #13 (Phase 1.3) で `<Circle cx={SPINE_X} cy={...} r={7} strokeWidth={1.5}>` を最小幅の `<Svg width={SPINE_COLUMN_WIDTH}>` 内に配置。当初 `SPINE_X=7` だったが、実機で円の左端が縦に切れた。
+- **問題**: react-native-svg は `<Svg>` の `width/height` を viewport として扱う。`cx=7, r=7, stroke=1.5` だと実描画範囲は `x = 7 - 7 - 0.75 = -0.75` まで広がるが、viewport 外なのでピクセル境界で左端 0.75px 分が clip される。
+- **原因**: SVG の stroke は path 中心線から両側に広がる。`strokeWidth=1.5` の半分 0.75 が円周の外側に出る。CSS の overflow と違って viewport 内に押し込まれるとは限らない。
+- **解決**: `SPINE_X >= MARKER_RADIUS + strokeWidth/2 + safety` で計算。PR #13 では `SPINE_X = 9` (= 7 + 0.75 + 余裕 1.25) で解消。コード側 (TodayScreen.tsx) にも 1 行コメントで残すべき (PR-1.4 着手時の Minor 指摘で対応予定)。
+- **教訓**: SVG マーカーを最小幅の `<Svg>` に配置するときは `cx >= r + strokeWidth/2 + safety` を満たすこと。`MARKER_RADIUS` か `strokeWidth` を変えるときは `SPINE_X` 連動を確認する。Phase 1.5 のノックモーション（線の伸びアニメ）で stroke を変えるときに踏みやすい。
+
+## K-014: 実機実使用 → SPEC 改訂は早期検証ゲートの正規ルート (ADR-0010 が実例)
+
+- **状況**: PR #13 (Phase 1.3) で SVG スパインを実装し、実機で初めて「飛ばすと線が切れる」挙動を見て Augmentation 原則との齟齬に気づいた。机上の SPEC / ADR レビューでは出てこなかった違和感。
+- **問題**: 設計時に「ゆるい連鎖判定なのに線は連続実行範囲」という不整合を見抜けなかった。抽象モデル上の整合性検証 (SPEC レビュー) は、ビジュアルの印象整合性まで保証しない。「マーカー単位は独立だが線が連続性を要求している」状態は実機で目視して初めて違和感として認識される。
+- **原因**: SPEC レベルの言葉ベース整合性チェックでは「ビジュアルがマイナスを指差していないか」が検証できない。実機を触る前に判定するのが構造的に難しい。
+- **解決**: 実機で違和感を覚えたら ADR を超えて SPEC を改訂してよい。本 PR では (1) SPEC §2 と DESIGN-SYSTEM §4.1 を実装と同 PR で改訂、(2) 改訂理由を ADR-0010 として残し、影響を受ける ADR-0009 と SPEC / DESIGN-SYSTEM に双方向リンクを張った (K-005 ルール遵守)。
+- **教訓**: 早期検証ゲート ([ADR-0006](docs/decisions/0006-phase1-completion-and-scope-narrowing.md)) は「実装後の違和感→ADR 改訂」を正規ルートとして許容する。Phase 1.4-1.6 でも同じパターンが出る可能性があり (手動発火 UI / 自動発火 / 場所登録 UI)、「触ってみて違和感→ADR」のフローを禁忌にしない。K-003 「UI はモデル検証の道具として安く回す」と同じ精神。
