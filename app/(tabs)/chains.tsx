@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,6 +12,11 @@ import { useChainListData } from '../../src/useChainListData';
 
 export default function ChainsTab() {
   const { items, error, loading } = useChainListData();
+  const router = useRouter();
+
+  const handleSelectChain = (chainId: string) => {
+    router.push(`/anchor/${chainId}`);
+  };
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
@@ -21,7 +27,7 @@ export default function ChainsTab() {
       ) : error ? (
         <Text style={styles.error}>{error}</Text>
       ) : (
-        <ChainListScreen items={items} />
+        <ChainListScreen items={items} onSelectChain={handleSelectChain} />
       )}
     </SafeAreaView>
   );

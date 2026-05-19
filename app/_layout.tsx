@@ -1,4 +1,4 @@
-import { Slot } from 'expo-router';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useState } from 'react';
@@ -52,7 +52,18 @@ export default function RootLayout() {
           <ActivityIndicator color={COLOR_FG} />
         </View>
       ) : (
-        <Slot />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: COLOR_BG },
+          }}
+        >
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen
+            name="anchor/[chainId]"
+            options={{ presentation: 'modal' }}
+          />
+        </Stack>
       )}
     </SafeAreaProvider>
   );

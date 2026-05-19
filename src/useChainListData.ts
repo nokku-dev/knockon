@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
 import type { Anchor, Chain } from './domain';
@@ -35,24 +36,29 @@ export const useChainListData = (): UseChainListDataResult => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    loadChainList()
-      .then((list) => {
-        if (!cancelled) setItems(list);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : String(e));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // タブが focus されるたびに再読み込み (アンカー編集モーダル後に戻ったとき
+  // 時刻表示などを最新化するため)。
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      setLoading(true);
+      loadChainList()
+        .then((list) => {
+          if (!cancelled) setItems(list);
+        })
+        .catch((e: unknown) => {
+          if (!cancelled) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
 
   return { items, error, loading };
 };
