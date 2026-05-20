@@ -181,6 +181,37 @@ describe('persistChainDraft — 新規モード', () => {
   });
 });
 
+describe('persistChainDraft — 編集モード で DnD 後の任意順序が永続化される (PR-1.7b)', () => {
+  test('DnD で 1→3→2 の順に並び替えた状態を保存すると DB もその順序になる', async () => {
+    const db = await setup();
+    const buildSeed = buildDraft({
+      isNew: true,
+      nodes: [
+        node('n1', 'act-water'),
+        node('n2', 'act-stretch'),
+        node('n3', 'act-desk'),
+      ],
+    });
+    await persistChainDraft(db, buildSeed);
+    // DnD 結果として n1 → n3 → n2 の順に並び替えたドラフトを保存
+    await persistChainDraft(
+      db,
+      buildDraft({
+        isNew: false,
+        nodes: [
+          node('n1', 'act-water', false),
+          node('n3', 'act-desk', false),
+          node('n2', 'act-stretch', false),
+        ],
+      }),
+    );
+    const nodes = await listNodes(db, 'c1');
+    expect(nodes.map((n) => n.id)).toEqual(['n1', 'n3', 'n2']);
+    expect(nodes.map((n) => n.orderIndex)).toEqual([0, 1, 2]);
+    await teardown(db);
+  });
+});
+
 describe('persistChainDraft — 編集モード (PR #20 review C-1 リグレッションテスト)', () => {
   const seedChain = async (db: DbClient): Promise<void> => {
     await persistChainDraft(

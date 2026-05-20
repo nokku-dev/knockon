@@ -30,7 +30,7 @@ export default function NewChainRoute() {
     addNodeFromExistingAction,
     addNodeFromNewAction,
     removeNode,
-    moveNode,
+    reorderNodes,
     save,
   } = useChainEdit(null);
 
@@ -65,7 +65,7 @@ export default function NewChainRoute() {
             onAddExistingAction={addNodeFromExistingAction}
             onAddNewAction={addNodeFromNewAction}
             onRemoveNode={removeNode}
-            onMoveNode={moveNode}
+            onReorderNodes={reorderNodes}
             onCancel={() => router.back()}
             onSave={handleSave}
           />
