@@ -6,9 +6,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import DraggableFlatList, {
-  ScaleDecorator,
-} from 'react-native-draggable-flatlist';
+import DraggableFlatList from 'react-native-draggable-flatlist';
 import type { RenderItemParams } from 'react-native-draggable-flatlist';
 
 import { AnchorEditor } from './AnchorEditor';
@@ -76,16 +74,19 @@ export const ChainEditScreen = ({
   // パフォーマンス: renderItem を useCallback でメモ化し、ハンドラを安定参照にすることで
   // DnD 完了後 (onDragEnd) の再レンダリングで全アイテム rerender が走るのを避ける。
   // NodeEditorRow も memo 化済み (PR #20 review m-2 / 実機検証で遅さ報告に対応)。
+  // ScaleDecorator は使わない。掴んだ時の scale 1.05→1.0 settle アニメーションが
+  // React 側の data 更新と競合し、ドロップ位置で旧位置 → 新位置にスライドする
+  // 1-2 フレームがフラッシュとして見える現象の発生源だったため (PR-1.7a 実機検証で
+  // ユーザー報告: 「ドラッグしていたノードアイテムが一瞬上や下に移動して映る」)。
+  // 掴んだ時の視覚フィードバックは NodeEditorRow 内の active style 切替で代替。
   const renderItem = useCallback(
     ({ item, drag, isActive }: RenderItemParams<EditableNode>) => (
-      <ScaleDecorator>
-        <NodeEditorRow
-          node={item}
-          active={isActive}
-          onDrag={drag}
-          onRemove={onRemoveNode}
-        />
-      </ScaleDecorator>
+      <NodeEditorRow
+        node={item}
+        active={isActive}
+        onDrag={drag}
+        onRemove={onRemoveNode}
+      />
     ),
     [onRemoveNode],
   );
@@ -95,12 +96,9 @@ export const ChainEditScreen = ({
       // library が渡してきた data (新しい順序の EditableNode 配列) をそのまま
       // 上流に渡す。id 配列に展開して再マッピングするとオブジェクト参照が変わり、
       // library の settle アニメーションと React の re-render が同期せずチラつく。
-      //
-      // さらに requestAnimationFrame で 1 フレーム遅延させる。これは
-      // draggable-flatlist の settle アニメーション (ScaleDecorator の scale 1.05→1.0
-      // 復帰) が完了する前に setDraft で全行が rerender されると、scale=1.05 のままで
-      // 1 フレーム描画されてチラついて見える現象を回避するため。
-      requestAnimationFrame(() => onReorderNodes(data));
+      // 即時更新する (requestAnimationFrame で defer すると逆に library の内部状態と
+      // 1 フレームずれて、その間に旧位置で描画されてしまう)。
+      onReorderNodes(data);
     },
     [onReorderNodes],
   );
