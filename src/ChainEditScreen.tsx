@@ -209,9 +209,11 @@ export const ChainEditScreen = ({
         {onDelete && (
           <Pressable
             onPress={onDelete}
+            disabled={saving}
             accessibilityRole="button"
             accessibilityLabel="このチェーンを削除"
-            style={styles.deleteBtn}
+            accessibilityState={{ disabled: saving }}
+            style={[styles.deleteBtn, saving && styles.deleteBtnDisabled]}
           >
             <Text style={styles.deleteBtnText}>このチェーンを削除</Text>
           </Pressable>
@@ -225,6 +227,7 @@ export const ChainEditScreen = ({
       onAddExistingAction,
       onAddNewAction,
       onDelete,
+      saving,
     ],
   );
 
@@ -447,6 +450,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLOR_LINE_BG,
   },
   deleteBtnText: { color: COLOR_ACCENT, fontSize: 13, fontWeight: '600' },
+  deleteBtnDisabled: { opacity: 0.4 },
   picker: {
     marginTop: 8,
     padding: 12,

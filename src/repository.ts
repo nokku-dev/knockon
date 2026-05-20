@@ -164,7 +164,14 @@ export const updateChain = (db: DbClient, chain: Chain): Promise<void> =>
 // チェーン削除。関連 nodes / achievements / anchor_firings はスキーマの
 // ON DELETE CASCADE で自動削除される。anchor は chains.anchor_id 1-1 専属で
 // CASCADE 対象外なので、chain 削除前に anchor_id を取得 → chain 削除 →
-// anchor 削除 の順で同 TX 内で消す。
+// anchor 削除 の順で続けて発行する。
+//
+// 注: BEGIN/COMMIT で囲んでいない (リポジトリ全体に TX 抽象なし、persistChainDraft と
+// 整合)。2 段目 DELETE anchors が失敗すると orphan anchor が残るが、Phase 1 規模
+// (SQLite ローカル書込) では実害なしで受容する判断 (K-010: 同時実行 / 失敗時挙動を
+// 暗黙にしない)。本気でアトミックにしたい局面が出たら DbClient に transaction を
+// 生やす (expo-sqlite の withTransactionAsync 相当) 判断は Phase 2 で再検討。
+//
 // 存在しないチェーン ID は no-op (エラーを投げない、UI からの誤呼び出し対策)。
 export const deleteChain = async (
   db: DbClient,

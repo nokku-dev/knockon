@@ -14,8 +14,10 @@ export interface DbClient {
 // - achievements.node_id → nodes(id) ON DELETE CASCADE (ノード削除で達成記録も削除)
 // - anchor_firings.anchor_id → anchors(id) ON DELETE CASCADE (アンカー削除で発火記録も削除)
 // - nodes.action_id → actions(id) (デフォルト = RESTRICT / 使用中アクションは削除拒否、PR-1.8b で意味を持つ)
-// - chains.anchor_id → anchors(id) (CASCADE 不要 / anchor は chain 1-1 専属で、
-//   chain 削除時に repository.deleteChain が anchor も同 TX で消す)
+// - chains.anchor_id → anchors(id) (CASCADE 不要 / anchor は chain 1-1 専属の
+//   運用前提で、chain 削除時に repository.deleteChain が anchor も続けて消す。
+//   ただし 1-1 制約は SQL レベルでは未強制 (chains 側に UNIQUE(anchor_id) なし)。
+//   Phase 2 以降で複数チェーンが anchor を共有する経路を後付けする余地を残す判断)
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS anchors (
   id TEXT PRIMARY KEY,

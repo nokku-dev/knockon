@@ -171,6 +171,20 @@ describe('ChainEditScreen', () => {
     expect(onDelete).toHaveBeenCalled();
   });
 
+  test('saving=true のとき「このチェーンを削除」が disabled になる (M-2)', () => {
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={draftWithNodes()}
+        {...noopProps}
+        saving
+        onDelete={() => {}}
+      />,
+    );
+    expect(getByLabelText('このチェーンを削除').props.accessibilityState).toEqual({
+      disabled: true,
+    });
+  });
+
   test('既存アクションリストから選択で onAddExistingAction', () => {
     const onAddExistingAction = jest.fn();
     const existingActions: Action[] = [
