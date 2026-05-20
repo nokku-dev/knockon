@@ -219,7 +219,7 @@ export const ChainEditScreen = ({
 
   return (
     <DraggableFlatList<EditableNode>
-      data={draft.nodes as EditableNode[]}
+      data={draft.nodes}
       onDragEnd={handleDragEnd}
       keyExtractor={keyExtractor}
       renderItem={renderItem}
@@ -227,10 +227,9 @@ export const ChainEditScreen = ({
       ListFooterComponent={Footer}
       contentContainerStyle={styles.listContent}
       keyboardShouldPersistTaps="handled"
-      // ノード数が同じでも内容変化したことを明示するためのメモ化ヒント。
-      // draft.nodes 自体の参照は setDraft で変わるが、library 内部での
-      // re-render 判定の安定化に寄与する。
-      extraData={draft.nodes.length}
+      // 並び替えでは要素数が変わらないので length では検知できない。
+      // 順序まで含めた変化のヒントとして id 配列を渡す。
+      extraData={draft.nodes.map((n) => n.id).join('|')}
     />
   );
 };

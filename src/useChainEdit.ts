@@ -301,8 +301,9 @@ export const useChainEdit = (
 
   // DnD でノードを丸ごと並び替え。draggable-flatlist の onDragEnd で得た
   // 新しい順序の EditableNode[] をそのまま受け取って draft.nodes に反映。
-  // 並べ替え後の参照を維持することで library 側の settle アニメーションとの
-  // 1 フレームずれを最小化 (PR-1.7a 実機検証で報告された「ドロップ後チラつき」対応)。
+  // 配列は新しく作るが個々の EditableNode オブジェクト参照は維持されるので、
+  // library 側の settle アニメーションと React の re-render が同期せず
+  // チラつく現象を回避 (PR-1.7a 実機検証で報告された「ドロップ後チラつき」対応)。
   const reorderNodes = useCallback((reorderedNodes: readonly EditableNode[]) => {
     setDraft((prev) =>
       prev ? { ...prev, nodes: [...reorderedNodes] } : prev,
