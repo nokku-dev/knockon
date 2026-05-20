@@ -51,6 +51,9 @@ export type ChainEditScreenProps = {
   // 編集モードのみ渡す。新規モード (isNew=true) では未指定でよい。
   // 指定があれば Footer 末尾に「このチェーンを削除」ボタンを表示。
   onDelete?: () => void;
+  // 既存アクションを削除する。未指定なら ActionPicker のチップに × ボタンが
+  // 表示されない (新規モード / 削除非対応 UI のためのオプション)。
+  onDeleteAction?: (action: Action) => void;
 };
 
 export const ChainEditScreen = ({
@@ -72,6 +75,7 @@ export const ChainEditScreen = ({
   onCancel,
   onSave,
   onDelete,
+  onDeleteAction,
 }: ChainEditScreenProps) => {
   const [adderOpen, setAdderOpen] = useState(false);
   const [newActionDraft, setNewActionDraft] = useState('');
@@ -204,6 +208,7 @@ export const ChainEditScreen = ({
               setAdderOpen(false);
               setNewActionDraft('');
             }}
+            onDeleteExisting={onDeleteAction}
           />
         )}
         {onDelete && (
@@ -227,6 +232,7 @@ export const ChainEditScreen = ({
       onAddExistingAction,
       onAddNewAction,
       onDelete,
+      onDeleteAction,
       saving,
     ],
   );
@@ -289,6 +295,9 @@ type ActionPickerProps = {
   onSelectExisting: (action: Action) => void;
   onSubmitNew: () => void;
   onCancel: () => void;
+  // 既存アクションの × ボタンが押されたときの確認 + 削除ハンドラ。
+  // 未指定なら × は表示されない。
+  onDeleteExisting?: (action: Action) => void;
 };
 
 const ActionPicker = ({
@@ -298,6 +307,7 @@ const ActionPicker = ({
   onSelectExisting,
   onSubmitNew,
   onCancel,
+  onDeleteExisting,
 }: ActionPickerProps) => (
   <View style={styles.picker}>
     <View style={styles.pickerHeader}>
@@ -345,6 +355,17 @@ const ActionPicker = ({
               style={styles.existingChip}
             >
               <Text style={styles.existingChipText}>{a.title}</Text>
+              {onDeleteExisting && (
+                <Pressable
+                  onPress={() => onDeleteExisting(a)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`アクション「${a.title}」を削除`}
+                  style={styles.existingChipDelete}
+                  hitSlop={8}
+                >
+                  <Text style={styles.existingChipDeleteText}>×</Text>
+                </Pressable>
+              )}
             </Pressable>
           ))}
         </View>
@@ -494,10 +515,21 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   existingChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 999,
     backgroundColor: COLOR_LINE_BG,
   },
   existingChipText: { color: COLOR_FG, fontSize: 12 },
+  existingChipDelete: {
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+  },
+  existingChipDeleteText: { color: COLOR_FG_FAINT, fontSize: 12, fontWeight: '600' },
 });
