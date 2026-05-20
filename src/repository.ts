@@ -161,6 +161,25 @@ export const updateChain = (db: DbClient, chain: Chain): Promise<void> =>
     [chain.title, chain.anchorId, chain.status, chain.id],
   );
 
+// チェーン削除。関連 nodes / achievements / anchor_firings はスキーマの
+// ON DELETE CASCADE で自動削除される。anchor は chains.anchor_id 1-1 専属で
+// CASCADE 対象外なので、chain 削除前に anchor_id を取得 → chain 削除 →
+// anchor 削除 の順で同 TX 内で消す。
+// 存在しないチェーン ID は no-op (エラーを投げない、UI からの誤呼び出し対策)。
+export const deleteChain = async (
+  db: DbClient,
+  chainId: string,
+): Promise<void> => {
+  const rows = await db.all<{ anchor_id: string }>(
+    `SELECT anchor_id FROM chains WHERE id = ?`,
+    [chainId],
+  );
+  const anchorId = rows[0]?.anchor_id;
+  if (anchorId == null) return; // 存在しないチェーン ID
+  await db.run(`DELETE FROM chains WHERE id = ?`, [chainId]);
+  await db.run(`DELETE FROM anchors WHERE id = ?`, [anchorId]);
+};
+
 export const insertNode = (db: DbClient, node: Node): Promise<void> =>
   db.run(
     `INSERT INTO nodes (id, chain_id, order_index, kind, action_id)

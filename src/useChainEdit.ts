@@ -11,6 +11,7 @@ import {
 import type { CurrentPosition, LocationPermissionStatus } from './location';
 import { persistChainDraft, validateChainDraft } from './chainEditPersist';
 import {
+  deleteChain as deleteChainRepo,
   getAction,
   getAnchor,
   insertAction,
@@ -125,6 +126,10 @@ export type UseChainEditResult = {
   // DnD ライブラリ依存度を最小にするため、from/to の単純な index 並び替えに限定。
   reorderNodes: (from: number, to: number) => void;
   save: () => Promise<boolean>;
+  // チェーン削除 (編集モードのみ。新規モード = まだ DB に何もない、で呼ぶと false)。
+  // 関連 nodes / achievements / anchor / anchor_firings は repository 側で
+  // CASCADE + 同 TX で削除される (PR-1.8a)。
+  deleteChain: () => Promise<boolean>;
 };
 
 
@@ -315,6 +320,23 @@ export const useChainEdit = (
     });
   }, []);
 
+  const deleteChain = useCallback(async (): Promise<boolean> => {
+    if (!draft || draft.isNew) return false;
+    setSaving(true);
+    try {
+      const db = await getExpoSqliteClient();
+      await deleteChainRepo(db, draft.chainId);
+      return true;
+    } catch (e: unknown) {
+      if (mountedRef.current) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+      return false;
+    } finally {
+      if (mountedRef.current) setSaving(false);
+    }
+  }, [draft]);
+
   // ドラフト永続化。validate → persistChainDraft の薄いラッパ。
   // バリデーション失敗 / DB エラーは false 戻りで AnchorRoute 側のエラーバナーに通知。
   const save = useCallback(async (): Promise<boolean> => {
@@ -358,5 +380,6 @@ export const useChainEdit = (
     removeNode,
     reorderNodes,
     save,
+    deleteChain,
   };
 };

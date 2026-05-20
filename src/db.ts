@@ -5,11 +5,17 @@ export interface DbClient {
   close?(): Promise<void>;
 }
 
-// 外部キー (REFERENCES) は SQL 上で宣言しているが、SQLite はデフォルト
-// PRAGMA foreign_keys=OFF のため FK 制約は実際には強制されない。Phase 1 は
-// シードチェーン 1 本固定で削除経路がないため実害なし。Phase 2 でチェーン /
-// アンカー削除を追加するときに `PRAGMA foreign_keys=ON` 有効化 + ON DELETE
-// CASCADE を全リレーションに足すかを判断する (PR #17 review M-2)。
+// 外部キー (REFERENCES) は SQL 上で宣言し、PRAGMA foreign_keys=ON で強制する
+// (test env / prod env 両方で db client factory が PRAGMA を発行する。
+// K-018 の test/prod 乖離は PR-1.8a で構造的に解決済み)。
+//
+// CASCADE 設計:
+// - nodes.chain_id → chains(id) ON DELETE CASCADE  (チェーン削除でノード全消し)
+// - achievements.node_id → nodes(id) ON DELETE CASCADE (ノード削除で達成記録も削除)
+// - anchor_firings.anchor_id → anchors(id) ON DELETE CASCADE (アンカー削除で発火記録も削除)
+// - nodes.action_id → actions(id) (デフォルト = RESTRICT / 使用中アクションは削除拒否、PR-1.8b で意味を持つ)
+// - chains.anchor_id → anchors(id) (CASCADE 不要 / anchor は chain 1-1 専属で、
+//   chain 削除時に repository.deleteChain が anchor も同 TX で消す)
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS anchors (
   id TEXT PRIMARY KEY,
@@ -37,7 +43,7 @@ CREATE TABLE IF NOT EXISTS chains (
 
 CREATE TABLE IF NOT EXISTS nodes (
   id TEXT PRIMARY KEY,
-  chain_id TEXT NOT NULL REFERENCES chains(id),
+  chain_id TEXT NOT NULL REFERENCES chains(id) ON DELETE CASCADE,
   order_index INTEGER NOT NULL,
   kind TEXT NOT NULL CHECK(kind IN ('action')),
   action_id TEXT NOT NULL REFERENCES actions(id),
@@ -45,7 +51,7 @@ CREATE TABLE IF NOT EXISTS nodes (
 );
 
 CREATE TABLE IF NOT EXISTS achievements (
-  node_id TEXT NOT NULL REFERENCES nodes(id),
+  node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
   date TEXT NOT NULL,
   achieved INTEGER NOT NULL CHECK(achieved IN (0, 1)),
   PRIMARY KEY (node_id, date)
@@ -54,7 +60,7 @@ CREATE TABLE IF NOT EXISTS achievements (
 -- ADR-0012: アンカー発火イベント。1 日 1 回の不可逆事実。
 -- 時刻/場所共通。発火 record があれば「今日発火済み」扱い (Today の発火中ピル表示)。
 CREATE TABLE IF NOT EXISTS anchor_firings (
-  anchor_id TEXT NOT NULL REFERENCES anchors(id),
+  anchor_id TEXT NOT NULL REFERENCES anchors(id) ON DELETE CASCADE,
   date TEXT NOT NULL,
   PRIMARY KEY (anchor_id, date)
 );
