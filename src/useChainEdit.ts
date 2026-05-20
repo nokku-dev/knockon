@@ -121,7 +121,7 @@ export type UseChainEditResult = {
   addNodeFromExistingAction: (actionId: string, actionTitle: string) => void;
   addNodeFromNewAction: (actionTitle: string) => Promise<void>;
   removeNode: (nodeId: string) => void;
-  moveNode: (nodeId: string, direction: 'up' | 'down') => void;
+  reorderNodes: (reorderedNodes: readonly EditableNode[]) => void;
   save: () => Promise<boolean>;
 };
 
@@ -299,19 +299,14 @@ export const useChainEdit = (
     });
   }, []);
 
-  const moveNode = useCallback((nodeId: string, direction: 'up' | 'down') => {
-    setDraft((prev) => {
-      if (!prev) return prev;
-      const idx = prev.nodes.findIndex((n) => n.id === nodeId);
-      if (idx === -1) return prev;
-      const target = direction === 'up' ? idx - 1 : idx + 1;
-      if (target < 0 || target >= prev.nodes.length) return prev;
-      const next = [...prev.nodes];
-      const [moved] = next.splice(idx, 1);
-      if (!moved) return prev;
-      next.splice(target, 0, moved);
-      return { ...prev, nodes: next };
-    });
+  // DnD でノードを丸ごと並び替え。draggable-flatlist の onDragEnd で得た
+  // 新しい順序の EditableNode[] をそのまま受け取って draft.nodes に反映。
+  // 並べ替え後の参照を維持することで library 側の settle アニメーションとの
+  // 1 フレームずれを最小化 (PR-1.7a 実機検証で報告された「ドロップ後チラつき」対応)。
+  const reorderNodes = useCallback((reorderedNodes: readonly EditableNode[]) => {
+    setDraft((prev) =>
+      prev ? { ...prev, nodes: [...reorderedNodes] } : prev,
+    );
   }, []);
 
   // ドラフト永続化。validate → persistChainDraft の薄いラッパ。
@@ -355,7 +350,7 @@ export const useChainEdit = (
     addNodeFromExistingAction,
     addNodeFromNewAction,
     removeNode,
-    moveNode,
+    reorderNodes,
     save,
   };
 };

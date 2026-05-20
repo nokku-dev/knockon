@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { initSchema } from '../src/db';
@@ -37,7 +38,10 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SafeAreaProvider style={styles.root}>
+    // GestureHandlerRootView は react-native-draggable-flatlist が要求 (ChainEditScreen
+    // のノード DnD)。expo-router で暗黙ラップされるとされるが明示する方が確実。
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider style={styles.root}>
       <StatusBar style="light" />
       {error ? (
         <View style={styles.center}>
@@ -65,7 +69,8 @@ export default function RootLayout() {
           />
         </Stack>
       )}
-    </SafeAreaProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

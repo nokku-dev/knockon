@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import {
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import DraggableFlatList, {
+  ScaleDecorator,
+} from 'react-native-draggable-flatlist';
+import type { RenderItemParams } from 'react-native-draggable-flatlist';
 
 import { AnchorEditor } from './AnchorEditor';
 import type { Action, Anchor } from './domain';
@@ -37,7 +40,8 @@ export type ChainEditScreenProps = {
   onAddExistingAction: (actionId: string, actionTitle: string) => void;
   onAddNewAction: (actionTitle: string) => void;
   onRemoveNode: (nodeId: string) => void;
-  onMoveNode: (nodeId: string, direction: 'up' | 'down') => void;
+  // DnD で得た EditableNode[] (新しい順序の参照) を丸ごと渡す。
+  onReorderNodes: (reorderedNodes: readonly EditableNode[]) => void;
   onCancel: () => void;
   onSave: () => void;
 };
@@ -57,7 +61,7 @@ export const ChainEditScreen = ({
   onAddExistingAction,
   onAddNewAction,
   onRemoveNode,
-  onMoveNode,
+  onReorderNodes,
   onCancel,
   onSave,
 }: ChainEditScreenProps) => {
@@ -66,8 +70,38 @@ export const ChainEditScreen = ({
   const canSave =
     !saving && draft.title.trim().length > 0 && draft.nodes.length > 0;
 
-  return (
-    <ScrollView contentContainerStyle={styles.scroll}>
+  // DraggableFlatList は ScrollView 内に置けないので、トップレベルを DraggableFlatList
+  // にして header / footer に編集 UI を集約する。
+  //
+  // パフォーマンス: renderItem を useCallback でメモ化し、ハンドラを安定参照にすることで
+  // DnD 完了後 (onDragEnd) の再レンダリングで全アイテム rerender が走るのを避ける。
+  // NodeEditorRow も memo 化済み (PR #20 review m-2 / 実機検証で遅さ報告に対応)。
+  const renderItem = useCallback(
+    ({ item, drag, isActive }: RenderItemParams<EditableNode>) => (
+      <ScaleDecorator>
+        <NodeEditorRow
+          node={item}
+          active={isActive}
+          onDrag={drag}
+          onRemove={onRemoveNode}
+        />
+      </ScaleDecorator>
+    ),
+    [onRemoveNode],
+  );
+
+  const handleDragEnd = useCallback(
+    ({ data }: { data: EditableNode[] }) => {
+      // library が渡してきた data (新しい順序の EditableNode 配列) をそのまま
+      // 上流に渡す。id 配列に展開して再マッピングするとオブジェクト参照が変わり、
+      // library の settle アニメーションと React の re-render が同期せずチラつく。
+      onReorderNodes(data);
+    },
+    [onReorderNodes],
+  );
+
+  const Header = useMemo(() => (
+    <View style={styles.headerSections}>
       <View style={styles.topbar}>
         <Pressable onPress={onCancel} accessibilityRole="button">
           <Text style={styles.cancel}>キャンセル</Text>
@@ -113,105 +147,131 @@ export const ChainEditScreen = ({
         />
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>ノード ({draft.nodes.length})</Text>
-        {draft.nodes.length === 0 && (
-          <Text style={styles.emptyHint}>「+ 追加」でノードを足してください</Text>
-        )}
-        {draft.nodes.map((n, idx) => (
-          <NodeEditorRow
-            key={n.id}
-            node={n}
-            index={idx}
-            total={draft.nodes.length}
-            onMove={onMoveNode}
-            onRemove={onRemoveNode}
-          />
-        ))}
-
-        {!adderOpen ? (
-          <Pressable
-            onPress={() => setAdderOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="ノードを追加"
-            style={styles.addBtn}
-          >
-            <Text style={styles.addBtnText}>+ ノードを追加</Text>
-          </Pressable>
-        ) : (
-          <ActionPicker
-            actions={availableActions}
-            newActionDraft={newActionDraft}
-            onNewActionDraftChange={setNewActionDraft}
-            onSelectExisting={(a) => {
-              onAddExistingAction(a.id, a.title);
-              setAdderOpen(false);
-            }}
-            onSubmitNew={() => {
-              if (newActionDraft.trim().length === 0) return;
-              onAddNewAction(newActionDraft.trim());
-              setNewActionDraft('');
-              setAdderOpen(false);
-            }}
-            onCancel={() => {
-              setAdderOpen(false);
-              setNewActionDraft('');
-            }}
-          />
+      <View style={styles.nodesLabelRow}>
+        <Text style={styles.sectionLabel}>
+          ノード ({draft.nodes.length})
+        </Text>
+        {draft.nodes.length > 0 && (
+          <Text style={styles.dragHint}>長押しで並び替え</Text>
         )}
       </View>
-    </ScrollView>
+      {draft.nodes.length === 0 && (
+        <View style={styles.emptyHintWrapper}>
+          <Text style={styles.emptyHint}>
+            「+ 追加」でノードを足してください
+          </Text>
+        </View>
+      )}
+    </View>
+  ), [
+    canSave,
+    draft.anchor,
+    draft.isNew,
+    draft.nodes.length,
+    draft.title,
+    locating,
+    locationPermission,
+    onCancel,
+    onSave,
+    onSetAnchorKind,
+    onSetAnchorLocation,
+    onSetAnchorRadius,
+    onSetAnchorTime,
+    onSetTitle,
+    onFetchLocation,
+    saving,
+  ]);
+
+  const Footer = useMemo(() => (
+    <View style={styles.footerSection}>
+      {!adderOpen ? (
+        <Pressable
+          onPress={() => setAdderOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="ノードを追加"
+          style={styles.addBtn}
+        >
+          <Text style={styles.addBtnText}>+ ノードを追加</Text>
+        </Pressable>
+      ) : (
+        <ActionPicker
+          actions={availableActions}
+          newActionDraft={newActionDraft}
+          onNewActionDraftChange={setNewActionDraft}
+          onSelectExisting={(a) => {
+            onAddExistingAction(a.id, a.title);
+            setAdderOpen(false);
+          }}
+          onSubmitNew={() => {
+            if (newActionDraft.trim().length === 0) return;
+            onAddNewAction(newActionDraft.trim());
+            setNewActionDraft('');
+            setAdderOpen(false);
+          }}
+          onCancel={() => {
+            setAdderOpen(false);
+            setNewActionDraft('');
+          }}
+        />
+      )}
+    </View>
+  ), [adderOpen, availableActions, newActionDraft, onAddExistingAction, onAddNewAction]);
+
+  return (
+    <DraggableFlatList<EditableNode>
+      data={draft.nodes as EditableNode[]}
+      onDragEnd={handleDragEnd}
+      keyExtractor={keyExtractor}
+      renderItem={renderItem}
+      ListHeaderComponent={Header}
+      ListFooterComponent={Footer}
+      contentContainerStyle={styles.listContent}
+      keyboardShouldPersistTaps="handled"
+      // ノード数が同じでも内容変化したことを明示するためのメモ化ヒント。
+      // draft.nodes 自体の参照は setDraft で変わるが、library 内部での
+      // re-render 判定の安定化に寄与する。
+      extraData={draft.nodes.length}
+    />
   );
 };
+
+const keyExtractor = (item: EditableNode): string => item.id;
 
 type NodeEditorRowProps = {
   node: EditableNode;
-  index: number;
-  total: number;
-  onMove: (nodeId: string, direction: 'up' | 'down') => void;
+  active: boolean;
+  onDrag: () => void;
   onRemove: (nodeId: string) => void;
 };
 
-const NodeEditorRow = ({ node, index, total, onMove, onRemove }: NodeEditorRowProps) => {
-  const upDisabled = index === 0;
-  const downDisabled = index === total - 1;
-  return (
-    <View style={styles.nodeRow} accessibilityLabel={node.actionTitle}>
-      <Text style={styles.nodeOrder}>{index + 1}</Text>
+const NodeEditorRow = memo(
+  ({ node, active, onDrag, onRemove }: NodeEditorRowProps) => (
+    <View
+      style={[styles.nodeRow, active && styles.nodeRowActive]}
+      accessibilityLabel={node.actionTitle}
+    >
+      <Pressable
+        onLongPress={onDrag}
+        delayLongPress={200}
+        accessibilityRole="button"
+        accessibilityLabel={`${node.actionTitle} をドラッグして並び替え`}
+        style={styles.dragHandle}
+      >
+        <Text style={styles.dragHandleText}>≡</Text>
+      </Pressable>
       <Text style={styles.nodeTitle}>{node.actionTitle}</Text>
-      <View style={styles.nodeActions}>
-        <Pressable
-          onPress={() => onMove(node.id, 'up')}
-          disabled={upDisabled}
-          accessibilityRole="button"
-          accessibilityLabel={`${node.actionTitle} を上に移動`}
-          accessibilityState={{ disabled: upDisabled }}
-          style={[styles.nodeBtn, upDisabled && styles.nodeBtnDisabled]}
-        >
-          <Text style={styles.nodeBtnText}>↑</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => onMove(node.id, 'down')}
-          disabled={downDisabled}
-          accessibilityRole="button"
-          accessibilityLabel={`${node.actionTitle} を下に移動`}
-          accessibilityState={{ disabled: downDisabled }}
-          style={[styles.nodeBtn, downDisabled && styles.nodeBtnDisabled]}
-        >
-          <Text style={styles.nodeBtnText}>↓</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => onRemove(node.id)}
-          accessibilityRole="button"
-          accessibilityLabel={`${node.actionTitle} を削除`}
-          style={styles.nodeBtn}
-        >
-          <Text style={styles.nodeBtnText}>×</Text>
-        </Pressable>
-      </View>
+      <Pressable
+        onPress={() => onRemove(node.id)}
+        accessibilityRole="button"
+        accessibilityLabel={`${node.actionTitle} を削除`}
+        style={styles.removeBtn}
+      >
+        <Text style={styles.removeBtnText}>×</Text>
+      </Pressable>
     </View>
-  );
-};
+  ),
+);
+NodeEditorRow.displayName = 'NodeEditorRow';
 
 type ActionPickerProps = {
   actions: readonly Action[];
@@ -285,7 +345,9 @@ const ActionPicker = ({
 );
 
 const styles = StyleSheet.create({
-  scroll: { padding: 24, gap: 16 },
+  listContent: { padding: 24, gap: 16 },
+  headerSections: { gap: 16, paddingBottom: 8 },
+  footerSection: { paddingTop: 8 },
   topbar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -316,24 +378,48 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
-  anchorSummary: { color: COLOR_FG, fontSize: 16, fontWeight: '500' },
-  anchorHint: { color: COLOR_FG_FAINT, fontSize: 11 },
+  nodesLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  dragHint: {
+    color: COLOR_FG_FAINT,
+    fontSize: 11,
+  },
+  emptyHintWrapper: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
   emptyHint: { color: COLOR_FG_FAINT, fontSize: 12 },
   nodeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginVertical: 2,
+    borderRadius: 10,
+    backgroundColor: COLOR_SURFACE,
   },
-  nodeOrder: {
+  nodeRowActive: {
+    backgroundColor: COLOR_LINE_BG,
+  },
+  dragHandle: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 6,
+  },
+  dragHandleText: {
     color: COLOR_FG_FAINT,
-    fontSize: 12,
-    fontVariant: ['tabular-nums'],
-    width: 16,
+    fontSize: 18,
+    fontWeight: '700',
   },
   nodeTitle: { color: COLOR_FG, fontSize: 16, flex: 1 },
-  nodeActions: { flexDirection: 'row', gap: 4 },
-  nodeBtn: {
+  removeBtn: {
     width: 32,
     height: 32,
     alignItems: 'center',
@@ -341,8 +427,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: COLOR_LINE_BG,
   },
-  nodeBtnDisabled: { opacity: 0.3 },
-  nodeBtnText: { color: COLOR_FG, fontSize: 16, fontWeight: '600' },
+  removeBtnText: { color: COLOR_FG, fontSize: 16, fontWeight: '600' },
   addBtn: {
     marginTop: 4,
     alignSelf: 'flex-start',
@@ -355,7 +440,7 @@ const styles = StyleSheet.create({
   picker: {
     marginTop: 8,
     padding: 12,
-    backgroundColor: COLOR_BG,
+    backgroundColor: COLOR_SURFACE,
     borderRadius: 12,
     gap: 8,
   },
@@ -376,7 +461,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: COLOR_FG,
     fontSize: 14,
-    backgroundColor: COLOR_LINE_BG,
+    backgroundColor: COLOR_BG,
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 10,
@@ -398,7 +483,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 999,
-    backgroundColor: COLOR_LINE_BG,
+    backgroundColor: COLOR_BG,
   },
   existingChipText: { color: COLOR_FG, fontSize: 12 },
 });
