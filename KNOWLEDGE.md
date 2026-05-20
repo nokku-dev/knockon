@@ -147,3 +147,19 @@
 - **原因**: better-sqlite3 はデフォルトで `foreign_keys=ON`、vanilla SQLite (expo-sqlite を含む) はデフォルトで OFF。両者は別々の C ライブラリビルドで歴史的にデフォルトが違う。[ADR-0008](docs/decisions/0008-test-strategy-ts-jest-bettersqlite.md) でテストに better-sqlite3 を採用したが、この挙動差は ADR-0008 着手時に意識していなかった。
 - **解決**: 当面は test env での挙動 (FK on で reject) をテストで固定 + コメントで「prod env では orphan record が通る」と注意喚起。Phase 2 でチェーン / アンカー削除を実装するときに `PRAGMA foreign_keys=ON` 有効化 + 全リレーションに `ON DELETE CASCADE` を足すかを判断する。`src/db.ts` SCHEMA_SQL §冒頭にもコメント記載。
 - **教訓**: K-006 のスキーマ不変条件テストは「スキーマ定義の存在」を機械検証するが、「FK 制約が実際に強制されるか」のレイヤーは test/prod 環境差で乖離しうる。同種の test/prod 差を踏まないために、SQLite の `PRAGMA` 設定差・トリガーの有無・ビューの定義差などはレビュー観点として持っておく。`expo-sqlite` で `PRAGMA foreign_keys=ON` を呼ぶか、それとも CHECK 制約 / アプリケーション層でガードするかは Phase 2 設計判断。
+
+## K-019: 3 サイクルで消えない UI バグは library 責務を疑い、入れ替えを選択肢に入れる
+
+- **状況**: PR-1.7a で `react-native-draggable-flatlist` を採用し、ノード並び替えのチラつき (ドラッグ中のアイテムが一瞬上下にスライドして見える) を 3 回の修正試行 (rAF defer / memo 比較関数で `drag` を除外 / ScaleDecorator 撤去) で消そうとしたが、実機で全く解消しなかった。
+- **問題**: 自分のコード側で吸収できる範囲を超えていることに気付くのが遅れ、修正試行の往復で時間を消費した。CLAUDE.md §迷走検知ルールの「同一ファイルを 3 回以上編集」に該当していたが、library 起因という仮説に切り替えるトリガーが弱かった。
+- **原因**: DnD の swap モーションは library 内部の cell layout 制御 (active セル高さ 0 化 + placeholder 挿入) に閉じている。setState タイミングや memo の整合性で吸収できる範疇を超えていた。
+- **解決**: 動画を 0.05 秒間隔でフレームキャプチャして症状を直接観察 → library 内部挙動が原因と判定 → reanimated v4 worklet ベースの [react-native-reorderable-list](https://github.com/omahili/react-native-reorderable-list) に置換 (PR #22) で根治。
+- **教訓**: 「3 サイクル試して消えない UI バグ」は library 責務の可能性を最初に疑う。修正試行ではなく **library の挙動を動画で観察** することに移る。次回似た判断点 (carousel / bottom-sheet / swipe-to-delete 等の DnD 系 library 選定) で同じパターンを踏まないために、選定時は公式 example の動画 / Expo Go 実機を必ず触る + reanimated v4 worklet ベースを優先する。CLAUDE.md §迷走検知ルールに「3 サイクルで消えない UI バグ → library 入れ替えを選択肢に」を実例として追記する候補。
+
+## K-020: 「フォーム + DnD リスト」は List を画面 root に置き、編集 UI を ListHeader/Footer に集約する
+
+- **状況**: PR-1.7b でチェーン編集画面に DnD を導入したとき、当初は `ScrollView` でフォーム全体を包んでその中に DnD リストを置こうとした。
+- **問題**: `ReorderableList` (および `FlatList` / `DraggableFlatList`) は `ScrollView` 内に置けない。reanimated worklet の scroll handler が親 ScrollView と衝突し、DnD ジェスチャが効かない / scroll が二重に発火する。
+- **原因**: RN の VirtualizedList 系は親 ScrollView と scroll コンテキストを共有できない構造的制約。reorderable-list は `NestedReorderableList` という別 API を提供するが、複雑度が上がるので避けたい。
+- **解決**: `ReorderableList` を画面 root に置き、編集 UI 全体 (タイトル入力 / アンカー編集 / アクション追加ピッカー) を `ListHeaderComponent` / `ListFooterComponent` に集約。Header は `useMemo` でラップするが、parent route の inline callback (`onCancel={() => router.back()}` 等) が deps を毎レンダ壊すので memo 効果は限定的 — 描画コストが許容できるなら諦める判断も明示すべき (K-010 同型: 暗黙にしない)。
+- **教訓**: 「フォーム + DnD」「フォーム + リスト」を 1 画面で組むときの正規パターン: (a) リストを画面 root に、(b) 編集 UI を Header / Footer に集約、(c) Header / Footer の useMemo の deps は親 route の inline callback で壊れがちなので、route 側で `useCallback` 化するか memo を諦めるかを明示判断する。Phase 2 以降で「目標ビュー」「アクション編集」等の同型画面を組むときも同じパターン。
