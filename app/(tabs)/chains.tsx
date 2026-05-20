@@ -16,9 +16,8 @@ export default function ChainsTab() {
   const router = useRouter();
 
   // チェーンカードタップ → 編集画面 (`/chain/[chainId]`)。
-  // 起点アンカー編集は編集画面内の「起点アンカー」セクション → /anchor/[chainId] へ遷移。
-  // (旧 PR-1.6 では一覧カード → アンカー設定画面に直接遷移していたが、CRUD 導入で
-  // 編集画面を間に挟む構造に変更。アンカー編集も編集画面経由で 1 動線にする。)
+  // 起点アンカー編集は編集画面内の AnchorEditor (inline) で完結する
+  // (旧 /anchor/[chainId] route は PR #20 で削除済、ADR-0014 経由)。
   const handleSelectChain = (chainId: string) => {
     router.push(`/chain/${chainId}`);
   };

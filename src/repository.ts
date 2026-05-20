@@ -174,6 +174,16 @@ export const updateNode = (db: DbClient, node: Node): Promise<void> =>
     [node.orderIndex, node.actionId, node.id],
   );
 
+// アクション差し替えのみ。order_index は触らない (UNIQUE(chain_id, order_index)
+// 制約下で複数ノードを一括更新する経路 = useChainEdit.persistChainDraft 編集
+// モードで使う。並び替えは reorderNodes に任せて衝突を防ぐ)。
+export const updateNodeAction = (
+  db: DbClient,
+  nodeId: string,
+  actionId: string,
+): Promise<void> =>
+  db.run(`UPDATE nodes SET action_id = ? WHERE id = ?`, [actionId, nodeId]);
+
 // ノード並び替え用ヘルパ: 同チェーン内の orderIndex をまとめて書き換える。
 // (chainId, order_index) の UNIQUE 制約があるため一旦負数に逃がしてから本値を入れる
 // 2 段階更新で衝突を回避する。

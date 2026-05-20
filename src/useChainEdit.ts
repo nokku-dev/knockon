@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
-import type { Action, Anchor, Chain, Node } from './domain';
+import type { Action, Anchor } from './domain';
 import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
 import {
   getCurrentPosition,
@@ -9,19 +9,14 @@ import {
   requestLocationPermission,
 } from './location';
 import type { CurrentPosition, LocationPermissionStatus } from './location';
+import { persistChainDraft, validateChainDraft } from './chainEditPersist';
 import {
   getAction,
   getAnchor,
   insertAction,
-  insertAnchor,
-  insertChain,
-  insertNode,
   listActions,
+  listChains,
   listNodes,
-  reorderNodes,
-  updateAnchor,
-  updateChain,
-  updateNode,
 } from './repository';
 
 // チェーン編集画面のドラフト状態。
@@ -73,7 +68,7 @@ const newDraft = (): ChainEditDraft => {
 const loadExisting = async (chainId: string): Promise<ChainEditDraft | null> => {
   const db = await getExpoSqliteClient();
   // chain 取得は listChains 経由 (id 単発取得はないので filter する)
-  const allChains = await (await import('./repository')).listChains(db);
+  const allChains = await listChains(db);
   const chain = allChains.find((c) => c.id === chainId);
   if (!chain) return null;
   const anchor = await getAnchor(db, chain.anchorId);
@@ -130,15 +125,6 @@ export type UseChainEditResult = {
   save: () => Promise<boolean>;
 };
 
-const buildAnchorFromDraft = (e: EditableAnchor): Anchor => ({
-  id: e.id,
-  title: e.title,
-  kind: e.kind,
-  time: e.time,
-  latitude: e.latitude,
-  longitude: e.longitude,
-  radiusMeters: e.radiusMeters,
-});
 
 export const useChainEdit = (
   chainId: string | null, // null なら新規作成モード
@@ -200,8 +186,13 @@ export const useChainEdit = (
     setDraft((prev) => {
       if (!prev) return prev;
       // kind 切替時に他 kind の値は残す (PR #16 でユーザー判断: kind 切替時に
-      // 前回値を保持)。kind=place 切替時に radius が未設定なら 100m デフォルト。
+      // 前回値を保持)。time / place 切替時にそれぞれのデフォルト値を入れて
+      // 「kind 設定したのに time/lat が null で発火しない」沈黙の失敗を防ぐ
+      // (PR #20 review C-2)。
       const next: ChainEditDraft = { ...prev, anchor: { ...prev.anchor, kind } };
+      if (kind === 'time' && next.anchor.time == null) {
+        next.anchor = { ...next.anchor, time: '07:30' };
+      }
       if (kind === 'place' && next.anchor.radiusMeters == null) {
         next.anchor = { ...next.anchor, radiusMeters: 100 };
       }
@@ -323,83 +314,19 @@ export const useChainEdit = (
     });
   }, []);
 
-  // チェーンドラフトを DB に永続化。新規ならすべて INSERT、既存なら差分 UPDATE +
-  // 並び替えを reorderNodes で安全に処理。タイトル空はエラー。
+  // ドラフト永続化。validate → persistChainDraft の薄いラッパ。
+  // バリデーション失敗 / DB エラーは false 戻りで AnchorRoute 側のエラーバナーに通知。
   const save = useCallback(async (): Promise<boolean> => {
     if (!draft) return false;
-    if (draft.title.trim().length === 0) {
-      setError('チェーンタイトルを入力してください');
-      return false;
-    }
-    if (draft.nodes.length === 0) {
-      setError('ノードを 1 つ以上追加してください');
+    const validationError = validateChainDraft(draft);
+    if (validationError) {
+      setError(validationError);
       return false;
     }
     setSaving(true);
     try {
       const db = await getExpoSqliteClient();
-      const anchor = buildAnchorFromDraft(draft.anchor);
-      if (draft.isNew) {
-        await insertAnchor(db, anchor);
-        const chain: Chain = {
-          id: draft.chainId,
-          title: draft.title.trim(),
-          anchorId: draft.anchor.id,
-          status: 'active',
-          createdAt: new Date().toISOString(),
-        };
-        await insertChain(db, chain);
-        for (let i = 0; i < draft.nodes.length; i++) {
-          const n = draft.nodes[i]!;
-          const node: Node = {
-            id: n.id,
-            chainId: draft.chainId,
-            orderIndex: i,
-            kind: 'action',
-            actionId: n.actionId,
-          };
-          await insertNode(db, node);
-        }
-      } else {
-        // 編集モード: anchor / chain は UPDATE、ノードは新規 INSERT + 既存 reorder
-        await updateAnchor(db, anchor);
-        const existingChain: Chain = {
-          id: draft.chainId,
-          title: draft.title.trim(),
-          anchorId: draft.anchor.id,
-          status: 'active',
-          createdAt: '', // updateChain は createdAt を触らないので任意値
-        };
-        await updateChain(db, existingChain);
-        // 新規ノードを INSERT (orderIndex は後で reorderNodes でまとめて整える)
-        for (const n of draft.nodes) {
-          if (n.isNew) {
-            const node: Node = {
-              id: n.id,
-              chainId: draft.chainId,
-              orderIndex: -1, // 仮値 (直後に reorderNodes で上書き)
-              kind: 'action',
-              actionId: n.actionId,
-            };
-            await insertNode(db, node);
-          } else {
-            // 既存ノードの actionId 変更がありえる (将来用)。orderIndex は reorderNodes 任せ
-            const node: Node = {
-              id: n.id,
-              chainId: draft.chainId,
-              orderIndex: -1,
-              kind: 'action',
-              actionId: n.actionId,
-            };
-            await updateNode(db, node);
-          }
-        }
-        await reorderNodes(
-          db,
-          draft.chainId,
-          draft.nodes.map((n) => n.id),
-        );
-      }
+      await persistChainDraft(db, draft);
       return true;
     } catch (e: unknown) {
       if (mountedRef.current) {
