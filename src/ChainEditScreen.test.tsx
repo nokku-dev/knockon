@@ -202,4 +202,37 @@ describe('ChainEditScreen', () => {
     fireEvent.press(getByLabelText('既存アクション: 水を飲む'));
     expect(onAddExistingAction).toHaveBeenCalledWith('act1', '水を飲む');
   });
+
+  test('onDeleteAction 未指定 (新規モード) では既存チップに × が表示されない', () => {
+    const existingActions: Action[] = [
+      { id: 'act1', title: '水を飲む', variants: null },
+    ];
+    const { getByLabelText, queryByLabelText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        availableActions={existingActions}
+      />,
+    );
+    fireEvent.press(getByLabelText('ノードを追加'));
+    expect(queryByLabelText('アクション「水を飲む」を削除')).toBeNull();
+  });
+
+  test('onDeleteAction 指定で既存チップに × ボタンが出る + 押下で onDeleteAction 呼び出し', () => {
+    const onDeleteAction = jest.fn();
+    const existingActions: Action[] = [
+      { id: 'act1', title: '水を飲む', variants: null },
+    ];
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        availableActions={existingActions}
+        onDeleteAction={onDeleteAction}
+      />,
+    );
+    fireEvent.press(getByLabelText('ノードを追加'));
+    fireEvent.press(getByLabelText('アクション「水を飲む」を削除'));
+    expect(onDeleteAction).toHaveBeenCalledWith(existingActions[0]);
+  });
 });

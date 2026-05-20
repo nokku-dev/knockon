@@ -2,6 +2,7 @@ import { createBetterSqliteClient } from './db.bettersqlite';
 import { initSchema, SCHEMA_VERSION } from './db';
 import type { DbClient } from './db';
 import {
+  deleteAction,
   deleteChain,
   getAction,
   getAnchor,
@@ -400,6 +401,91 @@ describe('deleteChain — チェーン削除 + 関連レコードの CASCADE', (
     await deleteChain(db, 'c1');
     const actions = await listActions(db);
     expect(actions.map((a) => a.id).sort()).toEqual(['act-stretch', 'act-water']);
+    await teardown(db);
+  });
+});
+
+describe('deleteAction — アクション削除 + 使用中の拒否 (PR-1.8b)', () => {
+  test('未使用アクション削除で listActions から消える', async () => {
+    const db = await setup();
+    await insertAction(db, { id: 'act-orphan', title: '使われていない', variants: null });
+    await deleteAction(db, 'act-orphan');
+    const actions = await listActions(db);
+    expect(actions.find((a) => a.id === 'act-orphan')).toBeUndefined();
+    await teardown(db);
+  });
+
+  test('使用中アクション削除は明示的なエラーで拒否される (FK 違反生メッセージではない)', async () => {
+    const db = await setup();
+    await insertAnchor(db, {
+      id: 'a1',
+      title: '起床',
+      kind: 'behavior',
+      time: null,
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    await insertAction(db, { id: 'act-water', title: '水を飲む', variants: null });
+    await insertChain(db, {
+      id: 'c1',
+      title: '朝のルーティン',
+      anchorId: 'a1',
+      status: 'active',
+      createdAt: '2026-05-19',
+    });
+    await insertNode(db, {
+      id: 'n1',
+      chainId: 'c1',
+      orderIndex: 0,
+      kind: 'action',
+      actionId: 'act-water',
+    });
+    await expect(deleteAction(db, 'act-water')).rejects.toThrow(/使用中/);
+    // 削除が拒否されていることを確認: action もノードも残っている
+    const action = await getAction(db, 'act-water');
+    expect(action?.id).toBe('act-water');
+    const nodes = await listNodes(db, 'c1');
+    expect(nodes).toHaveLength(1);
+    await teardown(db);
+  });
+
+  test('存在しないアクション ID の削除は no-op (エラーを投げない)', async () => {
+    const db = await setup();
+    await expect(deleteAction(db, 'nonexistent')).resolves.toBeUndefined();
+    await teardown(db);
+  });
+
+  test('使用していたチェーンを先に削除すれば、そのアクションは削除可能', async () => {
+    const db = await setup();
+    await insertAnchor(db, {
+      id: 'a1',
+      title: '起床',
+      kind: 'behavior',
+      time: null,
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    await insertAction(db, { id: 'act-water', title: '水を飲む', variants: null });
+    await insertChain(db, {
+      id: 'c1',
+      title: '朝のルーティン',
+      anchorId: 'a1',
+      status: 'active',
+      createdAt: '2026-05-19',
+    });
+    await insertNode(db, {
+      id: 'n1',
+      chainId: 'c1',
+      orderIndex: 0,
+      kind: 'action',
+      actionId: 'act-water',
+    });
+    await deleteChain(db, 'c1');
+    await expect(deleteAction(db, 'act-water')).resolves.toBeUndefined();
+    const action = await getAction(db, 'act-water');
+    expect(action).toBeNull();
     await teardown(db);
   });
 });

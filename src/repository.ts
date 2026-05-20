@@ -134,6 +134,28 @@ export const updateAnchor = (db: DbClient, anchor: Anchor): Promise<void> =>
     ],
   );
 
+// アクション削除。nodes.action_id REFERENCES actions(id) は RESTRICT (デフォルト)
+// なので、使用中のアクションを直接 DELETE すると FK 違反で reject される。
+// UX 上は「使用中」を明示的なエラーにしたいので、削除前に使用数をチェックして
+// 0 件のときだけ DELETE する。
+// 存在しないアクション ID は no-op (UI からの誤呼び出し対策、deleteChain と整合)。
+export const deleteAction = async (
+  db: DbClient,
+  actionId: string,
+): Promise<void> => {
+  const usedRows = await db.all<{ count: number }>(
+    `SELECT COUNT(*) AS count FROM nodes WHERE action_id = ?`,
+    [actionId],
+  );
+  const usedCount = usedRows[0]?.count ?? 0;
+  if (usedCount > 0) {
+    throw new Error(
+      `このアクションは ${usedCount} 個のノードで使用中のため削除できません`,
+    );
+  }
+  await db.run(`DELETE FROM actions WHERE id = ?`, [actionId]);
+};
+
 export const insertAction = (db: DbClient, action: Action): Promise<void> =>
   db.run(`INSERT INTO actions (id, title, variants_json) VALUES (?, ?, ?)`, [
     action.id,

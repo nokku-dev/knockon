@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChainEditScreen } from '../../src/ChainEditScreen';
+import type { Action } from '../../src/domain';
 import {
   COLOR_ACCENT,
   COLOR_BG,
@@ -34,6 +35,7 @@ export default function EditChainRoute() {
     reorderNodes,
     save,
     deleteChain,
+    deleteAction,
   } = useChainEdit(chainId ?? null);
 
   const handleSave = async () => {
@@ -53,6 +55,26 @@ export default function EditChainRoute() {
           onPress: async () => {
             const ok = await deleteChain();
             if (ok) router.back();
+          },
+        },
+      ],
+    );
+  };
+
+  const handleDeleteAction = (action: Action) => {
+    Alert.alert(
+      'アクションを削除',
+      `「${action.title}」を削除します。他のチェーンで使用中の場合は削除できません。`,
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        {
+          text: '削除',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await deleteAction(action.id);
+            if (!result.ok) {
+              Alert.alert('削除できません', result.error);
+            }
           },
         },
       ],
@@ -89,6 +111,7 @@ export default function EditChainRoute() {
             onCancel={() => router.back()}
             onSave={handleSave}
             onDelete={handleDelete}
+            onDeleteAction={handleDeleteAction}
           />
           {error && (
             <View style={styles.banner}>
