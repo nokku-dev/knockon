@@ -18,6 +18,7 @@ import { AnchorEditor } from './AnchorEditor';
 import type { Action, Anchor } from './domain';
 import type { CurrentPosition, LocationPermissionStatus } from './location';
 import {
+  COLOR_ACCENT,
   COLOR_BG,
   COLOR_FG,
   COLOR_FG_FAINT,
@@ -47,6 +48,9 @@ export type ChainEditScreenProps = {
   onReorderNodes: (from: number, to: number) => void;
   onCancel: () => void;
   onSave: () => void;
+  // 編集モードのみ渡す。新規モード (isNew=true) では未指定でよい。
+  // 指定があれば Footer 末尾に「このチェーンを削除」ボタンを表示。
+  onDelete?: () => void;
 };
 
 export const ChainEditScreen = ({
@@ -67,6 +71,7 @@ export const ChainEditScreen = ({
   onReorderNodes,
   onCancel,
   onSave,
+  onDelete,
 }: ChainEditScreenProps) => {
   const [adderOpen, setAdderOpen] = useState(false);
   const [newActionDraft, setNewActionDraft] = useState('');
@@ -201,9 +206,29 @@ export const ChainEditScreen = ({
             }}
           />
         )}
+        {onDelete && (
+          <Pressable
+            onPress={onDelete}
+            disabled={saving}
+            accessibilityRole="button"
+            accessibilityLabel="このチェーンを削除"
+            accessibilityState={{ disabled: saving }}
+            style={[styles.deleteBtn, saving && styles.deleteBtnDisabled]}
+          >
+            <Text style={styles.deleteBtnText}>このチェーンを削除</Text>
+          </Pressable>
+        )}
       </View>
     ),
-    [adderOpen, availableActions, newActionDraft, onAddExistingAction, onAddNewAction],
+    [
+      adderOpen,
+      availableActions,
+      newActionDraft,
+      onAddExistingAction,
+      onAddNewAction,
+      onDelete,
+      saving,
+    ],
   );
 
   return (
@@ -412,6 +437,20 @@ const styles = StyleSheet.create({
     backgroundColor: COLOR_LINE_BG,
   },
   addBtnText: { color: COLOR_FG, fontSize: 13, fontWeight: '600' },
+  // 削除ボタンは destructive action。DESIGN-SYSTEM §1 で accent の用途は
+  // 「今日発火中 / ノック」に限定しているが、destructive action は警告色が必要なため
+  // 文字色のみ accent を使い、背景は LINE_BG に抑えて派手さを避ける。
+  // (Augmentation 原則: 「マイナスを指差さない」を保ちつつ、操作の不可逆性は明示)。
+  deleteBtn: {
+    marginTop: 24,
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: COLOR_LINE_BG,
+  },
+  deleteBtnText: { color: COLOR_ACCENT, fontSize: 13, fontWeight: '600' },
+  deleteBtnDisabled: { opacity: 0.4 },
   picker: {
     marginTop: 8,
     padding: 12,

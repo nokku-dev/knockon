@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChainEditScreen } from '../../src/ChainEditScreen';
@@ -33,11 +33,30 @@ export default function EditChainRoute() {
     removeNode,
     reorderNodes,
     save,
+    deleteChain,
   } = useChainEdit(chainId ?? null);
 
   const handleSave = async () => {
     const ok = await save();
     if (ok) router.back();
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'チェーンを削除',
+      'このチェーンと関連する達成記録もすべて削除されます。元に戻せません。',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        {
+          text: '削除',
+          style: 'destructive',
+          onPress: async () => {
+            const ok = await deleteChain();
+            if (ok) router.back();
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -69,6 +88,7 @@ export default function EditChainRoute() {
             onReorderNodes={reorderNodes}
             onCancel={() => router.back()}
             onSave={handleSave}
+            onDelete={handleDelete}
           />
           {error && (
             <View style={styles.banner}>
