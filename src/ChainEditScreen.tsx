@@ -229,20 +229,21 @@ type NodeEditorRowProps = {
 
 const NodeEditorRow = ({ node, onRemove }: NodeEditorRowProps) => {
   // useReorderableDrag は ReorderableList の renderItem ツリー内でのみ有効。
-  // ハンドル領域 (Pressable) からだけドラッグを起動できるよう、ハンドルの
-  // onLongPress で drag() を呼ぶ。
+  // タップ判定範囲は行全体 (Pressable) にし、見た目のハンドル ≡ は装飾の View
+  // にとどめる。削除ボタンは内側の別 Pressable のままで、子の Pressable が
+  // タッチを consume するため外側 (行) の長押しには bubble しない。
   const drag = useReorderableDrag();
   return (
-    <View style={styles.nodeRow} accessibilityLabel={node.actionTitle}>
-      <Pressable
-        onLongPress={drag}
-        delayLongPress={500}
-        accessibilityRole="button"
-        accessibilityLabel={`${node.actionTitle} をドラッグして並び替え`}
-        style={styles.dragHandle}
-      >
+    <Pressable
+      onLongPress={drag}
+      delayLongPress={500}
+      accessibilityRole="button"
+      accessibilityLabel={`${node.actionTitle} をドラッグして並び替え`}
+      style={styles.nodeRow}
+    >
+      <View style={styles.dragHandle}>
         <Text style={styles.dragHandleText}>≡</Text>
-      </Pressable>
+      </View>
       <Text style={styles.nodeTitle}>{node.actionTitle}</Text>
       <Pressable
         onPress={() => onRemove(node.id)}
@@ -252,7 +253,7 @@ const NodeEditorRow = ({ node, onRemove }: NodeEditorRowProps) => {
       >
         <Text style={styles.removeBtnText}>×</Text>
       </Pressable>
-    </View>
+    </Pressable>
   );
 };
 
@@ -381,10 +382,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLOR_SURFACE,
   },
   dragHandle: {
-    // 指のタップ判定範囲を横に広げる。Apple HIG の最低タップ領域 44pt 相当。
-    // ノード行の上下 padding (12) と合わせて高さも実質 44pt を確保。
-    width: 48,
-    height: 36,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 6,
