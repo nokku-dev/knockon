@@ -95,7 +95,12 @@ export const ChainEditScreen = ({
       // library が渡してきた data (新しい順序の EditableNode 配列) をそのまま
       // 上流に渡す。id 配列に展開して再マッピングするとオブジェクト参照が変わり、
       // library の settle アニメーションと React の re-render が同期せずチラつく。
-      onReorderNodes(data);
+      //
+      // さらに requestAnimationFrame で 1 フレーム遅延させる。これは
+      // draggable-flatlist の settle アニメーション (ScaleDecorator の scale 1.05→1.0
+      // 復帰) が完了する前に setDraft で全行が rerender されると、scale=1.05 のままで
+      // 1 フレーム描画されてチラついて見える現象を回避するため。
+      requestAnimationFrame(() => onReorderNodes(data));
     },
     [onReorderNodes],
   );
@@ -243,6 +248,12 @@ type NodeEditorRowProps = {
   onRemove: (nodeId: string) => void;
 };
 
+// memo の比較関数で `onDrag` を比較対象から除外する。
+// draggable-flatlist が renderItem に渡してくる `drag` 関数は毎レンダー新参照に
+// なるため、比較に含めると memo が常に失敗し全行が rerender される
+// (ScaleDecorator の scale settle と非同期で 1 フレーム flash する原因)。
+// drag は Pressable の onLongPress に渡されるだけで、参照が変わっても次の長押し時に
+// 最新版が使われるだけなので比較から除外して問題ない。
 const NodeEditorRow = memo(
   ({ node, active, onDrag, onRemove }: NodeEditorRowProps) => (
     <View
@@ -251,7 +262,7 @@ const NodeEditorRow = memo(
     >
       <Pressable
         onLongPress={onDrag}
-        delayLongPress={200}
+        delayLongPress={500}
         accessibilityRole="button"
         accessibilityLabel={`${node.actionTitle} をドラッグして並び替え`}
         style={styles.dragHandle}
@@ -269,6 +280,10 @@ const NodeEditorRow = memo(
       </Pressable>
     </View>
   ),
+  (prev, next) =>
+    prev.node === next.node &&
+    prev.active === next.active &&
+    prev.onRemove === next.onRemove,
 );
 NodeEditorRow.displayName = 'NodeEditorRow';
 
