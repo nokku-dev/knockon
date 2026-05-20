@@ -381,8 +381,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLOR_SURFACE,
   },
   dragHandle: {
-    width: 28,
-    height: 28,
+    // 指のタップ判定範囲を横に広げる。Apple HIG の最低タップ領域 44pt 相当。
+    // ノード行の上下 padding (12) と合わせて高さも実質 44pt を確保。
+    width: 48,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 6,
