@@ -7,9 +7,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { initSchema } from '../src/db';
 import { getExpoSqliteClient } from '../src/db.expo';
-import { shouldSeed } from '../src/domain';
-import { listChains } from '../src/repository';
-import { buildPersonalChainSeed, seed } from '../src/seed';
 import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../src/tokens';
 
 void SystemUI.setBackgroundColorAsync(COLOR_BG);
@@ -22,12 +19,11 @@ export default function RootLayout() {
     let cancelled = false;
     (async () => {
       try {
+        // ADR-0014: 起動時の自動シード投入は廃止。チェーン CRUD で自分で作る前提。
+        // 初回起動時はチェーン 0 件の空状態で、Today / チェーン一覧の empty state
+        // → 「+ 新規作成」誘導で開始する。
         const db = await getExpoSqliteClient();
         await initSchema(db);
-        const existing = await listChains(db, 'active');
-        if (shouldSeed(existing)) {
-          await seed(db, buildPersonalChainSeed());
-        }
         if (!cancelled) setReady(true);
       } catch (e: unknown) {
         if (!cancelled) {
@@ -60,7 +56,11 @@ export default function RootLayout() {
         >
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
-            name="anchor/[chainId]"
+            name="chain/new"
+            options={{ presentation: 'modal' }}
+          />
+          <Stack.Screen
+            name="chain/[chainId]"
             options={{ presentation: 'modal' }}
           />
         </Stack>
