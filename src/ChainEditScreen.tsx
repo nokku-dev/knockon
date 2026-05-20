@@ -1,12 +1,18 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import ReorderableList, {
+  useReorderableDrag,
+} from 'react-native-reorderable-list';
+import type {
+  ReorderableListReorderEvent,
+  ReorderableListRenderItemInfo,
+} from 'react-native-reorderable-list';
 
 import { AnchorEditor } from './AnchorEditor';
 import type { Action, Anchor } from './domain';
@@ -37,7 +43,8 @@ export type ChainEditScreenProps = {
   onAddExistingAction: (actionId: string, actionTitle: string) => void;
   onAddNewAction: (actionTitle: string) => void;
   onRemoveNode: (nodeId: string) => void;
-  onMoveNode: (nodeId: string, direction: 'up' | 'down') => void;
+  // react-native-reorderable-list の onReorder({from, to}) をそのまま受ける形。
+  onReorderNodes: (from: number, to: number) => void;
   onCancel: () => void;
   onSave: () => void;
 };
@@ -57,7 +64,7 @@ export const ChainEditScreen = ({
   onAddExistingAction,
   onAddNewAction,
   onRemoveNode,
-  onMoveNode,
+  onReorderNodes,
   onCancel,
   onSave,
 }: ChainEditScreenProps) => {
@@ -66,69 +73,104 @@ export const ChainEditScreen = ({
   const canSave =
     !saving && draft.title.trim().length > 0 && draft.nodes.length > 0;
 
-  return (
-    <ScrollView contentContainerStyle={styles.scroll}>
-      <View style={styles.topbar}>
-        <Pressable onPress={onCancel} accessibilityRole="button">
-          <Text style={styles.cancel}>キャンセル</Text>
-        </Pressable>
-        <Text style={styles.title} numberOfLines={1}>
-          {draft.isNew ? 'チェーンを新規作成' : 'チェーンを編集'}
-        </Text>
-        <Pressable
-          onPress={onSave}
-          accessibilityRole="button"
-          accessibilityLabel="保存"
-          accessibilityState={{ disabled: !canSave }}
-        >
-          <Text style={[styles.save, !canSave && styles.saveDisabled]}>
-            {saving ? '保存中…' : '保存'}
+  // ReorderableList は ScrollView 内に置けないので画面 root として使う。
+  // 編集 UI 全体は ListHeaderComponent / ListFooterComponent で吸収する。
+  const renderItem = useCallback(
+    ({ item }: ReorderableListRenderItemInfo<EditableNode>) => (
+      <NodeEditorRow node={item} onRemove={onRemoveNode} />
+    ),
+    [onRemoveNode],
+  );
+
+  const handleReorder = useCallback(
+    ({ from, to }: ReorderableListReorderEvent) => {
+      onReorderNodes(from, to);
+    },
+    [onReorderNodes],
+  );
+
+  const Header = useMemo(
+    () => (
+      <View style={styles.headerContent}>
+        <View style={styles.topbar}>
+          <Pressable onPress={onCancel} accessibilityRole="button">
+            <Text style={styles.cancel}>キャンセル</Text>
+          </Pressable>
+          <Text style={styles.title} numberOfLines={1}>
+            {draft.isNew ? 'チェーンを新規作成' : 'チェーンを編集'}
           </Text>
-        </Pressable>
-      </View>
+          <Pressable
+            onPress={onSave}
+            accessibilityRole="button"
+            accessibilityLabel="保存"
+            accessibilityState={{ disabled: !canSave }}
+          >
+            <Text style={[styles.save, !canSave && styles.saveDisabled]}>
+              {saving ? '保存中…' : '保存'}
+            </Text>
+          </Pressable>
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>チェーンタイトル</Text>
-        <TextInput
-          value={draft.title}
-          onChangeText={onSetTitle}
-          placeholder="朝のルーティン"
-          placeholderTextColor={COLOR_FG_FAINT}
-          style={styles.titleInput}
-          accessibilityLabel="チェーンタイトル"
-        />
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>チェーンタイトル</Text>
+          <TextInput
+            value={draft.title}
+            onChangeText={onSetTitle}
+            placeholder="朝のルーティン"
+            placeholderTextColor={COLOR_FG_FAINT}
+            style={styles.titleInput}
+            accessibilityLabel="チェーンタイトル"
+          />
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>起点アンカー</Text>
-        <AnchorEditor
-          anchor={draft.anchor}
-          locationPermission={locationPermission}
-          locating={locating}
-          onSetKind={onSetAnchorKind}
-          onSetTime={onSetAnchorTime}
-          onSetLocation={onSetAnchorLocation}
-          onSetRadius={onSetAnchorRadius}
-          onFetchLocation={onFetchLocation}
-        />
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>起点アンカー</Text>
+          <AnchorEditor
+            anchor={draft.anchor}
+            locationPermission={locationPermission}
+            locating={locating}
+            onSetKind={onSetAnchorKind}
+            onSetTime={onSetAnchorTime}
+            onSetLocation={onSetAnchorLocation}
+            onSetRadius={onSetAnchorRadius}
+            onFetchLocation={onFetchLocation}
+          />
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>ノード ({draft.nodes.length})</Text>
+        <View style={styles.nodesHeader}>
+          <Text style={styles.sectionLabel}>ノード ({draft.nodes.length})</Text>
+          {draft.nodes.length > 0 && (
+            <Text style={styles.dragHint}>長押しで並び替え</Text>
+          )}
+        </View>
         {draft.nodes.length === 0 && (
           <Text style={styles.emptyHint}>「+ 追加」でノードを足してください</Text>
         )}
-        {draft.nodes.map((n, idx) => (
-          <NodeEditorRow
-            key={n.id}
-            node={n}
-            index={idx}
-            total={draft.nodes.length}
-            onMove={onMoveNode}
-            onRemove={onRemoveNode}
-          />
-        ))}
+      </View>
+    ),
+    [
+      draft.isNew,
+      draft.title,
+      draft.anchor,
+      draft.nodes.length,
+      saving,
+      canSave,
+      locationPermission,
+      locating,
+      onCancel,
+      onSave,
+      onSetTitle,
+      onSetAnchorKind,
+      onSetAnchorTime,
+      onSetAnchorLocation,
+      onSetAnchorRadius,
+      onFetchLocation,
+    ],
+  );
 
+  const Footer = useMemo(
+    () => (
+      <View style={styles.footerContent}>
         {!adderOpen ? (
           <Pressable
             onPress={() => setAdderOpen(true)}
@@ -160,56 +202,58 @@ export const ChainEditScreen = ({
           />
         )}
       </View>
-    </ScrollView>
+    ),
+    [adderOpen, availableActions, newActionDraft, onAddExistingAction, onAddNewAction],
+  );
+
+  return (
+    <ReorderableList
+      data={draft.nodes}
+      onReorder={handleReorder}
+      keyExtractor={keyExtractor}
+      renderItem={renderItem}
+      ListHeaderComponent={Header}
+      ListFooterComponent={Footer}
+      contentContainerStyle={styles.listContent}
+      keyboardShouldPersistTaps="handled"
+    />
   );
 };
 
+const keyExtractor = (item: EditableNode): string => item.id;
+
 type NodeEditorRowProps = {
   node: EditableNode;
-  index: number;
-  total: number;
-  onMove: (nodeId: string, direction: 'up' | 'down') => void;
   onRemove: (nodeId: string) => void;
 };
 
-const NodeEditorRow = ({ node, index, total, onMove, onRemove }: NodeEditorRowProps) => {
-  const upDisabled = index === 0;
-  const downDisabled = index === total - 1;
+const NodeEditorRow = ({ node, onRemove }: NodeEditorRowProps) => {
+  // useReorderableDrag は ReorderableList の renderItem ツリー内でのみ有効。
+  // タップ判定範囲は行全体 (Pressable) にし、見た目のハンドル ≡ は装飾の View
+  // にとどめる。削除ボタンは内側の別 Pressable のままで、子の Pressable が
+  // タッチを consume するため外側 (行) の長押しには bubble しない。
+  const drag = useReorderableDrag();
   return (
-    <View style={styles.nodeRow} accessibilityLabel={node.actionTitle}>
-      <Text style={styles.nodeOrder}>{index + 1}</Text>
-      <Text style={styles.nodeTitle}>{node.actionTitle}</Text>
-      <View style={styles.nodeActions}>
-        <Pressable
-          onPress={() => onMove(node.id, 'up')}
-          disabled={upDisabled}
-          accessibilityRole="button"
-          accessibilityLabel={`${node.actionTitle} を上に移動`}
-          accessibilityState={{ disabled: upDisabled }}
-          style={[styles.nodeBtn, upDisabled && styles.nodeBtnDisabled]}
-        >
-          <Text style={styles.nodeBtnText}>↑</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => onMove(node.id, 'down')}
-          disabled={downDisabled}
-          accessibilityRole="button"
-          accessibilityLabel={`${node.actionTitle} を下に移動`}
-          accessibilityState={{ disabled: downDisabled }}
-          style={[styles.nodeBtn, downDisabled && styles.nodeBtnDisabled]}
-        >
-          <Text style={styles.nodeBtnText}>↓</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => onRemove(node.id)}
-          accessibilityRole="button"
-          accessibilityLabel={`${node.actionTitle} を削除`}
-          style={styles.nodeBtn}
-        >
-          <Text style={styles.nodeBtnText}>×</Text>
-        </Pressable>
+    <Pressable
+      onLongPress={drag}
+      delayLongPress={500}
+      accessibilityRole="button"
+      accessibilityLabel={`${node.actionTitle} をドラッグして並び替え`}
+      style={styles.nodeRow}
+    >
+      <View style={styles.dragHandle}>
+        <Text style={styles.dragHandleText}>≡</Text>
       </View>
-    </View>
+      <Text style={styles.nodeTitle}>{node.actionTitle}</Text>
+      <Pressable
+        onPress={() => onRemove(node.id)}
+        accessibilityRole="button"
+        accessibilityLabel={`${node.actionTitle} を削除`}
+        style={styles.removeBtn}
+      >
+        <Text style={styles.removeBtnText}>×</Text>
+      </Pressable>
+    </Pressable>
   );
 };
 
@@ -285,7 +329,9 @@ const ActionPicker = ({
 );
 
 const styles = StyleSheet.create({
-  scroll: { padding: 24, gap: 16 },
+  listContent: { padding: 24, paddingBottom: 48 },
+  headerContent: { gap: 16, paddingBottom: 8 },
+  footerContent: { paddingTop: 12 },
   topbar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -316,24 +362,39 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
-  anchorSummary: { color: COLOR_FG, fontSize: 16, fontWeight: '500' },
-  anchorHint: { color: COLOR_FG_FAINT, fontSize: 11 },
-  emptyHint: { color: COLOR_FG_FAINT, fontSize: 12 },
+  nodesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    paddingTop: 4,
+  },
+  dragHint: { color: COLOR_FG_FAINT, fontSize: 11 },
+  emptyHint: { color: COLOR_FG_FAINT, fontSize: 12, paddingHorizontal: 4 },
   nodeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginVertical: 2,
+    borderRadius: 10,
+    backgroundColor: COLOR_SURFACE,
   },
-  nodeOrder: {
+  dragHandle: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 6,
+  },
+  dragHandleText: {
     color: COLOR_FG_FAINT,
-    fontSize: 12,
-    fontVariant: ['tabular-nums'],
-    width: 16,
+    fontSize: 18,
+    fontWeight: '600',
   },
   nodeTitle: { color: COLOR_FG, fontSize: 16, flex: 1 },
-  nodeActions: { flexDirection: 'row', gap: 4 },
-  nodeBtn: {
+  removeBtn: {
     width: 32,
     height: 32,
     alignItems: 'center',
@@ -341,8 +402,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: COLOR_LINE_BG,
   },
-  nodeBtnDisabled: { opacity: 0.3 },
-  nodeBtnText: { color: COLOR_FG, fontSize: 16, fontWeight: '600' },
+  removeBtnText: { color: COLOR_FG, fontSize: 16, fontWeight: '600' },
   addBtn: {
     marginTop: 4,
     alignSelf: 'flex-start',

@@ -45,7 +45,7 @@ const noopProps = {
   onAddExistingAction: () => {},
   onAddNewAction: () => {},
   onRemoveNode: () => {},
-  onMoveNode: () => {},
+  onReorderNodes: () => {},
   onCancel: () => {},
   onSave: () => {},
 };
@@ -96,35 +96,20 @@ describe('ChainEditScreen', () => {
     expect(onSetTitle).toHaveBeenCalledWith('夜のルーティン');
   });
 
-  test('ノードを下に移動 → onMoveNode("nodeId", "down")', () => {
-    const onMoveNode = jest.fn();
-    const { getByLabelText } = render(
-      <ChainEditScreen
-        draft={draftWithNodes()}
-        {...noopProps}
-        onMoveNode={onMoveNode}
-      />,
-    );
-    fireEvent.press(getByLabelText('水を飲む を下に移動'));
-    expect(onMoveNode).toHaveBeenCalledWith('n1', 'down');
-  });
-
-  test('一番上のノードの「上に移動」は disabled', () => {
+  test('各ノードにドラッグハンドルが accessibilityLabel 付きで表示される', () => {
     const { getByLabelText } = render(
       <ChainEditScreen draft={draftWithNodes()} {...noopProps} />,
     );
-    expect(getByLabelText('水を飲む を上に移動').props.accessibilityState).toEqual(
-      { disabled: true },
-    );
+    expect(getByLabelText('水を飲む をドラッグして並び替え')).toBeTruthy();
+    expect(getByLabelText('ストレッチ をドラッグして並び替え')).toBeTruthy();
+    expect(getByLabelText('机に向かう をドラッグして並び替え')).toBeTruthy();
   });
 
-  test('一番下のノードの「下に移動」は disabled', () => {
-    const { getByLabelText } = render(
+  test('「長押しで並び替え」ヒントがノード有りのとき表示される', () => {
+    const { getByText } = render(
       <ChainEditScreen draft={draftWithNodes()} {...noopProps} />,
     );
-    expect(
-      getByLabelText('机に向かう を下に移動').props.accessibilityState,
-    ).toEqual({ disabled: true });
+    expect(getByText('長押しで並び替え')).toBeTruthy();
   });
 
   test('ノード削除で onRemoveNode が該当 nodeId で呼ばれる', () => {

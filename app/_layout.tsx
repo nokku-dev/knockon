@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { initSchema } from '../src/db';
@@ -37,35 +38,37 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SafeAreaProvider style={styles.root}>
-      <StatusBar style="light" />
-      {error ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-        </View>
-      ) : !ready ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={COLOR_FG} />
-        </View>
-      ) : (
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: COLOR_BG },
-          }}
-        >
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="chain/new"
-            options={{ presentation: 'modal' }}
-          />
-          <Stack.Screen
-            name="chain/[chainId]"
-            options={{ presentation: 'modal' }}
-          />
-        </Stack>
-      )}
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider style={styles.root}>
+        <StatusBar style="light" />
+        {error ? (
+          <View style={styles.center}>
+            <Text style={styles.error}>{error}</Text>
+          </View>
+        ) : !ready ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={COLOR_FG} />
+          </View>
+        ) : (
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: COLOR_BG },
+            }}
+          >
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="chain/new"
+              options={{ presentation: 'modal' }}
+            />
+            <Stack.Screen
+              name="chain/[chainId]"
+              options={{ presentation: 'modal' }}
+            />
+          </Stack>
+        )}
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
