@@ -1,5 +1,5 @@
 import { createBetterSqliteClient } from './db.bettersqlite';
-import { initSchema } from './db';
+import { initSchema, SCHEMA_VERSION } from './db';
 import type { DbClient } from './db';
 import {
   deleteChain,
@@ -273,6 +273,14 @@ describe('スキーマの不変条件', () => {
     const anchorFk = fks.find((f) => f.from === 'anchor_id');
     expect(anchorFk?.table).toBe('anchors');
     expect(anchorFk?.on_delete).toBe('CASCADE');
+    await teardown(db);
+  });
+
+  test('PRAGMA user_version が SCHEMA_VERSION と一致 (PR-1.8a migration)', async () => {
+    const db = await setup();
+    type VersionRow = { user_version: number };
+    const rows = await db.all<VersionRow>(`PRAGMA user_version`);
+    expect(rows[0]?.user_version).toBe(SCHEMA_VERSION);
     await teardown(db);
   });
 

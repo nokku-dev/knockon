@@ -72,5 +72,38 @@ CREATE INDEX IF NOT EXISTS idx_achievements_date ON achievements(date);
 CREATE INDEX IF NOT EXISTS idx_anchor_firings_date ON anchor_firings(date);
 `;
 
-export const initSchema = (client: DbClient): Promise<void> =>
-  client.exec(SCHEMA_SQL);
+// スキーマバージョン管理。PR-1.8a で導入。
+//
+// 背景: PR-1.7 までは `CREATE TABLE IF NOT EXISTS` だけで対応していたが、
+// PR-1.8a で `ON DELETE CASCADE` を追加したスキーマ変更は IF NOT EXISTS では
+// 反映されない (既存テーブルがあれば skip)。古い CASCADE なしスキーマのまま
+// PRAGMA foreign_keys=ON だけ有効化されると、チェーン削除が FK 違反で失敗する。
+//
+// Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
+// (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
+// 出てきたら ALTER TABLE 系に切替。
+export const SCHEMA_VERSION = 1;
+
+const DROP_SQL = `
+DROP TABLE IF EXISTS achievements;
+DROP TABLE IF EXISTS anchor_firings;
+DROP TABLE IF EXISTS nodes;
+DROP TABLE IF EXISTS chains;
+DROP TABLE IF EXISTS anchors;
+DROP TABLE IF EXISTS actions;
+`;
+
+export const initSchema = async (client: DbClient): Promise<void> => {
+  const rows = await client.all<{ user_version: number }>(`PRAGMA user_version`);
+  const current = rows[0]?.user_version ?? 0;
+  if (current < SCHEMA_VERSION) {
+    // 古い schema を破棄して新規作成。CREATE IF NOT EXISTS だと CASCADE 句が
+    // 反映されない問題への対応。
+    await client.exec(DROP_SQL);
+    await client.exec(SCHEMA_SQL);
+    await client.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+  } else {
+    // 既に最新バージョン: 空 DB の保険として CREATE IF NOT EXISTS は通す
+    await client.exec(SCHEMA_SQL);
+  }
+};
