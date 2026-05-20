@@ -1,7 +1,8 @@
 import { createBetterSqliteClient } from './db.bettersqlite';
-import { initSchema } from './db';
+import { initSchema, SCHEMA_VERSION } from './db';
 import type { DbClient } from './db';
 import {
+  deleteChain,
   getAction,
   getAnchor,
   insertAction,
@@ -239,6 +240,166 @@ describe('スキーマの不変条件', () => {
         'nodes',
       ].sort(),
     );
+    await teardown(db);
+  });
+
+  // ADR-0014 + K-018: FK 制約は PRAGMA foreign_keys=ON で強制 + ON DELETE CASCADE で
+  // チェーン削除時の関連レコード自動削除を保証する。これらは「変えてはいけない」
+  // 構造的不変条件なので PRAGMA メタクエリで機械検証する (K-006 と同じ精神)。
+  test('nodes.chain_id は ON DELETE CASCADE (チェーン削除で全ノード自動削除)', async () => {
+    const db = await setup();
+    type FkRow = { table: string; from: string; to: string; on_delete: string };
+    const fks = await db.all<FkRow>(`PRAGMA foreign_key_list(nodes)`);
+    const chainFk = fks.find((f) => f.from === 'chain_id');
+    expect(chainFk?.table).toBe('chains');
+    expect(chainFk?.on_delete).toBe('CASCADE');
+    await teardown(db);
+  });
+
+  test('achievements.node_id は ON DELETE CASCADE (ノード削除で達成記録も削除)', async () => {
+    const db = await setup();
+    type FkRow = { table: string; from: string; to: string; on_delete: string };
+    const fks = await db.all<FkRow>(`PRAGMA foreign_key_list(achievements)`);
+    const nodeFk = fks.find((f) => f.from === 'node_id');
+    expect(nodeFk?.table).toBe('nodes');
+    expect(nodeFk?.on_delete).toBe('CASCADE');
+    await teardown(db);
+  });
+
+  test('anchor_firings.anchor_id は ON DELETE CASCADE (アンカー削除で発火記録も削除)', async () => {
+    const db = await setup();
+    type FkRow = { table: string; from: string; to: string; on_delete: string };
+    const fks = await db.all<FkRow>(`PRAGMA foreign_key_list(anchor_firings)`);
+    const anchorFk = fks.find((f) => f.from === 'anchor_id');
+    expect(anchorFk?.table).toBe('anchors');
+    expect(anchorFk?.on_delete).toBe('CASCADE');
+    await teardown(db);
+  });
+
+  test('PRAGMA user_version が SCHEMA_VERSION と一致 (PR-1.8a migration)', async () => {
+    const db = await setup();
+    type VersionRow = { user_version: number };
+    const rows = await db.all<VersionRow>(`PRAGMA user_version`);
+    expect(rows[0]?.user_version).toBe(SCHEMA_VERSION);
+    await teardown(db);
+  });
+
+  test('nodes.action_id は ON DELETE RESTRICT (使用中アクションは削除拒否 / PR-1.8b 用)', async () => {
+    const db = await setup();
+    type FkRow = { table: string; from: string; to: string; on_delete: string };
+    const fks = await db.all<FkRow>(`PRAGMA foreign_key_list(nodes)`);
+    const actionFk = fks.find((f) => f.from === 'action_id');
+    expect(actionFk?.table).toBe('actions');
+    // RESTRICT もしくは NO ACTION (どちらも「拒否」挙動)
+    expect(['RESTRICT', 'NO ACTION']).toContain(actionFk?.on_delete);
+    await teardown(db);
+  });
+});
+
+describe('deleteChain — チェーン削除 + 関連レコードの CASCADE', () => {
+  const seedChainWithNodes = async (db: DbClient): Promise<void> => {
+    await insertAnchor(db, {
+      id: 'a1',
+      title: '起床',
+      kind: 'time',
+      time: '07:30',
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    await insertAction(db, { id: 'act-water', title: '水を飲む', variants: null });
+    await insertAction(db, { id: 'act-stretch', title: 'ストレッチ', variants: null });
+    await insertChain(db, {
+      id: 'c1',
+      title: '朝のルーティン',
+      anchorId: 'a1',
+      status: 'active',
+      createdAt: '2026-05-19',
+    });
+    await insertNode(db, {
+      id: 'n1',
+      chainId: 'c1',
+      orderIndex: 0,
+      kind: 'action',
+      actionId: 'act-water',
+    });
+    await insertNode(db, {
+      id: 'n2',
+      chainId: 'c1',
+      orderIndex: 1,
+      kind: 'action',
+      actionId: 'act-stretch',
+    });
+    await recordAchievement(db, {
+      nodeId: 'n1',
+      date: '2026-05-19',
+      achieved: true,
+    });
+    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' });
+  };
+
+  test('チェーン削除で関連ノードも CASCADE で消える', async () => {
+    const db = await setup();
+    await seedChainWithNodes(db);
+    await deleteChain(db, 'c1');
+    const nodes = await listNodes(db, 'c1');
+    expect(nodes).toEqual([]);
+    await teardown(db);
+  });
+
+  test('チェーン削除で関連達成記録も CASCADE で消える', async () => {
+    const db = await setup();
+    await seedChainWithNodes(db);
+    await deleteChain(db, 'c1');
+    const achievements = await listAchievementsForNodes(
+      db,
+      ['n1', 'n2'],
+      '2026-05-19',
+      '2026-05-19',
+    );
+    expect(achievements).toEqual([]);
+    await teardown(db);
+  });
+
+  test('チェーン削除で関連アンカー (1-1) も消える', async () => {
+    const db = await setup();
+    await seedChainWithNodes(db);
+    await deleteChain(db, 'c1');
+    const anchor = await getAnchor(db, 'a1');
+    expect(anchor).toBeNull();
+    await teardown(db);
+  });
+
+  test('チェーン削除でアンカー発火記録も CASCADE で消える', async () => {
+    const db = await setup();
+    await seedChainWithNodes(db);
+    await deleteChain(db, 'c1');
+    const firings = await listAnchorFiringsForDate(db, 'a1', '2026-05-19');
+    expect(firings).toEqual([]);
+    await teardown(db);
+  });
+
+  test('チェーン削除自体: listChains から消える', async () => {
+    const db = await setup();
+    await seedChainWithNodes(db);
+    await deleteChain(db, 'c1');
+    const chains = await listChains(db);
+    expect(chains).toEqual([]);
+    await teardown(db);
+  });
+
+  test('存在しないチェーン ID の削除は no-op (エラーを投げない)', async () => {
+    const db = await setup();
+    await expect(deleteChain(db, 'nonexistent')).resolves.toBeUndefined();
+    await teardown(db);
+  });
+
+  test('actions は CASCADE 対象外 (チェーン削除しても残る)', async () => {
+    const db = await setup();
+    await seedChainWithNodes(db);
+    await deleteChain(db, 'c1');
+    const actions = await listActions(db);
+    expect(actions.map((a) => a.id).sort()).toEqual(['act-stretch', 'act-water']);
     await teardown(db);
   });
 });

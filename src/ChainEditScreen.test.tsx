@@ -140,6 +140,51 @@ describe('ChainEditScreen', () => {
     expect(onAddNewAction).toHaveBeenCalledWith('水を飲む');
   });
 
+  test('onDelete 未指定 (新規モード) では「このチェーンを削除」が表示されない', () => {
+    const { queryByLabelText } = render(
+      <ChainEditScreen draft={baseDraft()} {...noopProps} />,
+    );
+    expect(queryByLabelText('このチェーンを削除')).toBeNull();
+  });
+
+  test('onDelete 指定 (編集モード) では「このチェーンを削除」が表示される', () => {
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={draftWithNodes()}
+        {...noopProps}
+        onDelete={() => {}}
+      />,
+    );
+    expect(getByLabelText('このチェーンを削除')).toBeTruthy();
+  });
+
+  test('「このチェーンを削除」押下で onDelete が呼ばれる', () => {
+    const onDelete = jest.fn();
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={draftWithNodes()}
+        {...noopProps}
+        onDelete={onDelete}
+      />,
+    );
+    fireEvent.press(getByLabelText('このチェーンを削除'));
+    expect(onDelete).toHaveBeenCalled();
+  });
+
+  test('saving=true のとき「このチェーンを削除」が disabled になる (M-2)', () => {
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={draftWithNodes()}
+        {...noopProps}
+        saving
+        onDelete={() => {}}
+      />,
+    );
+    expect(getByLabelText('このチェーンを削除').props.accessibilityState).toEqual({
+      disabled: true,
+    });
+  });
+
   test('既存アクションリストから選択で onAddExistingAction', () => {
     const onAddExistingAction = jest.fn();
     const existingActions: Action[] = [

@@ -146,7 +146,8 @@
 - **問題**: テスト (better-sqlite3) は `FOREIGN KEY constraint failed` で reject されたが、prod (expo-sqlite / vanilla SQLite) は **デフォルト `PRAGMA foreign_keys=OFF` で orphan record が静かに通る**。つまり「test では制約違反として弾かれるが prod では通る」という乖離が発生する。
 - **原因**: better-sqlite3 はデフォルトで `foreign_keys=ON`、vanilla SQLite (expo-sqlite を含む) はデフォルトで OFF。両者は別々の C ライブラリビルドで歴史的にデフォルトが違う。[ADR-0008](docs/decisions/0008-test-strategy-ts-jest-bettersqlite.md) でテストに better-sqlite3 を採用したが、この挙動差は ADR-0008 着手時に意識していなかった。
 - **解決**: 当面は test env での挙動 (FK on で reject) をテストで固定 + コメントで「prod env では orphan record が通る」と注意喚起。Phase 2 でチェーン / アンカー削除を実装するときに `PRAGMA foreign_keys=ON` 有効化 + 全リレーションに `ON DELETE CASCADE` を足すかを判断する。`src/db.ts` SCHEMA_SQL §冒頭にもコメント記載。
-- **教訓**: K-006 のスキーマ不変条件テストは「スキーマ定義の存在」を機械検証するが、「FK 制約が実際に強制されるか」のレイヤーは test/prod 環境差で乖離しうる。同種の test/prod 差を踏まないために、SQLite の `PRAGMA` 設定差・トリガーの有無・ビューの定義差などはレビュー観点として持っておく。`expo-sqlite` で `PRAGMA foreign_keys=ON` を呼ぶか、それとも CHECK 制約 / アプリケーション層でガードするかは Phase 2 設計判断。
+- **教訓**: K-006 のスキーマ不変条件テストは「スキーマ定義の存在」を機械検証するが、「FK 制約が実際に強制されるか」のレイヤーは test/prod 環境差で乖離しうる。同種の test/prod 差を踏まないために、SQLite の `PRAGMA` 設定差・トリガーの有無・ビューの定義差などはレビュー観点として持っておく。
+- **追記 (PR-1.8a)**: ADR-0014 で CRUD を Phase 1.7-1.8 に前倒し、PR-1.8a で構造的に解決: (a) `db.expo.ts` の client factory で接続時に `PRAGMA foreign_keys = ON;` を毎回明示発行 (better-sqlite3 は元から ON)、(b) `ON DELETE CASCADE` を `nodes.chain_id` / `achievements.node_id` / `anchor_firings.anchor_id` の 3 リレーションに付与、(c) `chains.anchor_id` は 1-1 専属で CASCADE せず repository.deleteChain が同 TX で anchor を消す、(d) FK 強制と CASCADE の存在を `PRAGMA foreign_key_list` 経由でスキーマ不変条件テスト (K-006) に組み込み。
 
 ## K-019: 3 サイクルで消えない UI バグは library 責務を疑い、入れ替えを選択肢に入れる
 
