@@ -9,11 +9,16 @@ import {
   insertChain,
   insertNode,
   listAchievementsForNodes,
+  listActions,
   listAnchorFiringsForDate,
   listChains,
   listNodes,
   recordAchievement,
   recordAnchorFiring,
+  reorderNodes,
+  updateAction,
+  updateChain,
+  updateNode,
 } from './repository';
 
 const setup = async (): Promise<DbClient> => {
@@ -309,6 +314,144 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
     });
     const rows = await listAnchorFiringsForDate(db, 'a1', '2026-05-19');
     expect(rows).toEqual([]);
+    await teardown(db);
+  });
+
+  test('updateChain で title を変更できる', async () => {
+    const db = await setup();
+    await insertAnchor(db, {
+      id: 'a1',
+      title: '起床',
+      kind: 'behavior',
+      time: null,
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    await insertChain(db, {
+      id: 'c1',
+      title: '朝のルーティン',
+      anchorId: 'a1',
+      status: 'active',
+      createdAt: '2026-05-20T00:00:00Z',
+    });
+    await updateChain(db, {
+      id: 'c1',
+      title: '夜のルーティン',
+      anchorId: 'a1',
+      status: 'active',
+      createdAt: '',
+    });
+    const chains = await listChains(db);
+    expect(chains[0]?.title).toBe('夜のルーティン');
+    await teardown(db);
+  });
+
+  test('updateAction で title を変更できる', async () => {
+    const db = await setup();
+    await insertAction(db, { id: 'act1', title: '水を飲む', variants: null });
+    await updateAction(db, { id: 'act1', title: 'お茶を淹れる', variants: null });
+    const actions = await listActions(db);
+    expect(actions.find((a) => a.id === 'act1')?.title).toBe('お茶を淹れる');
+    await teardown(db);
+  });
+
+  test('reorderNodes で UNIQUE(chain_id, order_index) 制約を満たしたまま並び替えできる', async () => {
+    const db = await setup();
+    await insertAnchor(db, {
+      id: 'a1',
+      title: '起床',
+      kind: 'behavior',
+      time: null,
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    await insertChain(db, {
+      id: 'c1',
+      title: '朝',
+      anchorId: 'a1',
+      status: 'active',
+      createdAt: '2026-05-20T00:00:00Z',
+    });
+    for (const id of ['act1', 'act2', 'act3']) {
+      await insertAction(db, { id, title: id, variants: null });
+    }
+    await insertNode(db, {
+      id: 'n1',
+      chainId: 'c1',
+      orderIndex: 0,
+      kind: 'action',
+      actionId: 'act1',
+    });
+    await insertNode(db, {
+      id: 'n2',
+      chainId: 'c1',
+      orderIndex: 1,
+      kind: 'action',
+      actionId: 'act2',
+    });
+    await insertNode(db, {
+      id: 'n3',
+      chainId: 'c1',
+      orderIndex: 2,
+      kind: 'action',
+      actionId: 'act3',
+    });
+    // 逆順に並び替え
+    await reorderNodes(db, 'c1', ['n3', 'n2', 'n1']);
+    const nodes = await listNodes(db, 'c1');
+    expect(nodes.map((n) => n.id)).toEqual(['n3', 'n2', 'n1']);
+    expect(nodes.map((n) => n.orderIndex)).toEqual([0, 1, 2]);
+    await teardown(db);
+  });
+
+  test('listActions が全アクションを title 昇順で返す', async () => {
+    const db = await setup();
+    await insertAction(db, { id: 'b', title: 'B アクション', variants: null });
+    await insertAction(db, { id: 'a', title: 'A アクション', variants: null });
+    const actions = await listActions(db);
+    expect(actions.map((a) => a.title)).toEqual(['A アクション', 'B アクション']);
+    await teardown(db);
+  });
+
+  test('updateNode で actionId と orderIndex を変更できる', async () => {
+    const db = await setup();
+    await insertAnchor(db, {
+      id: 'a1',
+      title: '起床',
+      kind: 'behavior',
+      time: null,
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    await insertChain(db, {
+      id: 'c1',
+      title: '朝',
+      anchorId: 'a1',
+      status: 'active',
+      createdAt: '2026-05-20T00:00:00Z',
+    });
+    await insertAction(db, { id: 'act1', title: '水を飲む', variants: null });
+    await insertAction(db, { id: 'act2', title: 'ストレッチ', variants: null });
+    await insertNode(db, {
+      id: 'n1',
+      chainId: 'c1',
+      orderIndex: 0,
+      kind: 'action',
+      actionId: 'act1',
+    });
+    await updateNode(db, {
+      id: 'n1',
+      chainId: 'c1',
+      orderIndex: 5,
+      kind: 'action',
+      actionId: 'act2',
+    });
+    const nodes = await listNodes(db, 'c1');
+    expect(nodes[0]?.actionId).toBe('act2');
+    expect(nodes[0]?.orderIndex).toBe(5);
     await teardown(db);
   });
 

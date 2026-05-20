@@ -1,15 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 
-import type { Anchor, Chain } from './domain';
+import type { Anchor } from './domain';
 import type { CurrentPosition, LocationPermissionStatus } from './location';
 import {
   COLOR_BG,
@@ -21,31 +20,28 @@ import {
   COLOR_SURFACE,
 } from './tokens';
 
-export type AnchorKindOption = 'time' | 'place';
+export type EditableAnchorState = Pick<
+  Anchor,
+  'kind' | 'time' | 'latitude' | 'longitude' | 'radiusMeters'
+>;
 
-export type AnchorSettingsScreenProps = {
-  chain: Chain;
-  anchor: Anchor;
-  saving: boolean;
+export type AnchorKindOption = 'time' | 'place' | 'behavior';
+
+export type AnchorEditorProps = {
+  anchor: EditableAnchorState;
   locationPermission: LocationPermissionStatus;
   locating: boolean;
-  onCancel: () => void;
-  onSaveTime: (time: string) => void;
-  onSavePlace: (payload: {
-    latitude: number;
-    longitude: number;
-    radiusMeters: number;
-  }) => void;
+  onSetKind: (kind: AnchorKindOption) => void;
+  onSetTime: (time: string) => void;
+  onSetLocation: (latitude: number, longitude: number) => void;
+  onSetRadius: (radiusMeters: number) => void;
   onFetchLocation: () => Promise<CurrentPosition | null>;
 };
 
 const RADIUS_OPTIONS = [50, 100, 200] as const;
-type RadiusOption = (typeof RADIUS_OPTIONS)[number];
 
 const pad2 = (n: number): string => String(n).padStart(2, '0');
-const parseHM = (
-  s: string,
-): { hour: number; minute: number } | null => {
+const parseHM = (s: string): { hour: number; minute: number } | null => {
   const parts = s.split(':');
   if (parts.length !== 2) return null;
   const hour = parseInt(parts[0]!, 10);
@@ -65,128 +61,113 @@ const clampToMinute = (raw: string): string => {
   return pad2(Math.min(59, Math.max(0, n)));
 };
 
-const defaultTimeFromAnchor = (anchor: Anchor): string =>
+const initialTime = (anchor: EditableAnchorState): string =>
   parseHM(anchor.time ?? '') ? anchor.time! : '07:30';
-
-const initialKind = (anchor: Anchor): AnchorKindOption =>
-  anchor.kind === 'place' ? 'place' : 'time';
 
 const formatCoord = (n: number): string => n.toFixed(4);
 
-export const AnchorSettingsScreen = ({
-  chain,
+export const AnchorEditor = ({
   anchor,
-  saving,
   locationPermission,
   locating,
-  onCancel,
-  onSaveTime,
-  onSavePlace,
+  onSetKind,
+  onSetTime,
+  onSetLocation,
+  onSetRadius,
   onFetchLocation,
-}: AnchorSettingsScreenProps) => {
-  const [kind, setKind] = useState<AnchorKindOption>(initialKind(anchor));
+}: AnchorEditorProps) => {
+  // 時刻入力用のローカルタイピング状態 (commit on blur)。
+  const initParts = parseHM(initialTime(anchor))!;
+  const [hour, setHour] = useState(pad2(initParts.hour));
+  const [minute, setMinute] = useState(pad2(initParts.minute));
 
-  // 時刻フォーム
-  const initialTime = defaultTimeFromAnchor(anchor);
-  const initialParts = parseHM(initialTime)!;
-  const [hour, setHour] = useState(pad2(initialParts.hour));
-  const [minute, setMinute] = useState(pad2(initialParts.minute));
-  const composedTime = `${hour}:${minute}`;
-  const timeValid = parseHM(composedTime) !== null;
-
-  // 場所フォーム。kind に関係なく lat/lng が保存されていれば初期値に使う
-  // (kind 切替時に前回値を保持するため。useAnchorSettings.save* で他 kind の
-  // フィールドを上書きしない設計と整合)。
-  const [position, setPosition] = useState<CurrentPosition | null>(
-    anchor.latitude != null && anchor.longitude != null
-      ? {
-          latitude: anchor.latitude,
-          longitude: anchor.longitude,
-          accuracyMeters: null,
-        }
-      : null,
-  );
-  const [radius, setRadius] = useState<RadiusOption>(
-    (anchor.radiusMeters as RadiusOption | null) &&
-      RADIUS_OPTIONS.includes(anchor.radiusMeters as RadiusOption)
-      ? (anchor.radiusMeters as RadiusOption)
-      : 100,
-  );
-
-  const placeValid = position !== null;
-  const canSave = kind === 'time' ? timeValid : placeValid;
-
-  const handleSave = () => {
-    if (!canSave || saving) return;
-    if (kind === 'time') {
-      onSaveTime(composedTime);
-    } else if (position) {
-      onSavePlace({
-        latitude: position.latitude,
-        longitude: position.longitude,
-        radiusMeters: radius,
-      });
+  // anchor.time が外部から更新された場合 (例: 別の編集ソースで kind=time に切替) に
+  // ローカル state も同期する。
+  useEffect(() => {
+    const p = parseHM(initialTime(anchor));
+    if (p) {
+      setHour(pad2(p.hour));
+      setMinute(pad2(p.minute));
     }
+  }, [anchor.time]);
+
+  const commitTime = (h: string, m: string) => {
+    const ph = parseHM(`${h}:${m}`);
+    if (ph) onSetTime(`${pad2(ph.hour)}:${pad2(ph.minute)}`);
+  };
+
+  const handleHourBlur = () => {
+    const c = clampToHour(hour);
+    setHour(c);
+    commitTime(c, minute);
+  };
+  const handleMinuteBlur = () => {
+    const c = clampToMinute(minute);
+    setMinute(c);
+    commitTime(hour, c);
   };
 
   const handleFetch = async () => {
-    const next = await onFetchLocation();
-    if (next) setPosition(next);
+    const pos = await onFetchLocation();
+    if (pos) onSetLocation(pos.latitude, pos.longitude);
   };
 
-  return (
-    <ScrollView contentContainerStyle={styles.scroll}>
-      <View style={styles.topbar}>
-        <Pressable onPress={onCancel} accessibilityRole="button">
-          <Text style={styles.cancel}>キャンセル</Text>
-        </Pressable>
-        <Text style={styles.title} numberOfLines={1}>
-          起点アンカーを{kind === 'time' ? '時刻' : '場所'}に設定
-        </Text>
-        <Pressable
-          onPress={handleSave}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !canSave || saving }}
-        >
-          <Text style={[styles.save, !canSave && styles.saveDisabled]}>
-            {saving ? '保存中…' : '保存'}
-          </Text>
-        </Pressable>
-      </View>
+  // kind は 3 通り: 'behavior' (=なし、手動トリガーのみ) / 'time' / 'place'
+  // ADR-0003 §「手動発火が中核 / 自動発火は便利化レイヤー」と整合。新規作成時の
+  // デフォルトは 'behavior' で、必要に応じて time / place を選ぶ。
+  const activeKind: AnchorKindOption = anchor.kind;
+  const hasLocation = anchor.latitude != null && anchor.longitude != null;
+  const radius: number =
+    anchor.radiusMeters != null &&
+    (RADIUS_OPTIONS as readonly number[]).includes(anchor.radiusMeters)
+      ? anchor.radiusMeters
+      : 100;
 
+  const kindLabel = (k: AnchorKindOption): string =>
+    k === 'time' ? '時刻' : k === 'place' ? '場所' : 'なし';
+
+  return (
+    <View style={styles.root}>
       <View style={styles.kindToggle}>
-        {(['time', 'place'] as const).map((k) => (
+        {(['behavior', 'time', 'place'] as const).map((k) => (
           <Pressable
             key={k}
-            onPress={() => setKind(k)}
+            onPress={() => onSetKind(k)}
             accessibilityRole="button"
-            accessibilityLabel={k === 'time' ? '時刻' : '場所'}
-            accessibilityState={{ selected: kind === k }}
+            accessibilityLabel={kindLabel(k)}
+            accessibilityState={{ selected: activeKind === k }}
             style={[
               styles.kindToggleChip,
-              kind === k && styles.kindToggleChipActive,
+              activeKind === k && styles.kindToggleChipActive,
             ]}
           >
             <Text
               style={[
                 styles.kindToggleText,
-                kind === k && styles.kindToggleTextActive,
+                activeKind === k && styles.kindToggleTextActive,
               ]}
             >
-              {k === 'time' ? '時刻' : '場所'}
+              {kindLabel(k)}
             </Text>
           </Pressable>
         ))}
       </View>
 
-      {kind === 'time' ? (
+      {activeKind === 'behavior' ? (
+        <View style={styles.sectionBehavior}>
+          <Text style={styles.behaviorTitle}>手動トリガーのみ</Text>
+          <Text style={styles.behaviorBody}>
+            時刻 / 場所による自動発火はなし。Today で手動でチェックして連鎖を実行します。
+          </Text>
+        </View>
+      ) : activeKind === 'time' ? (
         <View style={styles.sectionTime}>
           <Text style={styles.sectionLabel}>発火時刻</Text>
           <View style={styles.timeRow}>
             <TextInput
               value={hour}
               onChangeText={setHour}
-              onBlur={() => setHour(clampToHour(hour))}
+              onBlur={handleHourBlur}
               keyboardType="number-pad"
               maxLength={2}
               style={styles.timeInput}
@@ -197,7 +178,7 @@ export const AnchorSettingsScreen = ({
             <TextInput
               value={minute}
               onChangeText={setMinute}
-              onBlur={() => setMinute(clampToMinute(minute))}
+              onBlur={handleMinuteBlur}
               keyboardType="number-pad"
               maxLength={2}
               style={styles.timeInput}
@@ -205,25 +186,18 @@ export const AnchorSettingsScreen = ({
               selectTextOnFocus
             />
           </View>
-          <Text style={styles.timeHint}>
-            {chain.title} を毎日この時刻に発火扱いします
-          </Text>
+          <Text style={styles.timeHint}>毎日この時刻に発火扱いします</Text>
         </View>
       ) : (
         <>
           <View style={styles.sectionPlace}>
             <Text style={styles.sectionLabel}>現在地</Text>
-            {position ? (
+            {hasLocation ? (
               <Text style={styles.placeCoord}>
-                {formatCoord(position.latitude)}, {formatCoord(position.longitude)}
+                {formatCoord(anchor.latitude!)}, {formatCoord(anchor.longitude!)}
               </Text>
             ) : (
               <Text style={styles.placeCoordMissing}>未取得</Text>
-            )}
-            {position?.accuracyMeters != null && (
-              <Text style={styles.placeMeta}>
-                精度 ±{Math.round(position.accuracyMeters)}m
-              </Text>
             )}
             <Pressable
               onPress={handleFetch}
@@ -237,13 +211,13 @@ export const AnchorSettingsScreen = ({
                 <ActivityIndicator color={COLOR_FG} size="small" />
               ) : (
                 <Text style={styles.placeFetchBtnText}>
-                  {position ? '現在地を再取得' : '現在地を取得'}
+                  {hasLocation ? '現在地を再取得' : '現在地を取得'}
                 </Text>
               )}
             </Pressable>
             {locationPermission === 'denied' && (
               <Text style={styles.placePermissionWarning}>
-                位置情報の権限が拒否されています。手動発火は引き続き使えます。
+                位置情報の権限が拒否されています。手動チェックは引き続き使えます。
               </Text>
             )}
           </View>
@@ -254,7 +228,7 @@ export const AnchorSettingsScreen = ({
               {RADIUS_OPTIONS.map((r) => (
                 <Pressable
                   key={r}
-                  onPress={() => setRadius(r)}
+                  onPress={() => onSetRadius(r)}
                   accessibilityRole="button"
                   accessibilityLabel={`${r}m`}
                   accessibilityState={{ selected: radius === r }}
@@ -277,53 +251,19 @@ export const AnchorSettingsScreen = ({
           </View>
         </>
       )}
-
-      <View style={styles.sectionFallback}>
-        <Text style={styles.fallbackTitle}>自動発火は便利化レイヤー</Text>
-        <Text style={styles.fallbackBody}>
-          {kind === 'time'
-            ? 'v1 では時刻に達すると Today の起点アンカー横に「発火中」ピルが出ます。OS のローカル通知は Dev Build 移行後に追加します (Phase 1.5b)。'
-            : 'v1 では Today を開いたときに現在地と比較してピル表示します。OS のジオフェンス常時監視は Dev Build 移行後に追加します (Phase 1.6b)。'}
-          {' '}Today からの手動チェックは常に可能なので運用は止まりません。
-        </Text>
-      </View>
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  scroll: {
-    padding: 24,
-    gap: 16,
-  },
-  topbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: 8,
-  },
-  cancel: {
-    color: COLOR_FG_SOFT,
-    fontSize: 14,
-  },
-  title: {
-    color: COLOR_FG,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  save: {
-    color: COLOR_GROW,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  saveDisabled: {
-    color: COLOR_FG_FAINT,
+  root: {
+    gap: 12,
   },
   kindToggle: {
     flexDirection: 'row',
     gap: 8,
     padding: 4,
-    backgroundColor: COLOR_SURFACE,
+    backgroundColor: COLOR_BG,
     borderRadius: 999,
   },
   kindToggleChip: {
@@ -343,10 +283,26 @@ const styles = StyleSheet.create({
   kindToggleTextActive: {
     color: COLOR_FG,
   },
+  sectionBehavior: {
+    backgroundColor: COLOR_SURFACE,
+    borderRadius: 14,
+    padding: 16,
+    gap: 4,
+  },
+  behaviorTitle: {
+    color: COLOR_FG,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  behaviorBody: {
+    color: COLOR_FG_SOFT,
+    fontSize: 12,
+    lineHeight: 18,
+  },
   sectionTime: {
     backgroundColor: COLOR_SURFACE,
     borderRadius: 14,
-    padding: 20,
+    padding: 16,
     alignItems: 'center',
     gap: 8,
   },
@@ -362,19 +318,19 @@ const styles = StyleSheet.create({
   },
   timeInput: {
     color: COLOR_FG,
-    fontSize: 56,
+    fontSize: 48,
     fontWeight: '700',
-    letterSpacing: -2,
-    minWidth: 80,
+    letterSpacing: -1.5,
+    minWidth: 72,
     textAlign: 'center',
     backgroundColor: COLOR_BG,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingVertical: 4,
     paddingHorizontal: 8,
   },
   timeColon: {
     color: COLOR_FG_FAINT,
-    fontSize: 56,
+    fontSize: 48,
     fontWeight: '700',
   },
   timeHint: {
@@ -395,10 +351,6 @@ const styles = StyleSheet.create({
   placeCoordMissing: {
     color: COLOR_FG_FAINT,
     fontSize: 16,
-  },
-  placeMeta: {
-    color: COLOR_FG_FAINT,
-    fontSize: 11,
   },
   placeFetchBtn: {
     marginTop: 4,
@@ -450,21 +402,5 @@ const styles = StyleSheet.create({
   },
   radiusChipTextActive: {
     color: COLOR_BG,
-  },
-  sectionFallback: {
-    backgroundColor: COLOR_SURFACE,
-    borderRadius: 14,
-    padding: 16,
-    gap: 4,
-  },
-  fallbackTitle: {
-    color: COLOR_FG,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  fallbackBody: {
-    color: COLOR_FG_SOFT,
-    fontSize: 12,
-    lineHeight: 18,
   },
 });

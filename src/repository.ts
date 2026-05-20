@@ -141,11 +141,24 @@ export const insertAction = (db: DbClient, action: Action): Promise<void> =>
     action.variants ? JSON.stringify(action.variants) : null,
   ]);
 
+export const updateAction = (db: DbClient, action: Action): Promise<void> =>
+  db.run(`UPDATE actions SET title = ?, variants_json = ? WHERE id = ?`, [
+    action.title,
+    action.variants ? JSON.stringify(action.variants) : null,
+    action.id,
+  ]);
+
 export const insertChain = (db: DbClient, chain: Chain): Promise<void> =>
   db.run(
     `INSERT INTO chains (id, title, anchor_id, status, created_at)
      VALUES (?, ?, ?, ?, ?)`,
     [chain.id, chain.title, chain.anchorId, chain.status, chain.createdAt],
+  );
+
+export const updateChain = (db: DbClient, chain: Chain): Promise<void> =>
+  db.run(
+    `UPDATE chains SET title = ?, anchor_id = ?, status = ? WHERE id = ?`,
+    [chain.title, chain.anchorId, chain.status, chain.id],
   );
 
 export const insertNode = (db: DbClient, node: Node): Promise<void> =>
@@ -154,6 +167,51 @@ export const insertNode = (db: DbClient, node: Node): Promise<void> =>
      VALUES (?, ?, ?, ?, ?)`,
     [node.id, node.chainId, node.orderIndex, node.kind, node.actionId],
   );
+
+export const updateNode = (db: DbClient, node: Node): Promise<void> =>
+  db.run(
+    `UPDATE nodes SET order_index = ?, action_id = ? WHERE id = ?`,
+    [node.orderIndex, node.actionId, node.id],
+  );
+
+// アクション差し替えのみ。order_index は触らない (UNIQUE(chain_id, order_index)
+// 制約下で複数ノードを一括更新する経路 = useChainEdit.persistChainDraft 編集
+// モードで使う。並び替えは reorderNodes に任せて衝突を防ぐ)。
+export const updateNodeAction = (
+  db: DbClient,
+  nodeId: string,
+  actionId: string,
+): Promise<void> =>
+  db.run(`UPDATE nodes SET action_id = ? WHERE id = ?`, [actionId, nodeId]);
+
+// ノード並び替え用ヘルパ: 同チェーン内の orderIndex をまとめて書き換える。
+// (chainId, order_index) の UNIQUE 制約があるため一旦負数に逃がしてから本値を入れる
+// 2 段階更新で衝突を回避する。
+export const reorderNodes = async (
+  db: DbClient,
+  chainId: string,
+  orderedNodeIds: readonly string[],
+): Promise<void> => {
+  for (let i = 0; i < orderedNodeIds.length; i++) {
+    await db.run(`UPDATE nodes SET order_index = ? WHERE id = ? AND chain_id = ?`, [
+      -1 - i,
+      orderedNodeIds[i],
+      chainId,
+    ]);
+  }
+  for (let i = 0; i < orderedNodeIds.length; i++) {
+    await db.run(`UPDATE nodes SET order_index = ? WHERE id = ? AND chain_id = ?`, [
+      i,
+      orderedNodeIds[i],
+      chainId,
+    ]);
+  }
+};
+
+export const listActions = async (db: DbClient): Promise<Action[]> => {
+  const rows = await db.all<ActionRow>(`SELECT * FROM actions ORDER BY title`);
+  return rows.map(rowToAction);
+};
 
 export const recordAchievement = (
   db: DbClient,

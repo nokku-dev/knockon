@@ -1,4 +1,5 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TodayScreen } from '../../src/TodayScreen';
@@ -6,12 +7,15 @@ import {
   COLOR_ACCENT,
   COLOR_BG,
   COLOR_FG,
+  COLOR_FG_FAINT,
   COLOR_FG_SOFT,
+  COLOR_GROW,
 } from '../../src/tokens';
 import { useTodayData } from '../../src/useTodayData';
 
 export default function TodayTab() {
   const { data, error, loading, handleToggle } = useTodayData();
+  const router = useRouter();
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
@@ -22,7 +26,20 @@ export default function TodayTab() {
       ) : error ? (
         <Text style={styles.error}>{error}</Text>
       ) : !data ? (
-        <Text style={styles.soft}>チェーンがありません</Text>
+        <View style={styles.empty}>
+          <Text style={styles.emptyTitle}>Today</Text>
+          <Text style={styles.emptyBody}>
+            まだチェーンがありません。「チェーン」タブから新規作成してください。
+          </Text>
+          <Pressable
+            onPress={() => router.push('/chain/new')}
+            accessibilityRole="button"
+            accessibilityLabel="チェーンを新規作成"
+            style={styles.emptyBtn}
+          >
+            <Text style={styles.emptyBtnText}>+ チェーンを新規作成</Text>
+          </Pressable>
+        </View>
       ) : (
         <TodayScreen
           chain={data.chain}
@@ -54,5 +71,33 @@ const styles = StyleSheet.create({
   soft: {
     color: COLOR_FG_SOFT,
     padding: 24,
+  },
+  empty: {
+    flex: 1,
+    padding: 24,
+    gap: 16,
+  },
+  emptyTitle: {
+    color: COLOR_FG,
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
+  emptyBody: {
+    color: COLOR_FG_SOFT,
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  emptyBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    backgroundColor: COLOR_GROW,
+  },
+  emptyBtnText: {
+    color: COLOR_BG,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
