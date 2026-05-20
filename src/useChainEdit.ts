@@ -326,6 +326,8 @@ export const useChainEdit = (
     });
   }, []);
 
+  // 削除は通常 10-50ms で完了するため saving フラグは出さない (deleteChain / save と
+  // 非対称だが、即時 UX を優先して受容)。長くなるシグナルが出たら統一する。
   const deleteAction = useCallback(
     async (
       actionId: string,

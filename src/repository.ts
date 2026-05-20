@@ -139,6 +139,17 @@ export const updateAnchor = (db: DbClient, anchor: Anchor): Promise<void> =>
 // UX 上は「使用中」を明示的なエラーにしたいので、削除前に使用数をチェックして
 // 0 件のときだけ DELETE する。
 // 存在しないアクション ID は no-op (UI からの誤呼び出し対策、deleteChain と整合)。
+//
+// TOCTOU レース受容判断 (K-010 / K-018 継承): COUNT と DELETE の間に別経路が
+// アクションを使い始めると「使用 0 → DELETE 通る → 直後に orphan」が理論上ありうる。
+// test env は FK on で DELETE 側が二重防壁、prod env (expo-sqlite) は PR-1.8a で
+// PRAGMA foreign_keys=ON 有効化済みで同様。さらに Phase 1 N=1 では並行操作経路が
+// なく実害なし。Phase 2 でマルチデバイス同期 / 並行操作が出るタイミングで
+// BEGIN/COMMIT で囲むか判断する。
+//
+// 責務越境受容判断: throw 文の error.message が UI 文面そのままになっている
+// (Phase 1 N=1 では i18n / 複数 UI なしで実害なし)。Phase 2 で i18n や通知文面
+// が必要になったら error code 化 ({ kind: 'in_use', count: N }) に refactor。
 export const deleteAction = async (
   db: DbClient,
   actionId: string,
