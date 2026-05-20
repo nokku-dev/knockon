@@ -11,6 +11,7 @@ import {
 import type { CurrentPosition, LocationPermissionStatus } from './location';
 import { persistChainDraft, validateChainDraft } from './chainEditPersist';
 import {
+  deleteAction as deleteActionRepo,
   deleteChain as deleteChainRepo,
   getAction,
   getAnchor,
@@ -130,6 +131,11 @@ export type UseChainEditResult = {
   // 関連 nodes / achievements / anchor / anchor_firings は repository 側で
   // CASCADE + 同 TX で削除される (PR-1.8a)。
   deleteChain: () => Promise<boolean>;
+  // アクション削除 (使用中は明示的なエラーで拒否)。
+  // 成功時は availableActions から除去。失敗時は理由を返す (UI 側でメッセージ表示)。
+  deleteAction: (
+    actionId: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
 };
 
 
@@ -320,6 +326,27 @@ export const useChainEdit = (
     });
   }, []);
 
+  // 削除は通常 10-50ms で完了するため saving フラグは出さない (deleteChain / save と
+  // 非対称だが、即時 UX を優先して受容)。長くなるシグナルが出たら統一する。
+  const deleteAction = useCallback(
+    async (
+      actionId: string,
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
+      try {
+        const db = await getExpoSqliteClient();
+        await deleteActionRepo(db, actionId);
+        if (mountedRef.current) {
+          setAvailableActions((prev) => prev.filter((a) => a.id !== actionId));
+        }
+        return { ok: true };
+      } catch (e: unknown) {
+        const error = e instanceof Error ? e.message : String(e);
+        return { ok: false, error };
+      }
+    },
+    [],
+  );
+
   const deleteChain = useCallback(async (): Promise<boolean> => {
     if (!draft || draft.isNew) return false;
     setSaving(true);
@@ -381,5 +408,6 @@ export const useChainEdit = (
     reorderNodes,
     save,
     deleteChain,
+    deleteAction,
   };
 };
