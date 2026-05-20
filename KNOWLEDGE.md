@@ -164,3 +164,19 @@
 - **原因**: RN の VirtualizedList 系は親 ScrollView と scroll コンテキストを共有できない構造的制約。reorderable-list は `NestedReorderableList` という別 API を提供するが、複雑度が上がるので避けたい。
 - **解決**: `ReorderableList` を画面 root に置き、編集 UI 全体 (タイトル入力 / アンカー編集 / アクション追加ピッカー) を `ListHeaderComponent` / `ListFooterComponent` に集約。Header は `useMemo` でラップするが、parent route の inline callback (`onCancel={() => router.back()}` 等) が deps を毎レンダ壊すので memo 効果は限定的 — 描画コストが許容できるなら諦める判断も明示すべき (K-010 同型: 暗黙にしない)。
 - **教訓**: 「フォーム + DnD」「フォーム + リスト」を 1 画面で組むときの正規パターン: (a) リストを画面 root に、(b) 編集 UI を Header / Footer に集約、(c) Header / Footer の useMemo の deps は親 route の inline callback で壊れがちなので、route 側で `useCallback` 化するか memo を諦めるかを明示判断する。Phase 2 以降で「目標ビュー」「アクション編集」等の同型画面を組むときも同じパターン。
+
+## K-021: `CREATE TABLE IF NOT EXISTS` だけでは schema 変更は反映されない → `PRAGMA user_version` で migration を入れる
+
+- **状況**: PR-1.8a で `ON DELETE CASCADE` 句を schema に追加し、テストでは全 30 件 pass。実機でも JS リロードのみで動くはずだった。
+- **問題**: 実機 (Expo Go) で「FOREIGN KEY constraint failed」発生。既存 DB ファイル (`knockon.db`) は Phase 1.7 までの古いスキーマ (CASCADE なし) で作成済みで、`CREATE TABLE IF NOT EXISTS` は既存テーブルがあるとスキップするため CASCADE 句が反映されない。そこに `PRAGMA foreign_keys=ON` だけが新規有効化されたため、古いデフォルト RESTRICT で削除が拒否された。
+- **原因**: テスト env (`createBetterSqliteClient(':memory:')`) は毎回新規 DB なのでこの問題に遭遇しない。テストでは全 pass するのに prod で破綻する典型 (K-018 と同型の test/prod 環境差)。
+- **解決**: `PRAGMA user_version` でスキーマバージョン追跡を導入。`SCHEMA_VERSION` 定数 + `initSchema` で `current < SCHEMA_VERSION` なら全テーブル DROP → CREATE → user_version 更新。Phase 1 N=1 開発中なので「drop + recreate」で十分 (試作データの再作成は許容)。
+- **教訓**: SQLite の `CREATE TABLE IF NOT EXISTS` だけに依存する schema は「初回作成時しか反映されない」性質を持つ。`REFERENCES` 句 / CHECK 制約 / `UNIQUE` 等の変更は migration なしには既存 DB に反映されない。`PRAGMA user_version` ベースの単純 migration は Phase 1 N=1 で十分。Phase 2 で履歴が必要になれば ALTER TABLE 系に拡張。K-006 のスキーマ不変条件テストは「scheme 定義の存在」を機械検証するが、「既存 DB ファイルに対する migration が走るか」までは検証できない (K-018 と同じ test/prod 差の限界事例)。
+
+## K-022: 「同 TX」のような実態を伴わない用語をコメントで使わない
+
+- **状況**: PR-1.8a で `deleteChain` のコメントに「同 TX 内で消す」と書いたが、実際は `BEGIN/COMMIT` で囲まれていない 2 段の独立 `db.run` だった (リポジトリ全体に TX 抽象がない / persistChainDraft と整合)。
+- **問題**: コメントの文言が実装の保証を上回ると、後続のレビュアー / 実装者が「ここはアトミック」と誤読する。Phase 2 で別のマルチ DELETE を追加するとき、同じ書き方が伝播するリスク。レビューで指摘されて修正。
+- **原因**: 「TX で囲んだほうが安全」という設計意図を、実装と区別せずにコメントで書いてしまった。
+- **解決**: コメントを「続けて発行する。失敗時の orphan は受容する」と書き換え、K-010 (楽観更新パターンの判断明示) と同じ原則で「受容する」判断であることを明示。
+- **教訓**: 用語の保証レベルを実装と一致させる。トランザクション抽象が無いコードベースでは「順に発行」「失敗時は orphan を受容する」のように、保証していないことを明示的に書く。本気でアトミックにしたいなら `DbClient.transaction()` をまず生やす。レビュー観点として「コメントの用語が実装と一致しているか」を持つ。
