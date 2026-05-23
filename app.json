@@ -17,7 +17,13 @@
     },
     "plugins": [
       "expo-asset",
-      "expo-router"
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "color": "#EAEAE8"
+        }
+      ]
     ],
     "extra": {
       "router": {},

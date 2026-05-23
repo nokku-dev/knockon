@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { initSchema } from '../src/db';
 import { getExpoSqliteClient } from '../src/db.expo';
+import { syncAllNotifications } from '../src/notifications';
 import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../src/tokens';
 
 void SystemUI.setBackgroundColorAsync(COLOR_BG);
@@ -25,6 +26,9 @@ export default function RootLayout() {
         // → 「+ 新規作成」誘導で開始する。
         const db = await getExpoSqliteClient();
         await initSchema(db);
+        // 起動時に通知を全 active チェーンと整合させる (drift 解消の safety net、 PR-1.5b-2)。
+        // 通知関係のエラーは起動を止めない (権限拒否や Expo SDK 制限の影響を分離)。
+        await syncAllNotifications().catch(() => undefined);
         if (!cancelled) setReady(true);
       } catch (e: unknown) {
         if (!cancelled) {
