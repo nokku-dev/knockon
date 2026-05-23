@@ -11,6 +11,10 @@ import {
 import type { CurrentPosition, LocationPermissionStatus } from './location';
 import { persistChainDraft, validateChainDraft } from './chainEditPersist';
 import {
+  cancelNotificationForChain,
+  scheduleNotificationForChain,
+} from './notifications';
+import {
   deleteAction as deleteActionRepo,
   deleteChain as deleteChainRepo,
   getAction,
@@ -426,6 +430,8 @@ export const useChainEdit = (
     try {
       const db = await getExpoSqliteClient();
       await deleteChainRepo(db, draft.chainId);
+      // 通知 cancel (拒否されていても no-op で安全)。
+      await cancelNotificationForChain(draft.chainId).catch(() => undefined);
       return true;
     } catch (e: unknown) {
       if (mountedRef.current) {
@@ -450,6 +456,28 @@ export const useChainEdit = (
     try {
       const db = await getExpoSqliteClient();
       await persistChainDraft(db, draft);
+      // 保存成功後に通知を再スケジュール (時刻アンカー + active のときだけ実発火、
+      // 他の条件は scheduleNotificationForChain 内で no-op)。
+      // 通知の権限拒否や Expo SDK エラーで save 自体を失敗にしたくないため catch で握り潰す。
+      const anchorForNotify: Anchor = {
+        id: draft.anchor.id,
+        title: draft.anchor.title,
+        kind: draft.anchor.kind,
+        time: draft.anchor.time,
+        latitude: draft.anchor.latitude,
+        longitude: draft.anchor.longitude,
+        radiusMeters: draft.anchor.radiusMeters,
+      };
+      await scheduleNotificationForChain(
+        {
+          id: draft.chainId,
+          title: draft.title.trim(),
+          anchorId: draft.anchor.id,
+          status: draft.status,
+          createdAt: '',
+        },
+        anchorForNotify,
+      ).catch(() => undefined);
       return true;
     } catch (e: unknown) {
       if (mountedRef.current) {
