@@ -197,3 +197,11 @@
 - **原因**: Phase 1 の単純さを優先し「型を増やすコスト」より「直接 throw する readability」を取った。Phase 1 N=1 では i18n / 複数 UI なしで実害なし。
 - **解決**: 受容。コメントで「Phase 2 で i18n や通知文面が必要になったら error code 化 (`{ kind: 'in_use', count: N }`) に refactor」を明示。
 - **教訓**: Phase 1 の prototype フェーズでは「UI 文面を repository に持つ」「error message を i18n キーで返さない」が一時的に許される。Phase 2 で別 UI / 通知 / 自動化が増える前に refactor 判断。本質は「責務分離は Phase 1 では負債を受容、Phase 2 で清算」のパターンとして Phase 2 着手前に再確認する。
+
+## K-025: Expo モジュール追加は `npx expo install` を使う、 `npm install` だと SDK 非互換版が入る
+
+- **状況**: PR-1.5b-2 で `expo-notifications` を追加する際、 `npm install expo-notifications` を実行した。 `package.json` には `^56.0.13` が記録された。
+- **問題**: 実機 (Dev Client) 起動時に `NoClassDefFoundError: Failed resolution of: Lexpo/modules/kotlin/types/AnyTypeCache;` が発生。 アプリが起動できない。 EAS Build 自体は通る (JS / type-check は通っているので)。
+- **原因**: `^56.0.13` は SDK 55+ 向け expo-notifications。 本プロジェクトは SDK 54 で、 互換 native API は `~0.32.x` 系。 `npm install` は最新版を入れるだけで Expo SDK バージョンとの互換性を見ない。
+- **解決**: `npm uninstall expo-notifications` → `npx expo install expo-notifications` で SDK 54 互換版 `~0.32.17` に置換。 EAS Build を再実行 + 新 apk を実機に再 install。
+- **教訓**: **Expo 公式モジュール (`expo-*` / Expo plugin を要求するもの) を追加するときは必ず `npx expo install <module>` を使う**。 `npm install` は SDK 非互換版を入れうる。 [K-009](#k-009) (`expo install` の副作用) と本 K-025 (`expo install` を使わない副作用) は表裏一体で、 SDK 互換版選定のために K-009 の副作用は受容する。 失敗シグナル: 実機で `NoClassDefFoundError` / `Cannot find native module` が出た場合は SDK 互換性を最初に疑う。
