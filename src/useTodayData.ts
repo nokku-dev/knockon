@@ -11,7 +11,7 @@ import {
   todayIsoDate,
   toggleAchievementInMap,
 } from './domain';
-import type { AchievementMap, Anchor, Chain } from './domain';
+import type { AchievementMap, Anchor, Chain, IsoDate } from './domain';
 import {
   getCurrentPosition,
   getLocationPermissionStatus,
@@ -26,19 +26,23 @@ import {
   recordAchievement,
   recordAnchorFiring,
 } from './repository';
-import type { TodayNode } from './TodayScreen';
+import type { TodayNode } from './ChainDetail';
 
-export type TodayData = {
+// 1 つの active チェーン分の Today データ。
+export type TodayChainData = {
   chain: Chain;
   anchor: Anchor;
   nodes: TodayNode[];
   achievements: AchievementMap;
-  today: string;
-  // ADR-0012: アンカー発火イベントモデル。
-  // 時刻/場所共通の「今日発火済み」フラグ。anchor_firings に record があるか
-  // どうかで決まる。一度発火したら範囲を出る・時刻を巻き戻るなどしてもその日中は
-  // 発火済み扱い。
+  // ADR-0012: アンカー発火イベントモデル (時刻/場所共通の 1 日 1 回不可逆)。
   anchorFiredToday: boolean;
+};
+
+// Today 画面全体の状態。 ADR-0020 で「手動発火」概念を廃止、 active な全チェーンを
+// 並べる方針 ([ADR-0021](docs/decisions/0021-today-multichain-bottom-sheet.md))。
+export type TodayData = {
+  today: IsoDate;
+  chains: TodayChainData[];
 };
 
 // 場所アンカーの「今日まだ発火していないとき」のみ呼ぶ GPS 経由の発火検出。
@@ -62,19 +66,17 @@ const detectPlaceFiringByGps = async (anchor: Anchor): Promise<boolean> => {
   }
 };
 
-const loadToday = async (): Promise<TodayData | null> => {
+// 1 つの active チェーンを Today 表示用に解決する純粋 async ロジック。
+const loadChainForToday = async (
+  chain: Chain,
+  today: IsoDate,
+  now: Date,
+): Promise<TodayChainData | null> => {
   const db = await getExpoSqliteClient();
-
-  const chains = await listChains(db, 'active');
-  const chain = chains[0];
-  if (!chain) return null;
-
   const anchor = await getAnchor(db, chain.anchorId);
   if (!anchor) return null;
 
   const nodes = await listNodes(db, chain.id);
-  const now = new Date();
-  const today = todayIsoDate(now);
   // Phase 2 variant: 各アクションを resolveActionForDate で今日の発火可否 + ラベルに解決。
   // kind='skip' のノードも除外せず TodayNode として残す (グレー表示用、 ユーザー
   // フィードバック「設定したのに表示されないと勘違いする」への対応)。
@@ -95,12 +97,10 @@ const loadToday = async (): Promise<TodayData | null> => {
   );
 
   // ADR-0012: 既存の発火 record があれば「今日発火済み」確定。
-  // GPS / 時刻判定は不要 → loadToday の base で同期に判定できる。
   const todayFirings = await listAnchorFiringsForDate(db, anchor.id, today);
   const alreadyFired = isAnchorFiringToday(todayFirings, anchor.id, today);
 
-  // 時刻アンカーは loadToday の中で発火判定 + record 投入まで完結。
-  // (時刻判定は now 比較だけなので同期に終わる → UI block しない)
+  // 時刻アンカーは loadChainForToday の中で発火判定 + record 投入まで完結。
   let anchorFiredToday = alreadyFired;
   if (!alreadyFired && isTimeAnchorFiringNow(anchor, now)) {
     await recordAnchorFiring(db, { anchorId: anchor.id, date: today });
@@ -112,8 +112,22 @@ const loadToday = async (): Promise<TodayData | null> => {
     anchor,
     nodes: validNodes,
     achievements: toAchievementMap(records, today),
-    today,
     anchorFiredToday,
+  };
+};
+
+const loadToday = async (): Promise<TodayData> => {
+  const db = await getExpoSqliteClient();
+  const chains = await listChains(db, 'active');
+  const now = new Date();
+  const today = todayIsoDate(now);
+  // ADR-0020: 全 active チェーンを並べる (旧コードの chains[0] バグを修正)。
+  const loaded = await Promise.all(
+    chains.map((c) => loadChainForToday(c, today, now)),
+  );
+  return {
+    today,
+    chains: loaded.filter((x): x is TodayChainData => x !== null),
   };
 };
 
@@ -121,7 +135,7 @@ export type UseTodayDataResult = {
   data: TodayData | null;
   error: string | null;
   loading: boolean;
-  handleToggle: (nodeId: string) => Promise<void>;
+  handleToggle: (chainId: string, nodeId: string) => Promise<void>;
 };
 
 export const useTodayData = (): UseTodayDataResult => {
@@ -135,43 +149,42 @@ export const useTodayData = (): UseTodayDataResult => {
       setLoading(true);
       loadToday()
         .then(async (d) => {
-          if (cancelled || !d) {
-            if (!cancelled) {
-              setData(d);
-              setLoading(false);
-            }
-            return;
-          }
+          if (cancelled) return;
           setData(d);
           setLoading(false);
-          // 場所アンカーで今日まだ発火していない場合のみ GPS 取得 → 範囲内なら record。
-          // UI を block しないよう base 表示後に非同期で。一度発火したら以後の focus
-          // 復帰時は loadToday 内で alreadyFired = true を見て GPS を skip する
-          // (ADR-0012)。
-          //
-          // 既知の小さな race (P2 で判断、PR #17 review M-1): 連続 focus が短時間で
-          // 走ると両方の loadToday が alreadyFired=false を観測して GPS を 2 回引く
-          // 経路がある。recordAnchorFiring は INSERT OR IGNORE なので DB 正準性は
-          // 保たれる (二重 record 発生せず) が、GPS 取得バッテリーが少し余計に走る。
-          // Phase 1 規模で実害なし。Phase 2 で in-flight ref ガードを足すか判断。
-          if (d.anchor.kind === 'place' && !d.anchorFiredToday) {
-            const firing = await detectPlaceFiringByGps(d.anchor);
-            if (cancelled || !firing) return;
-            try {
-              const db = await getExpoSqliteClient();
-              await recordAnchorFiring(db, {
-                anchorId: d.anchor.id,
-                date: d.today,
-              });
-            } catch {
-              // record 失敗時の rollback は K-010 同様に入れない。次の focus で再試行可能。
-            }
-            if (!cancelled) {
-              setData((prev) =>
-                prev ? { ...prev, anchorFiredToday: true } : prev,
-              );
-            }
-          }
+          // 場所アンカーで今日まだ発火していないチェーンだけ GPS 取得 → 範囲内なら record。
+          // 各チェーン独立に走らせる (Phase 2 N=2 で race を観測したら判断、 K-017 同型)。
+          await Promise.all(
+            d.chains.map(async (chainData) => {
+              if (chainData.anchor.kind !== 'place') return;
+              if (chainData.anchorFiredToday) return;
+              const firing = await detectPlaceFiringByGps(chainData.anchor);
+              if (cancelled || !firing) return;
+              try {
+                const db = await getExpoSqliteClient();
+                await recordAnchorFiring(db, {
+                  anchorId: chainData.anchor.id,
+                  date: d.today,
+                });
+              } catch {
+                // record 失敗時の rollback は K-010 同様に入れない。次の focus で再試行可能。
+              }
+              if (!cancelled) {
+                setData((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        chains: prev.chains.map((c) =>
+                          c.chain.id === chainData.chain.id
+                            ? { ...c, anchorFiredToday: true }
+                            : c,
+                        ),
+                      }
+                    : prev,
+                );
+              }
+            }),
+          );
         })
         .catch((e: unknown) => {
           if (!cancelled) {
@@ -185,17 +198,28 @@ export const useTodayData = (): UseTodayDataResult => {
     }, []),
   );
 
-  // 楽観更新: タップで UI を即時反転 → 非同期で永続化。
-  // Phase 1.2 では DB エラー時の rollback を入れない (SQLite ローカル同期書込で
-  // ほぼ失敗しない前提)。実使用で乖離が観測されたら rollback or リトライを判断 (K-010)。
+  // 楽観更新: タップで UI を即時反転 → 非同期で永続化 (K-010 受容判断)。
   const handleToggle = useCallback(
-    async (nodeId: string) => {
+    async (chainId: string, nodeId: string) => {
       if (!data) return;
+      const target = data.chains.find((c) => c.chain.id === chainId);
+      if (!target) return;
       const nextAchievements = toggleAchievementInMap(
-        data.achievements,
+        target.achievements,
         nodeId,
       );
-      setData({ ...data, achievements: nextAchievements });
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              chains: prev.chains.map((c) =>
+                c.chain.id === chainId
+                  ? { ...c, achievements: nextAchievements }
+                  : c,
+              ),
+            }
+          : prev,
+      );
       try {
         const db = await getExpoSqliteClient();
         await recordAchievement(db, {
