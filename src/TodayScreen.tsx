@@ -29,7 +29,11 @@ import {
   COLOR_LINE_BG,
 } from './tokens';
 
-export type TodayNode = { node: Node; action: Action };
+// Phase 2 variant: TodayNode は当日表示用に解決済みの label を持つ。
+// useTodayData 側で resolveActionForDate(action, today) を計算し、
+// kind='fire' のノードのみここに残る (kind='skip' はそもそも Today に出ない)。
+// label は通常 action.title だが、 variant が設定されていれば曜日別 variant 文字列。
+export type TodayNode = { node: Node; action: Action; label: string };
 
 export type TodayScreenProps = {
   chain: Chain;
@@ -205,10 +209,10 @@ export const TodayScreen = ({
         >
           <Text style={styles.anchorRowLabel}>起点アンカー</Text>
         </View>
-        {nodes.map(({ node, action }) => (
+        {nodes.map(({ node, label }) => (
           <NodeRow
             key={node.id}
-            actionTitle={action.title}
+            actionTitle={label}
             achieved={achievements[node.id] ?? false}
             onPress={() => onToggleNode(node.id)}
           />

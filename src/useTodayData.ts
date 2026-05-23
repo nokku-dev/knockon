@@ -6,6 +6,7 @@ import {
   isAnchorFiringToday,
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
+  resolveActionForDate,
   toAchievementMap,
   todayIsoDate,
   toggleAchievementInMap,
@@ -72,15 +73,20 @@ const loadToday = async (): Promise<TodayData | null> => {
   if (!anchor) return null;
 
   const nodes = await listNodes(db, chain.id);
+  const now = new Date();
+  const today = todayIsoDate(now);
+  // Phase 2 variant: 各アクションを resolveActionForDate で今日の発火可否 + ラベルに解決。
+  // kind='skip' のノードは Today から除外 (variant ない曜日は出さない、 Q1=A)。
   const withActions = await Promise.all(
     nodes.map(async (node) => {
       const action = await getAction(db, node.actionId);
-      return action ? { node, action } : null;
+      if (!action) return null;
+      const resolved = resolveActionForDate(action, today);
+      if (resolved.kind === 'skip') return null;
+      return { node, action, label: resolved.label };
     }),
   );
   const validNodes = withActions.filter((x): x is TodayNode => x !== null);
-  const now = new Date();
-  const today = todayIsoDate(now);
   const records = await listAchievementsForNodes(
     db,
     validNodes.map((n) => n.node.id),

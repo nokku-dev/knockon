@@ -20,8 +20,18 @@ export type Action = {
   variants: VariantMap | null;
 };
 
+export type WeekdayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+// Phase 2 前倒し variant (PR feat/phase-2-variant): 曜日ごとのラベル切替。
+// - キーは曜日 (mon..sun)
+// - 値が string → その曜日にそのラベルで Today に出る (発火)
+// - 値が null → その曜日は Today に出ない (= 発火スキップ)
+// - そもそも variants 自体が null → variant 未設定アクション、 既存挙動どおり毎日発火
+//
+// 将来サブチェーン実装時には variant 型の意味が変わる可能性 ([ADR-0018](docs/decisions/0018-variant-phase-2-frontload.md))。
+// Phase 1 N=1 試作中の variant データはサブチェーン化のタイミングで再設計可能 (K-021 同型の受容)。
 export type VariantMap = {
-  [key: string]: { title: string };
+  [K in WeekdayKey]: string | null;
 };
 
 export type NodeKind = 'action';
@@ -199,4 +209,50 @@ export const groupAchievementsByDate = (
     day[a.nodeId] = a.achieved;
   }
   return grouped;
+};
+
+// IsoDate (YYYY-MM-DD) を曜日キーに変換する純粋関数 (Phase 2 variant)。
+// new Date(string + 'T00:00:00') で local timezone 解釈 → getDay() が曜日番号 (0=日, 1=月, ..., 6=土)。
+const WEEKDAY_BY_DAY_INDEX: readonly WeekdayKey[] = [
+  'sun',
+  'mon',
+  'tue',
+  'wed',
+  'thu',
+  'fri',
+  'sat',
+];
+export const getWeekdayKey = (date: IsoDate): WeekdayKey => {
+  const d = new Date(date + 'T00:00:00');
+  const idx = d.getDay();
+  // 0..6 必ずいずれかのため safe assertion
+  return WEEKDAY_BY_DAY_INDEX[idx]!;
+};
+
+// アクションを当日に Today に出すかどうか + 表示ラベルを解決する純粋関数 (Phase 2 variant)。
+// - kind: 'fire' → 当日発火 (label を Today に表示)
+// - kind: 'skip' → 当日は発火スキップ (Today に出さない)
+//
+// 分岐:
+// - action.variants が null → variant 未設定アクション、既存挙動どおり毎日 fire
+//   (Phase 1 で作成済みアクションの後方互換)
+// - action.variants[weekday] が string → その曜日に variant ラベルで fire
+// - action.variants[weekday] が null → その曜日は skip (Q1=A: variant なしの曜日は Today に出さない)
+export type ResolvedAction =
+  | { kind: 'fire'; label: string }
+  | { kind: 'skip' };
+
+export const resolveActionForDate = (
+  action: Action,
+  date: IsoDate,
+): ResolvedAction => {
+  if (action.variants == null) {
+    return { kind: 'fire', label: action.title };
+  }
+  const weekday = getWeekdayKey(date);
+  const variantLabel = action.variants[weekday];
+  if (variantLabel == null) {
+    return { kind: 'skip' };
+  }
+  return { kind: 'fire', label: variantLabel };
 };

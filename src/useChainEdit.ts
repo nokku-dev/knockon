@@ -19,6 +19,7 @@ import {
   listActions,
   listChains,
   listNodes,
+  updateAction as updateActionRepo,
 } from './repository';
 
 // チェーン編集画面のドラフト状態。
@@ -136,6 +137,9 @@ export type UseChainEditResult = {
   deleteAction: (
     actionId: string,
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
+  // アクション更新 (タイトル + variant)。
+  // 成功時は availableActions の該当 entry を更新 + draft.nodes の actionTitle も連動。
+  updateAction: (action: Action) => Promise<boolean>;
 };
 
 
@@ -326,6 +330,43 @@ export const useChainEdit = (
     });
   }, []);
 
+  // アクション更新 (タイトル + variant)。失敗時は false、 setError は呼ぶ。
+  // availableActions と draft.nodes の actionTitle (= ChainEditScreen 表示用) を同期更新。
+  const updateAction = useCallback(
+    async (action: Action): Promise<boolean> => {
+      try {
+        const db = await getExpoSqliteClient();
+        await updateActionRepo(db, action);
+        if (mountedRef.current) {
+          setAvailableActions((prev) =>
+            prev.map((a) => (a.id === action.id ? action : a)),
+          );
+          // ChainEditScreen の NodeEditorRow が actionTitle を表示しているため、
+          // 同じ actionId を持つ draft.nodes の actionTitle も更新する。
+          setDraft((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  nodes: prev.nodes.map((n) =>
+                    n.actionId === action.id
+                      ? { ...n, actionTitle: action.title }
+                      : n,
+                  ),
+                }
+              : prev,
+          );
+        }
+        return true;
+      } catch (e: unknown) {
+        if (mountedRef.current) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        return false;
+      }
+    },
+    [],
+  );
+
   // 削除は通常 10-50ms で完了するため saving フラグは出さない (deleteChain / save と
   // 非対称だが、即時 UX を優先して受容)。長くなるシグナルが出たら統一する。
   const deleteAction = useCallback(
@@ -409,5 +450,6 @@ export const useChainEdit = (
     save,
     deleteChain,
     deleteAction,
+    updateAction,
   };
 };

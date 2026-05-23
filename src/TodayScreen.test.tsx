@@ -43,9 +43,9 @@ const buildAction = (id: string, title: string): Action => ({
 });
 
 const todayNodes: readonly TodayNode[] = [
-  { node: buildNode('n1', 0, 'act-water'), action: buildAction('act-water', '水を飲む') },
-  { node: buildNode('n2', 1, 'act-stretch'), action: buildAction('act-stretch', 'ストレッチ') },
-  { node: buildNode('n3', 2, 'act-desk'), action: buildAction('act-desk', '机に向かう') },
+  { node: buildNode('n1', 0, 'act-water'), action: buildAction('act-water', '水を飲む'), label: '水を飲む' },
+  { node: buildNode('n2', 1, 'act-stretch'), action: buildAction('act-stretch', 'ストレッチ'), label: 'ストレッチ' },
+  { node: buildNode('n3', 2, 'act-desk'), action: buildAction('act-desk', '机に向かう'), label: '机に向かう' },
 ];
 
 const renderScreen = (

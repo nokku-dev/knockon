@@ -235,4 +235,37 @@ describe('ChainEditScreen', () => {
     fireEvent.press(getByLabelText('アクション「水を飲む」を削除'));
     expect(onDeleteAction).toHaveBeenCalledWith(existingActions[0]);
   });
+
+  test('onSaveAction 未指定では既存チップに鉛筆ボタンが表示されない (Phase 2 variant)', () => {
+    const existingActions: Action[] = [
+      { id: 'act1', title: '水を飲む', variants: null },
+    ];
+    const { getByLabelText, queryByLabelText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        availableActions={existingActions}
+      />,
+    );
+    fireEvent.press(getByLabelText('ノードを追加'));
+    expect(queryByLabelText('アクション「水を飲む」を編集')).toBeNull();
+  });
+
+  test('onSaveAction 指定で鉛筆ボタンが出る + 押下で ActionEditor モーダルが開く', () => {
+    const existingActions: Action[] = [
+      { id: 'act1', title: '水を飲む', variants: null },
+    ];
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        availableActions={existingActions}
+        onSaveAction={async () => true}
+      />,
+    );
+    fireEvent.press(getByLabelText('ノードを追加'));
+    fireEvent.press(getByLabelText('アクション「水を飲む」を編集'));
+    // モーダル内の保存ボタンが現れる
+    expect(getByLabelText('アクション保存')).toBeTruthy();
+  });
 });

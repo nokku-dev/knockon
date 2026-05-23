@@ -1,5 +1,6 @@
 import type {
   Achievement,
+  Action,
   Anchor,
   AnchorFiring,
   Chain,
@@ -8,12 +9,14 @@ import type {
 import {
   countAchievedNodesOn,
   distanceMeters,
+  getWeekdayKey,
   groupAchievementsByDate,
   isAnchorFiringToday,
   isNodeAchievedOn,
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
   lastAchievedNodeIndex,
+  resolveActionForDate,
   shouldSeed,
   toAchievementMap,
   todayIsoDate,
@@ -363,5 +366,95 @@ describe('groupAchievementsByDate (14D ウィンドウ用 API 受口: 日付別 
 
   test('空配列 → 空オブジェクト', () => {
     expect(groupAchievementsByDate([])).toEqual({});
+  });
+});
+
+describe('getWeekdayKey (Phase 2 variant)', () => {
+  test('2026-05-18 (月) → mon', () => {
+    expect(getWeekdayKey('2026-05-18')).toBe('mon');
+  });
+  test('2026-05-19 (火) → tue', () => {
+    expect(getWeekdayKey('2026-05-19')).toBe('tue');
+  });
+  test('2026-05-20 (水) → wed', () => {
+    expect(getWeekdayKey('2026-05-20')).toBe('wed');
+  });
+  test('2026-05-21 (木) → thu', () => {
+    expect(getWeekdayKey('2026-05-21')).toBe('thu');
+  });
+  test('2026-05-22 (金) → fri', () => {
+    expect(getWeekdayKey('2026-05-22')).toBe('fri');
+  });
+  test('2026-05-23 (土) → sat', () => {
+    expect(getWeekdayKey('2026-05-23')).toBe('sat');
+  });
+  test('2026-05-24 (日) → sun', () => {
+    expect(getWeekdayKey('2026-05-24')).toBe('sun');
+  });
+});
+
+describe('resolveActionForDate (Phase 2 variant: 曜日ごとのラベル切替 + 発火スキップ)', () => {
+  const base = { id: 'a1', title: '筋トレ' };
+
+  test('variants=null → 既存挙動 (毎日 fire / ラベル=親 title)', () => {
+    const action: Action = { ...base, variants: null };
+    expect(resolveActionForDate(action, '2026-05-20')).toEqual({
+      kind: 'fire',
+      label: '筋トレ',
+    });
+  });
+
+  test('variants 設定済み + 当日 (水) に variant あり → fire / variant ラベル', () => {
+    const action: Action = {
+      ...base,
+      variants: {
+        mon: '胸トレ',
+        tue: '足トレ',
+        wed: '背中トレ',
+        thu: null,
+        fri: null,
+        sat: null,
+        sun: null,
+      },
+    };
+    expect(resolveActionForDate(action, '2026-05-20')).toEqual({
+      kind: 'fire',
+      label: '背中トレ',
+    });
+  });
+
+  test('variants 設定済み + 当日 (木) に variant null → skip (Today に出さない)', () => {
+    const action: Action = {
+      ...base,
+      variants: {
+        mon: '胸トレ',
+        tue: '足トレ',
+        wed: '背中トレ',
+        thu: null,
+        fri: null,
+        sat: null,
+        sun: null,
+      },
+    };
+    expect(resolveActionForDate(action, '2026-05-21')).toEqual({
+      kind: 'skip',
+    });
+  });
+
+  test('全曜日 null の variants → 毎日 skip', () => {
+    const action: Action = {
+      ...base,
+      variants: {
+        mon: null,
+        tue: null,
+        wed: null,
+        thu: null,
+        fri: null,
+        sat: null,
+        sun: null,
+      },
+    };
+    expect(resolveActionForDate(action, '2026-05-18')).toEqual({ kind: 'skip' });
+    expect(resolveActionForDate(action, '2026-05-19')).toEqual({ kind: 'skip' });
   });
 });

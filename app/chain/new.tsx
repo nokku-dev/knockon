@@ -32,6 +32,7 @@ export default function NewChainRoute() {
     removeNode,
     reorderNodes,
     save,
+    updateAction,
   } = useChainEdit(null);
 
   const handleSave = async () => {
@@ -68,6 +69,7 @@ export default function NewChainRoute() {
             onReorderNodes={reorderNodes}
             onCancel={() => router.back()}
             onSave={handleSave}
+            onSaveAction={updateAction}
           />
           {error && (
             <View style={styles.banner}>
