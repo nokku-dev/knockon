@@ -1,18 +1,23 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChainListScreen } from '../../src/ChainListScreen';
+import type { ChainStatus } from '../../src/domain';
 import {
   COLOR_ACCENT,
   COLOR_BG,
   COLOR_FG,
+  COLOR_FG_FAINT,
   COLOR_GROW,
+  COLOR_LINE_BG,
 } from '../../src/tokens';
 import { useChainListData } from '../../src/useChainListData';
 
 export default function ChainsTab() {
-  const { items, error, loading } = useChainListData();
+  const [status, setStatus] = useState<ChainStatus>('active');
+  const { items, error, loading } = useChainListData(status);
   const router = useRouter();
 
   // チェーンカードタップ → 編集画面 (`/chain/[chainId]`)。
@@ -28,6 +33,40 @@ export default function ChainsTab() {
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
+      <View style={styles.statusTabs}>
+        <Pressable
+          onPress={() => setStatus('active')}
+          accessibilityRole="button"
+          accessibilityLabel="アクティブなチェーン"
+          accessibilityState={{ selected: status === 'active' }}
+          style={[styles.statusTab, status === 'active' && styles.statusTabActive]}
+        >
+          <Text
+            style={[
+              styles.statusTabText,
+              status === 'active' && styles.statusTabTextActive,
+            ]}
+          >
+            アクティブ
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setStatus('stocked')}
+          accessibilityRole="button"
+          accessibilityLabel="休止中のチェーン"
+          accessibilityState={{ selected: status === 'stocked' }}
+          style={[styles.statusTab, status === 'stocked' && styles.statusTabActive]}
+        >
+          <Text
+            style={[
+              styles.statusTabText,
+              status === 'stocked' && styles.statusTabTextActive,
+            ]}
+          >
+            休止中
+          </Text>
+        </Pressable>
+      </View>
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={COLOR_FG} />
@@ -37,14 +76,16 @@ export default function ChainsTab() {
       ) : (
         <View style={styles.body}>
           <ChainListScreen items={items} onSelectChain={handleSelectChain} />
-          <Pressable
-            onPress={handleCreateNew}
-            accessibilityRole="button"
-            accessibilityLabel="チェーンを新規作成"
-            style={styles.fab}
-          >
-            <Text style={styles.fabText}>+ 新規作成</Text>
-          </Pressable>
+          {status === 'active' && (
+            <Pressable
+              onPress={handleCreateNew}
+              accessibilityRole="button"
+              accessibilityLabel="チェーンを新規作成"
+              style={styles.fab}
+            >
+              <Text style={styles.fabText}>+ 新規作成</Text>
+            </Pressable>
+          )}
         </View>
       )}
     </SafeAreaView>
@@ -81,5 +122,29 @@ const styles = StyleSheet.create({
     color: COLOR_BG,
     fontSize: 14,
     fontWeight: '700',
+  },
+  statusTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  statusTab: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: COLOR_LINE_BG,
+  },
+  statusTabActive: {
+    backgroundColor: COLOR_FG,
+  },
+  statusTabText: {
+    color: COLOR_FG_FAINT,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  statusTabTextActive: {
+    color: COLOR_BG,
   },
 });

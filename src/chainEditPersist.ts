@@ -67,7 +67,7 @@ export const persistChainDraft = async (
       id: draft.chainId,
       title: draft.title.trim(),
       anchorId: draft.anchor.id,
-      status: 'active',
+      status: draft.status,
       createdAt: new Date().toISOString(),
     };
     await insertChain(db, chain);
@@ -90,7 +90,7 @@ export const persistChainDraft = async (
     id: draft.chainId,
     title: draft.title.trim(),
     anchorId: draft.anchor.id,
-    status: 'active',
+    status: draft.status,
     // updateChain SQL は createdAt を SET しないので任意の placeholder
     createdAt: '',
   });
