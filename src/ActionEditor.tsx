@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { Action, VariantMap, WeekdayKey } from './domain';
 import {
@@ -73,7 +74,7 @@ export const ActionEditor = ({
   };
 
   return (
-    <View style={styles.root}>
+    <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
       <View style={styles.topbar}>
         <Pressable onPress={onCancel} accessibilityRole="button">
           <Text style={styles.cancel}>キャンセル</Text>
@@ -147,7 +148,7 @@ export const ActionEditor = ({
           )}
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
