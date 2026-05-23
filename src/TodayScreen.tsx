@@ -66,7 +66,10 @@ const KNOCK_EASING = Easing.bezier(0.22, 1, 0.36, 1);
 const MARKER_BOUNCE_PEAK = 1.25;
 const TEXT_BOUNCE_PEAK = 1.08;
 const BOUNCE_UP_MS = 80;
-const BOUNCE_SPRING = { damping: 8, stiffness: 200 } as const;
+// マーカーは spring で戻り (弾む感じ)、テキストは withTiming で素直に戻す
+// (読み物なので揺り戻しがあると視認性が下がる、ユーザーフィードバック)。
+const MARKER_SPRING = { damping: 8, stiffness: 200 } as const;
+const TEXT_BOUNCE_DOWN_MS = 160;
 
 const AnimatedLine = Animated.createAnimatedComponent(Line);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -233,7 +236,7 @@ const MarkerCircle = ({
           duration: BOUNCE_UP_MS,
           easing: KNOCK_EASING,
         }),
-        withSpring(1, BOUNCE_SPRING),
+        withSpring(1, MARKER_SPRING),
       );
     }
     prevAchievedRef.current = achieved;
@@ -272,12 +275,18 @@ const NodeRow = ({
 
   useEffect(() => {
     if (!prevAchievedRef.current && achieved) {
+      // 文字は read 対象なので withSpring (揺り戻し) を使わず、 withTiming で
+      // 素直に scale up → down のみ。マーカーとは up タイミングだけ同期して、
+      // down のカーブは異なる (ユーザー判断 PR-1.9)。
       scale.value = withSequence(
         withTiming(TEXT_BOUNCE_PEAK, {
           duration: BOUNCE_UP_MS,
           easing: KNOCK_EASING,
         }),
-        withSpring(1, BOUNCE_SPRING),
+        withTiming(1, {
+          duration: TEXT_BOUNCE_DOWN_MS,
+          easing: KNOCK_EASING,
+        }),
       );
     }
     prevAchievedRef.current = achieved;
