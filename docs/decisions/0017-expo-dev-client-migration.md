@@ -63,7 +63,8 @@ K-008 で予告済みの判断点に到達した: 「Phase 1.5/1.6 で時刻/場
 
 - **Dev Client は production と異なる**: Dev Client は内部に hot reload 等の開発機能を含むため、配布 (production build) には使えない。 Phase 1 出荷時は `eas build --profile production --platform android` で別 build を作る必要がある (Phase 2 以降の判断点)。
 - **EAS の app slug は固定**: `app.json` の `slug: "knockon"` と `eas.json` のプロジェクト紐付けが必要。 EAS への登録 (`eas project:init`) は本 PR 完了後に実施 (`eas.json` の `cli.appVersionSource: "remote"` のため)。
-- **`react-dom` peer dependency**: `expo install` 内部の npm install が strict peer mode で `react@19.1.0` vs `react-dom@19.2.6` 不整合で失敗する。本 PR では `npm install --legacy-peer-deps` で回避。 K-009 系の落とし穴で、将来別の `expo install` でも同じ問題が起きうる。
+- **`react-dom` peer dependency**: `expo install` 内部の npm install が strict peer mode で `react@19.1.0` vs `react-dom@19.2.6` 不整合で失敗する。本 PR では `.npmrc` に `legacy-peer-deps=true` を入れて、 ローカル / EAS Build の両環境で同じ依存解決ルールを適用する形に統一。 K-009 系の落とし穴で、将来別の `expo install` でも同じ問題が起きうる。
+- **EAS Build の `npm ci` 失敗**: 初回 build が「`Missing: expo-font@56.0.5 / react-dom@19.2.6 / scheduler@0.27.0 from lock file`」で失敗。原因: ローカルで `--legacy-peer-deps` フラグ付きで install したが、 EAS Build は flag なしの `npm ci --include=dev` を実行する → lock file の transitive deps が不整合。 `.npmrc` を置いて lock file を再生成 (`rm package-lock.json && npm install`) で解決。再現条件: peer dep に厳格な追加 (react / react-dom の version pin 等) と `expo install` 系の組み合わせ。 K-009 KNOWLEDGE 候補。
 
 ### EAS owner の選定: `nokkus-org` (組織) を採用
 
