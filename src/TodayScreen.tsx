@@ -1,4 +1,13 @@
+import { useEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedProps,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, { Circle, Line } from 'react-native-svg';
 
 import type {
@@ -46,6 +55,18 @@ const MARKER_RADIUS = 7;
 const ANCHOR_DOT_RADIUS = 4;
 const SPINE_STROKE = 2;
 
+// セレブレーション (PR-1.9): DESIGN-SYSTEM §4.3 ノック仕様の遂行 + マーカー
+// バウンスの追加。線が一段スッと伸びる cubic-bezier(.22, 1, .36, 1) は仕様化
+// 済みのまま流用。マーカーは achieved への遷移時のみ scale 1.25→1.0 のバウンス。
+// 達成解除 (true→false) では bounce しない (祝福主、マイナスを指差さない)。
+const KNOCK_DURATION_MS = 320;
+const KNOCK_EASING = Easing.bezier(0.22, 1, 0.36, 1);
+const MARKER_BOUNCE_PEAK = 1.25;
+const MARKER_BOUNCE_UP_MS = 80;
+
+const AnimatedLine = Animated.createAnimatedComponent(Line);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
 export const TodayScreen = ({
   chain,
   anchor,
@@ -70,6 +91,24 @@ export const TodayScreen = ({
     lastAchievedIdx < 0 ? anchorCenterY : nodeMarkerCenterY(lastAchievedIdx);
 
   const svgHeight = ANCHOR_ROW_HEIGHT + nodes.length * NODE_ROW_HEIGHT;
+
+  // ノックモーション: filledEndY (明色線の終端) を SharedValue で持ち、変化を
+  // cubic-bezier(.22, 1, .36, 1) でアニメ。lastAchievedIdx < 0 のとき
+  // (達成 0 件) は anchorCenterY で開始 → 達成が増えると下に伸びる。
+  const filledEndYShared = useSharedValue(filledEndY);
+  useEffect(() => {
+    filledEndYShared.value = withTiming(filledEndY, {
+      duration: KNOCK_DURATION_MS,
+      easing: KNOCK_EASING,
+    });
+  }, [filledEndY, filledEndYShared]);
+
+  const animatedGrowLineProps = useAnimatedProps(() => ({
+    y2: filledEndYShared.value,
+  }));
+  const animatedBgLineProps = useAnimatedProps(() => ({
+    y1: filledEndYShared.value,
+  }));
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
@@ -113,21 +152,25 @@ export const TodayScreen = ({
           style={styles.svg}
           pointerEvents="none"
         >
-          {lastAchievedIdx >= 0 && (
-            <Line
-              x1={SPINE_X}
-              y1={anchorCenterY}
-              x2={SPINE_X}
-              y2={filledEndY}
-              stroke={COLOR_GROW}
-              strokeWidth={SPINE_STROKE}
-            />
-          )}
-          <Line
+          {/*
+            明色線 (--grow): y2 が filledEndY に向かってアニメで伸びる。
+            達成 0 件のときは y1=y2=anchorCenterY でゼロ長 (描画レス相当)。
+            旧コードは lastAchievedIdx<0 で条件描画していたが、アニメ前提では
+            常に描画して y2 の値変化に乗せる。
+          */}
+          <AnimatedLine
             x1={SPINE_X}
-            y1={filledEndY}
+            y1={anchorCenterY}
+            x2={SPINE_X}
+            animatedProps={animatedGrowLineProps}
+            stroke={COLOR_GROW}
+            strokeWidth={SPINE_STROKE}
+          />
+          <AnimatedLine
+            x1={SPINE_X}
             x2={SPINE_X}
             y2={lastNodeY}
+            animatedProps={animatedBgLineProps}
             stroke={COLOR_LINE_BG}
             strokeWidth={SPINE_STROKE}
           />
@@ -137,20 +180,13 @@ export const TodayScreen = ({
             r={ANCHOR_DOT_RADIUS}
             fill={COLOR_GROW}
           />
-          {nodes.map(({ node }, idx) => {
-            const achieved = achievements[node.id] ?? false;
-            return (
-              <Circle
-                key={node.id}
-                cx={SPINE_X}
-                cy={nodeMarkerCenterY(idx)}
-                r={MARKER_RADIUS}
-                fill={achieved ? COLOR_GROW : COLOR_BG}
-                stroke={achieved ? COLOR_GROW : COLOR_FG_FAINT}
-                strokeWidth={1.5}
-              />
-            );
-          })}
+          {nodes.map(({ node }, idx) => (
+            <MarkerCircle
+              key={node.id}
+              cy={nodeMarkerCenterY(idx)}
+              achieved={achievements[node.id] ?? false}
+            />
+          ))}
         </Svg>
 
         <View
@@ -176,6 +212,49 @@ export const TodayScreen = ({
         })}
       </View>
     </ScrollView>
+  );
+};
+
+// 個別ノードマーカー。achieved の false→true 遷移時のみ scale 1→1.25→1 で
+// バウンス (Celebrate 主)。true→false (達成解除) では bounce しない。
+// SVG Circle の r を scale で乗じる形でアニメ化する (transform=scale より
+// 中心からの拡縮が安定)。
+const MarkerCircle = ({
+  cy,
+  achieved,
+}: {
+  cy: number;
+  achieved: boolean;
+}) => {
+  const scale = useSharedValue(1);
+  const prevAchievedRef = useRef(achieved);
+
+  useEffect(() => {
+    if (!prevAchievedRef.current && achieved) {
+      scale.value = withSequence(
+        withTiming(MARKER_BOUNCE_PEAK, {
+          duration: MARKER_BOUNCE_UP_MS,
+          easing: KNOCK_EASING,
+        }),
+        withSpring(1, { damping: 8, stiffness: 200 }),
+      );
+    }
+    prevAchievedRef.current = achieved;
+  }, [achieved, scale]);
+
+  const animatedProps = useAnimatedProps(() => ({
+    r: MARKER_RADIUS * scale.value,
+  }));
+
+  return (
+    <AnimatedCircle
+      cx={SPINE_X}
+      cy={cy}
+      animatedProps={animatedProps}
+      fill={achieved ? COLOR_GROW : COLOR_BG}
+      stroke={achieved ? COLOR_GROW : COLOR_FG_FAINT}
+      strokeWidth={1.5}
+    />
   );
 };
 
