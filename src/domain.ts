@@ -262,3 +262,34 @@ export const resolveActionForDate = (
   }
   return { kind: 'fire', label: variantLabel };
 };
+
+// variant の有効曜日を「月火水」形式の文字列にまとめる純粋関数 (Phase 2)。
+// UI で「このアクションは variant 設定済み」を視覚的に示すためのバッジ表示用。
+// variants が null なら空文字。 全曜日 null (完全休眠) なら空文字。
+const WEEKDAY_LABEL_BY_KEY: Readonly<Record<WeekdayKey, string>> = {
+  mon: '月',
+  tue: '火',
+  wed: '水',
+  thu: '木',
+  fri: '金',
+  sat: '土',
+  sun: '日',
+};
+const WEEKDAY_KEYS_ORDERED: readonly WeekdayKey[] = [
+  'mon',
+  'tue',
+  'wed',
+  'thu',
+  'fri',
+  'sat',
+  'sun',
+];
+
+export const summarizeVariantDays = (
+  variants: VariantMap | null,
+): string => {
+  if (variants == null) return '';
+  return WEEKDAY_KEYS_ORDERED.filter((k) => variants[k] != null)
+    .map((k) => WEEKDAY_LABEL_BY_KEY[k])
+    .join('');
+};

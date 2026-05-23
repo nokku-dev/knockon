@@ -268,4 +268,47 @@ describe('ChainEditScreen', () => {
     // モーダル内の保存ボタンが現れる
     expect(getByLabelText('アクション保存')).toBeTruthy();
   });
+
+  test('variant 設定済みアクションのチップに有効曜日バッジが表示される', () => {
+    const existingActions: Action[] = [
+      {
+        id: 'act-workout',
+        title: '筋トレ',
+        variants: {
+          mon: '胸トレ',
+          tue: '足トレ',
+          wed: '背中トレ',
+          thu: null,
+          fri: null,
+          sat: null,
+          sun: null,
+        },
+      },
+    ];
+    const { getByLabelText, getByText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        availableActions={existingActions}
+      />,
+    );
+    fireEvent.press(getByLabelText('ノードを追加'));
+    expect(getByText('月火水')).toBeTruthy();
+    expect(getByLabelText('variant: 月火水')).toBeTruthy();
+  });
+
+  test('variants=null のアクションには曜日バッジ (variant: ...) が表示されない', () => {
+    const existingActions: Action[] = [
+      { id: 'act1', title: '水を飲む', variants: null },
+    ];
+    const { getByLabelText, queryByLabelText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        availableActions={existingActions}
+      />,
+    );
+    fireEvent.press(getByLabelText('ノードを追加'));
+    expect(queryByLabelText(/^variant: /)).toBeNull();
+  });
 });

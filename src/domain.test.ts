@@ -18,6 +18,7 @@ import {
   lastAchievedNodeIndex,
   resolveActionForDate,
   shouldSeed,
+  summarizeVariantDays,
   toAchievementMap,
   todayIsoDate,
   toggleAchievementInMap,
@@ -456,5 +457,67 @@ describe('resolveActionForDate (Phase 2 variant: 曜日ごとのラベル切替 
     };
     expect(resolveActionForDate(action, '2026-05-18')).toEqual({ kind: 'skip' });
     expect(resolveActionForDate(action, '2026-05-19')).toEqual({ kind: 'skip' });
+  });
+});
+
+describe('summarizeVariantDays (Phase 2 variant: UI バッジ用)', () => {
+  test('variants=null → 空文字', () => {
+    expect(summarizeVariantDays(null)).toBe('');
+  });
+
+  test('月火水のみ variant あり → "月火水"', () => {
+    expect(
+      summarizeVariantDays({
+        mon: '胸トレ',
+        tue: '足トレ',
+        wed: '背中トレ',
+        thu: null,
+        fri: null,
+        sat: null,
+        sun: null,
+      }),
+    ).toBe('月火水');
+  });
+
+  test('全曜日 null (完全休眠) → 空文字', () => {
+    expect(
+      summarizeVariantDays({
+        mon: null,
+        tue: null,
+        wed: null,
+        thu: null,
+        fri: null,
+        sat: null,
+        sun: null,
+      }),
+    ).toBe('');
+  });
+
+  test('全曜日 variant あり → "月火水木金土日" (順序固定)', () => {
+    expect(
+      summarizeVariantDays({
+        mon: 'a',
+        tue: 'b',
+        wed: 'c',
+        thu: 'd',
+        fri: 'e',
+        sat: 'f',
+        sun: 'g',
+      }),
+    ).toBe('月火水木金土日');
+  });
+
+  test('土日のみ variant あり → "土日" (順序は月→日固定)', () => {
+    expect(
+      summarizeVariantDays({
+        mon: null,
+        tue: null,
+        wed: null,
+        thu: null,
+        fri: null,
+        sat: '休日筋トレ',
+        sun: '休日ヨガ',
+      }),
+    ).toBe('土日');
   });
 });

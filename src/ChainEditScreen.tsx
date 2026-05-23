@@ -18,6 +18,7 @@ import type {
 import { ActionEditor } from './ActionEditor';
 import { AnchorEditor } from './AnchorEditor';
 import type { Action, Anchor } from './domain';
+import { summarizeVariantDays } from './domain';
 import type { CurrentPosition, LocationPermissionStatus } from './location';
 import {
   COLOR_ACCENT,
@@ -388,6 +389,14 @@ const ActionPicker = ({
               style={styles.existingChip}
             >
               <Text style={styles.existingChipText}>{a.title}</Text>
+              {a.variants && summarizeVariantDays(a.variants).length > 0 && (
+                <Text
+                  style={styles.existingChipVariantHint}
+                  accessibilityLabel={`variant: ${summarizeVariantDays(a.variants)}`}
+                >
+                  {summarizeVariantDays(a.variants)}
+                </Text>
+              )}
               {onEditExisting && (
                 <Pressable
                   onPress={() => onEditExisting(a)}
@@ -568,6 +577,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLOR_LINE_BG,
   },
   existingChipText: { color: COLOR_FG, fontSize: 12 },
+  // variant 設定済みアクションのバッジ。
+  // 例: 「筋トレ 月火水 ✎ ×」のように曜日を併記して「曜日切替あり」を示す。
+  existingChipVariantHint: {
+    color: COLOR_FG_FAINT,
+    fontSize: 10,
+    fontWeight: '600',
+  },
   existingChipDelete: {
     width: 18,
     height: 18,
