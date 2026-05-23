@@ -64,3 +64,15 @@ K-008 で予告済みの判断点に到達した: 「Phase 1.5/1.6 で時刻/場
 - **Dev Client は production と異なる**: Dev Client は内部に hot reload 等の開発機能を含むため、配布 (production build) には使えない。 Phase 1 出荷時は `eas build --profile production --platform android` で別 build を作る必要がある (Phase 2 以降の判断点)。
 - **EAS の app slug は固定**: `app.json` の `slug: "knockon"` と `eas.json` のプロジェクト紐付けが必要。 EAS への登録 (`eas project:init`) は本 PR 完了後に実施 (`eas.json` の `cli.appVersionSource: "remote"` のため)。
 - **`react-dom` peer dependency**: `expo install` 内部の npm install が strict peer mode で `react@19.1.0` vs `react-dom@19.2.6` 不整合で失敗する。本 PR では `npm install --legacy-peer-deps` で回避。 K-009 系の落とし穴で、将来別の `expo install` でも同じ問題が起きうる。
+
+### EAS owner の選定: `nokkus-org` (組織) を採用
+
+`eas whoami` で `nokku` (個人) と `nokkus-org` (組織) の両方 Owner ロールを持つ状態だった。 `app.json` に `expo.owner: "nokkus-org"` を明示して、初回 `eas project:init` で owner プロンプトが出ないようにする。
+
+組織 (`nokkus-org`) を選んだ理由:
+- bundle ID が既に `co.nokku.knockon` で組織ドメイン前提
+- GitHub も `nokku-dev` org に置いており、 Expo も組織アカウントに揃えると整合
+- Phase 2 以降で複数 dev / AI agent / 別ロールが触る場合に権限管理しやすい
+- 個人アカウントから組織への移管は手動操作で面倒、逆方向はもっと面倒。前倒しで組織に置くほうが将来の覆すコストが低い
+
+将来 `nokku` (個人) に戻すケース: Expo dashboard で「Transfer project」を手動操作。コスト中。

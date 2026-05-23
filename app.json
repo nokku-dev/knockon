@@ -2,6 +2,7 @@
   "expo": {
     "name": "knockon",
     "slug": "knockon",
+    "owner": "nokkus-org",
     "scheme": "knockon",
     "version": "0.1.0",
     "orientation": "portrait",
