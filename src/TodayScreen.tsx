@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedProps,
+  useAnimatedStyle,
   useSharedValue,
   withSequence,
   withSpring,
@@ -55,14 +56,17 @@ const MARKER_RADIUS = 7;
 const ANCHOR_DOT_RADIUS = 4;
 const SPINE_STROKE = 2;
 
-// セレブレーション (PR-1.9): DESIGN-SYSTEM §4.3 ノック仕様の遂行 + マーカー
-// バウンスの追加。線が一段スッと伸びる cubic-bezier(.22, 1, .36, 1) は仕様化
-// 済みのまま流用。マーカーは achieved への遷移時のみ scale 1.25→1.0 のバウンス。
+// セレブレーション (PR-1.9): DESIGN-SYSTEM §4.3 達成ジェスチャ 1 セットを実装。
+// 構成: (a) ノック線伸び (cubic-bezier(.22, 1, .36, 1)) + (b) マーカーバウンス
+// + (c) テキストバウンス。(b) と (c) は同じ achieved 遷移トリガー / 同じ
+// イージング / 同じ duration で同期発火させる。
 // 達成解除 (true→false) では bounce しない (祝福主、マイナスを指差さない)。
 const KNOCK_DURATION_MS = 320;
 const KNOCK_EASING = Easing.bezier(0.22, 1, 0.36, 1);
 const MARKER_BOUNCE_PEAK = 1.25;
-const MARKER_BOUNCE_UP_MS = 80;
+const TEXT_BOUNCE_PEAK = 1.08;
+const BOUNCE_UP_MS = 80;
+const BOUNCE_SPRING = { damping: 8, stiffness: 200 } as const;
 
 const AnimatedLine = Animated.createAnimatedComponent(Line);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -195,21 +199,14 @@ export const TodayScreen = ({
         >
           <Text style={styles.anchorRowLabel}>起点アンカー</Text>
         </View>
-        {nodes.map(({ node, action }) => {
-          const achieved = achievements[node.id] ?? false;
-          return (
-            <Pressable
-              key={node.id}
-              onPress={() => onToggleNode(node.id)}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: achieved }}
-              accessibilityLabel={action.title}
-              style={[styles.contentRow, { height: NODE_ROW_HEIGHT }]}
-            >
-              <Text style={styles.nodeText}>{action.title}</Text>
-            </Pressable>
-          );
-        })}
+        {nodes.map(({ node, action }) => (
+          <NodeRow
+            key={node.id}
+            actionTitle={action.title}
+            achieved={achievements[node.id] ?? false}
+            onPress={() => onToggleNode(node.id)}
+          />
+        ))}
       </View>
     </ScrollView>
   );
@@ -233,10 +230,10 @@ const MarkerCircle = ({
     if (!prevAchievedRef.current && achieved) {
       scale.value = withSequence(
         withTiming(MARKER_BOUNCE_PEAK, {
-          duration: MARKER_BOUNCE_UP_MS,
+          duration: BOUNCE_UP_MS,
           easing: KNOCK_EASING,
         }),
-        withSpring(1, { damping: 8, stiffness: 200 }),
+        withSpring(1, BOUNCE_SPRING),
       );
     }
     prevAchievedRef.current = achieved;
@@ -255,6 +252,53 @@ const MarkerCircle = ({
       stroke={achieved ? COLOR_GROW : COLOR_FG_FAINT}
       strokeWidth={1.5}
     />
+  );
+};
+
+// ノード行のテキスト。マーカーと同じ false→true 遷移で同期バウンス。
+// 倍率はマーカーより控えめ (1.08) — 文字本来の可読性を優先しつつ、
+// 達成タップの中央視野フィードバックを補強する役割。
+const NodeRow = ({
+  actionTitle,
+  achieved,
+  onPress,
+}: {
+  actionTitle: string;
+  achieved: boolean;
+  onPress: () => void;
+}) => {
+  const scale = useSharedValue(1);
+  const prevAchievedRef = useRef(achieved);
+
+  useEffect(() => {
+    if (!prevAchievedRef.current && achieved) {
+      scale.value = withSequence(
+        withTiming(TEXT_BOUNCE_PEAK, {
+          duration: BOUNCE_UP_MS,
+          easing: KNOCK_EASING,
+        }),
+        withSpring(1, BOUNCE_SPRING),
+      );
+    }
+    prevAchievedRef.current = achieved;
+  }, [achieved, scale]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: achieved }}
+      accessibilityLabel={actionTitle}
+      style={[styles.contentRow, { height: NODE_ROW_HEIGHT }]}
+    >
+      <Animated.View style={[styles.nodeTextWrap, animatedStyle]}>
+        <Text style={styles.nodeText}>{actionTitle}</Text>
+      </Animated.View>
+    </Pressable>
   );
 };
 
@@ -330,6 +374,9 @@ const styles = StyleSheet.create({
     color: COLOR_FG_FAINT,
     fontSize: 12,
   },
+  // テキストバウンスの transform 基点。alignSelf:'flex-start' で左端を
+  // アンカーにして scale すると、伸縮が右側に向かい行のレイアウトが揺れない。
+  nodeTextWrap: { alignSelf: 'flex-start' },
   nodeText: {
     color: COLOR_FG,
     fontSize: 16,
