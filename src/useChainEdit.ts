@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
-import type { Action, Anchor } from './domain';
+import type { Action, Anchor, VariantMap } from './domain';
 import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
 import {
   getCurrentPosition,
@@ -19,6 +19,7 @@ import {
   listActions,
   listChains,
   listNodes,
+  updateAction as updateActionRepo,
 } from './repository';
 
 // チェーン編集画面のドラフト状態。
@@ -27,7 +28,10 @@ export type EditableNode = {
   id: string; // 既存なら nodes.id、新規なら一時 ID
   isNew: boolean; // true なら save 時に INSERT、false なら必要に応じて UPDATE
   actionId: string;
-  actionTitle: string; // ActionPicker で表示するため
+  actionTitle: string; // ChainEditScreen の NodeEditorRow 表示用
+  // Phase 2 variant: NodeEditorRow にバッジ (例: 月火水) を出すために保持。
+  // updateAction で同期更新される。
+  actionVariants: VariantMap | null;
 };
 
 export type EditableAnchor = {
@@ -84,6 +88,7 @@ const loadExisting = async (chainId: string): Promise<ChainEditDraft | null> => 
         isNew: false,
         actionId: n.actionId,
         actionTitle: act?.title ?? '',
+        actionVariants: act?.variants ?? null,
       };
     }),
   );
@@ -136,6 +141,9 @@ export type UseChainEditResult = {
   deleteAction: (
     actionId: string,
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
+  // アクション更新 (タイトル + variant)。
+  // 成功時は availableActions の該当 entry を更新 + draft.nodes の actionTitle も連動。
+  updateAction: (action: Action) => Promise<boolean>;
 };
 
 
@@ -260,16 +268,19 @@ export const useChainEdit = (
     (actionId: string, actionTitle: string) => {
       setDraft((prev) => {
         if (!prev) return prev;
+        // availableActions から variant を引いて NodeEditorRow のバッジ表示に渡す
+        const found = availableActions.find((a) => a.id === actionId);
         const next: EditableNode = {
           id: newNodeId(),
           isNew: true,
           actionId,
           actionTitle,
+          actionVariants: found?.variants ?? null,
         };
         return { ...prev, nodes: [...prev.nodes, next] };
       });
     },
-    [],
+    [availableActions],
   );
 
   const addNodeFromNewAction = useCallback(
@@ -293,6 +304,7 @@ export const useChainEdit = (
             isNew: true,
             actionId: action.id,
             actionTitle: action.title,
+            actionVariants: action.variants,
           };
           return { ...prev, nodes: [...prev.nodes, next] };
         });
@@ -325,6 +337,55 @@ export const useChainEdit = (
       return { ...prev, nodes: next };
     });
   }, []);
+
+  // アクション更新 (タイトル + variant)。失敗時は false、 setError は呼ぶ。
+  // availableActions と draft.nodes の actionTitle (= ChainEditScreen 表示用) を同期更新。
+  //
+  // K-010 受容判断:
+  // - DB 書き込み → 成功時のみ setState、 楽観更新ではないため rollback 不要。
+  // - setAvailableActions と setDraft は別 setState なので両方反映の間に 1 フレーム
+  //   ズレる可能性あり。 React batching で同 tick 内に反映される想定だが、 Phase 1
+  //   N=1 規模で UI block が起きないため受容。
+  // - 同 actionId への並列 updateAction 呼び出しは UX 動線上発生しない (鉛筆 → モーダル
+  //   閉じるまで再オープン不可) ため race を受容。
+  const updateAction = useCallback(
+    async (action: Action): Promise<boolean> => {
+      try {
+        const db = await getExpoSqliteClient();
+        await updateActionRepo(db, action);
+        if (mountedRef.current) {
+          setAvailableActions((prev) =>
+            prev.map((a) => (a.id === action.id ? action : a)),
+          );
+          // ChainEditScreen の NodeEditorRow が actionTitle / actionVariants
+          // を表示しているため、同じ actionId を持つ draft.nodes の両方を更新する。
+          setDraft((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  nodes: prev.nodes.map((n) =>
+                    n.actionId === action.id
+                      ? {
+                          ...n,
+                          actionTitle: action.title,
+                          actionVariants: action.variants,
+                        }
+                      : n,
+                  ),
+                }
+              : prev,
+          );
+        }
+        return true;
+      } catch (e: unknown) {
+        if (mountedRef.current) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        return false;
+      }
+    },
+    [],
+  );
 
   // 削除は通常 10-50ms で完了するため saving フラグは出さない (deleteChain / save と
   // 非対称だが、即時 UX を優先して受容)。長くなるシグナルが出たら統一する。
@@ -409,5 +470,6 @@ export const useChainEdit = (
     save,
     deleteChain,
     deleteAction,
+    updateAction,
   };
 };

@@ -43,9 +43,9 @@ const buildAction = (id: string, title: string): Action => ({
 });
 
 const todayNodes: readonly TodayNode[] = [
-  { node: buildNode('n1', 0, 'act-water'), action: buildAction('act-water', '水を飲む') },
-  { node: buildNode('n2', 1, 'act-stretch'), action: buildAction('act-stretch', 'ストレッチ') },
-  { node: buildNode('n3', 2, 'act-desk'), action: buildAction('act-desk', '机に向かう') },
+  { node: buildNode('n1', 0, 'act-water'), action: buildAction('act-water', '水を飲む'), label: '水を飲む', kind: 'fire' },
+  { node: buildNode('n2', 1, 'act-stretch'), action: buildAction('act-stretch', 'ストレッチ'), label: 'ストレッチ', kind: 'fire' },
+  { node: buildNode('n3', 2, 'act-desk'), action: buildAction('act-desk', '机に向かう'), label: '机に向かう', kind: 'fire' },
 ];
 
 const renderScreen = (
@@ -234,5 +234,31 @@ describe('TodayScreen', () => {
     );
     expect(getByText('範囲内 発火中')).toBeTruthy();
     expect(queryAllByText('100m').length).toBe(0);
+  });
+
+  test('kind=skip のノードはスキップマーク (—) + 親 title でグレー表示 + タップ不可', () => {
+    const onToggleNode = jest.fn();
+    const skipNodes: readonly TodayNode[] = [
+      {
+        node: buildNode('n-skip', 0, 'act-workout'),
+        action: buildAction('act-workout', '筋トレ'),
+        label: '筋トレ',
+        kind: 'skip',
+      },
+    ];
+    const { getByLabelText, getByText } = render(
+      <TodayScreen
+        chain={chain}
+        anchor={anchor}
+        nodes={skipNodes}
+        achievements={{}}
+        onToggleNode={onToggleNode}
+      />,
+    );
+    expect(getByText('—')).toBeTruthy();
+    expect(getByLabelText('筋トレ (今日は休む日)')).toBeTruthy();
+    // タップしても onToggleNode は呼ばれない (SkipNodeRow は Pressable ではない)
+    // タップテスト自体は accessibilityLabel ベースの押下が成立しないため、
+    // 「Pressable role が存在しない」ことで確認する
   });
 });

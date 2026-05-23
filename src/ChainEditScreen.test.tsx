@@ -25,9 +25,9 @@ const draftWithNodes = (): ChainEditDraft => ({
   isNew: false,
   title: '朝のルーティン',
   nodes: [
-    { id: 'n1', isNew: false, actionId: 'act1', actionTitle: '水を飲む' },
-    { id: 'n2', isNew: false, actionId: 'act2', actionTitle: 'ストレッチ' },
-    { id: 'n3', isNew: false, actionId: 'act3', actionTitle: '机に向かう' },
+    { id: 'n1', isNew: false, actionId: 'act1', actionTitle: '水を飲む', actionVariants: null },
+    { id: 'n2', isNew: false, actionId: 'act2', actionTitle: 'ストレッチ', actionVariants: null },
+    { id: 'n3', isNew: false, actionId: 'act3', actionTitle: '机に向かう', actionVariants: null },
   ],
 });
 
@@ -234,5 +234,81 @@ describe('ChainEditScreen', () => {
     fireEvent.press(getByLabelText('ノードを追加'));
     fireEvent.press(getByLabelText('アクション「水を飲む」を削除'));
     expect(onDeleteAction).toHaveBeenCalledWith(existingActions[0]);
+  });
+
+  test('onSaveAction 未指定では既存チップに鉛筆ボタンが表示されない (Phase 2 variant)', () => {
+    const existingActions: Action[] = [
+      { id: 'act1', title: '水を飲む', variants: null },
+    ];
+    const { getByLabelText, queryByLabelText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        availableActions={existingActions}
+      />,
+    );
+    fireEvent.press(getByLabelText('ノードを追加'));
+    expect(queryByLabelText('アクション「水を飲む」を編集')).toBeNull();
+  });
+
+  test('onSaveAction 指定で鉛筆ボタンが出る + 押下で ActionEditor モーダルが開く', () => {
+    const existingActions: Action[] = [
+      { id: 'act1', title: '水を飲む', variants: null },
+    ];
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        availableActions={existingActions}
+        onSaveAction={async () => true}
+      />,
+    );
+    fireEvent.press(getByLabelText('ノードを追加'));
+    fireEvent.press(getByLabelText('アクション「水を飲む」を編集'));
+    // モーダル内の保存ボタンが現れる
+    expect(getByLabelText('アクション保存')).toBeTruthy();
+  });
+
+  test('variant 設定済みアクションのチップに有効曜日バッジが表示される', () => {
+    const existingActions: Action[] = [
+      {
+        id: 'act-workout',
+        title: '筋トレ',
+        variants: {
+          mon: '胸トレ',
+          tue: '足トレ',
+          wed: '背中トレ',
+          thu: null,
+          fri: null,
+          sat: null,
+          sun: null,
+        },
+      },
+    ];
+    const { getByLabelText, getByText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        availableActions={existingActions}
+      />,
+    );
+    fireEvent.press(getByLabelText('ノードを追加'));
+    expect(getByText('月火水')).toBeTruthy();
+    expect(getByLabelText('variant: 月火水')).toBeTruthy();
+  });
+
+  test('variants=null のアクションには曜日バッジ (variant: ...) が表示されない', () => {
+    const existingActions: Action[] = [
+      { id: 'act1', title: '水を飲む', variants: null },
+    ];
+    const { getByLabelText, queryByLabelText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        availableActions={existingActions}
+      />,
+    );
+    fireEvent.press(getByLabelText('ノードを追加'));
+    expect(queryByLabelText(/^variant: /)).toBeNull();
   });
 });

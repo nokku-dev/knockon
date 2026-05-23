@@ -36,6 +36,7 @@ export default function EditChainRoute() {
     save,
     deleteChain,
     deleteAction,
+    updateAction,
   } = useChainEdit(chainId ?? null);
 
   const handleSave = async () => {
@@ -112,6 +113,7 @@ export default function EditChainRoute() {
             onSave={handleSave}
             onDelete={handleDelete}
             onDeleteAction={handleDeleteAction}
+            onSaveAction={updateAction}
           />
           {error && (
             <View style={styles.banner}>

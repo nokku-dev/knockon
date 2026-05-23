@@ -20,8 +20,18 @@ export type Action = {
   variants: VariantMap | null;
 };
 
+export type WeekdayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+// Phase 2 前倒し variant (PR feat/phase-2-variant): 曜日ごとのラベル切替。
+// - キーは曜日 (mon..sun)
+// - 値が string → その曜日にそのラベルで Today に出る (発火)
+// - 値が null → その曜日は Today に出ない (= 発火スキップ)
+// - そもそも variants 自体が null → variant 未設定アクション、 既存挙動どおり毎日発火
+//
+// 将来サブチェーン実装時には variant 型の意味が変わる可能性 ([ADR-0018](docs/decisions/0018-variant-phase-2-frontload.md))。
+// Phase 1 N=1 試作中の variant データはサブチェーン化のタイミングで再設計可能 (K-021 同型の受容)。
 export type VariantMap = {
-  [key: string]: { title: string };
+  [K in WeekdayKey]: string | null;
 };
 
 export type NodeKind = 'action';
@@ -199,4 +209,90 @@ export const groupAchievementsByDate = (
     day[a.nodeId] = a.achieved;
   }
   return grouped;
+};
+
+// IsoDate (YYYY-MM-DD) を曜日キーに変換する純粋関数 (Phase 2 variant)。
+// new Date(string + 'T00:00:00') で local timezone 解釈 → getDay() が曜日番号 (0=日, 1=月, ..., 6=土)。
+//
+// 受容判断: 不正な date 文字列 (e.g. 'garbage') を渡すと getDay() = NaN になり、
+// WEEKDAY_BY_DAY_INDEX[NaN] = undefined で「!」アサーションが嘘になる。
+// 呼び出し側で IsoDate 形式 (YYYY-MM-DD) を保証する前提で受容 (todayIsoDate /
+// listChains / Anchor.time の生成元はいずれも IsoDate を保証する型契約)。
+// Phase 2 N=1 で生成元が手動入力されない限り発火しない。
+const WEEKDAY_BY_DAY_INDEX: readonly WeekdayKey[] = [
+  'sun',
+  'mon',
+  'tue',
+  'wed',
+  'thu',
+  'fri',
+  'sat',
+];
+export const getWeekdayKey = (date: IsoDate): WeekdayKey => {
+  const d = new Date(date + 'T00:00:00');
+  const idx = d.getDay();
+  // 0..6 必ずいずれかのため safe assertion
+  return WEEKDAY_BY_DAY_INDEX[idx]!;
+};
+
+// アクションを当日に Today にどう出すか解決する純粋関数 (Phase 2 variant)。
+// - kind: 'fire' → 当日発火 (タップで達成記録可能、 マーカー描画あり、 通常色)
+// - kind: 'skip' → 当日は休む日 (タップ無効、 マーカー描画なし、 グレー表示)
+//   PR-1.9 修正前は Today から除外していたが、 「設定したのに表示されないと
+//   バグと勘違いする」というユーザーフィードバックで「グレー表示で見せる」に変更。
+//   ラベルは親アクション title (variant が null だから「何の variant がない日か」
+//   が分からないので、 親 title を出すのが情報量最大)。
+//
+// 分岐:
+// - action.variants が null → variant 未設定アクション、 毎日 fire (後方互換)
+// - action.variants[weekday] が string → その曜日に variant ラベルで fire
+// - action.variants[weekday] が null → 親 title で skip (グレー表示用)
+export type ResolvedAction =
+  | { kind: 'fire'; label: string }
+  | { kind: 'skip'; label: string };
+
+export const resolveActionForDate = (
+  action: Action,
+  date: IsoDate,
+): ResolvedAction => {
+  if (action.variants == null) {
+    return { kind: 'fire', label: action.title };
+  }
+  const weekday = getWeekdayKey(date);
+  const variantLabel = action.variants[weekday];
+  if (variantLabel == null) {
+    return { kind: 'skip', label: action.title };
+  }
+  return { kind: 'fire', label: variantLabel };
+};
+
+// variant の有効曜日を「月火水」形式の文字列にまとめる純粋関数 (Phase 2)。
+// UI で「このアクションは variant 設定済み」を視覚的に示すためのバッジ表示用。
+// variants が null なら空文字。 全曜日 null (完全休眠) なら空文字。
+const WEEKDAY_LABEL_BY_KEY: Readonly<Record<WeekdayKey, string>> = {
+  mon: '月',
+  tue: '火',
+  wed: '水',
+  thu: '木',
+  fri: '金',
+  sat: '土',
+  sun: '日',
+};
+const WEEKDAY_KEYS_ORDERED: readonly WeekdayKey[] = [
+  'mon',
+  'tue',
+  'wed',
+  'thu',
+  'fri',
+  'sat',
+  'sun',
+];
+
+export const summarizeVariantDays = (
+  variants: VariantMap | null,
+): string => {
+  if (variants == null) return '';
+  return WEEKDAY_KEYS_ORDERED.filter((k) => variants[k] != null)
+    .map((k) => WEEKDAY_LABEL_BY_KEY[k])
+    .join('');
 };

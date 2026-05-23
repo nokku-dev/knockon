@@ -223,6 +223,18 @@ describe('スキーマの不変条件', () => {
     await teardown(db);
   });
 
+  test('actions テーブル: カラムは id / title / variants_json のみ (3 カラム固定、 派生値カラム禁止)', async () => {
+    // ADR-0018 で variant_json は正準保存先として位置づけられたが、
+    // 達成率 / 使用回数 / 最終使用日などの派生値カラムが滑って入らないよう
+    // K-006 ハードガードレールで固定する。
+    const db = await setup();
+    type ColumnRow = { name: string };
+    const actionCols = await db.all<ColumnRow>(`PRAGMA table_info(actions)`);
+    const colNames = actionCols.map((c) => c.name).sort();
+    expect(colNames).toEqual(['id', 'title', 'variants_json']);
+    await teardown(db);
+  });
+
   test('旧「リンク=アンカー×アクション」テーブルが存在しない / 正準データテーブルのみ', async () => {
     const db = await setup();
     type TableRow = { name: string };
@@ -600,6 +612,57 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
     await updateAction(db, { id: 'act1', title: 'お茶を淹れる', variants: null });
     const actions = await listActions(db);
     expect(actions.find((a) => a.id === 'act1')?.title).toBe('お茶を淹れる');
+    await teardown(db);
+  });
+
+  test('updateAction で variant を設定 → listActions で JSON 往復が成立する (ADR-0018)', async () => {
+    const db = await setup();
+    await insertAction(db, { id: 'act-workout', title: '筋トレ', variants: null });
+    await updateAction(db, {
+      id: 'act-workout',
+      title: '筋トレ',
+      variants: {
+        mon: '胸トレ',
+        tue: '足トレ',
+        wed: '背中トレ',
+        thu: null,
+        fri: null,
+        sat: null,
+        sun: null,
+      },
+    });
+    const actions = await listActions(db);
+    const updated = actions.find((a) => a.id === 'act-workout');
+    expect(updated?.variants).toEqual({
+      mon: '胸トレ',
+      tue: '足トレ',
+      wed: '背中トレ',
+      thu: null,
+      fri: null,
+      sat: null,
+      sun: null,
+    });
+    await teardown(db);
+  });
+
+  test('updateAction で variants=null に戻せる (variant 解除)', async () => {
+    const db = await setup();
+    await insertAction(db, {
+      id: 'act-workout',
+      title: '筋トレ',
+      variants: {
+        mon: '胸トレ',
+        tue: null,
+        wed: null,
+        thu: null,
+        fri: null,
+        sat: null,
+        sun: null,
+      },
+    });
+    await updateAction(db, { id: 'act-workout', title: '筋トレ', variants: null });
+    const actions = await listActions(db);
+    expect(actions.find((a) => a.id === 'act-workout')?.variants).toBeNull();
     await teardown(db);
   });
 
