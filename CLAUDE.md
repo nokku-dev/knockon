@@ -18,10 +18,22 @@ If-Then / habit stacking 型の習慣アプリ（nokku 配下）。起点アン�
 
 Expo の標準慣例に従う。具体的なスクリプト・依存バージョンは Phase 0 着手時（`expo init` 実行・`package.json` 確定時）に定める。
 
-- `npm install` / `pnpm install` — 依存関係インストール
-- `npx expo start` — 開発サーバ起動
+- `npm install` / `pnpm install` — 依存関係インストール (`--legacy-peer-deps` を使うこともある、 K-009)
 - `npm test` — Jest（`jest-expo` プリセット）でテスト
-- `eas build` — 本番ビルド（実機・配布用）
+- `npm run type-check` — TypeScript 型チェック
+
+### 開発サーバ起動 (Dev Client 移行後、 PR-1.5b-1 以降)
+
+[ADR-0017](docs/decisions/0017-expo-dev-client-migration.md) で Expo Go から Dev Client に移行済み。 Expo Go アプリは今後使わない。
+
+- `npx expo start --dev-client` — Dev Client 向け開発サーバ起動 (Dev Build apk が実機にインストール済み前提)
+- 初回 / SDK 更新後は実機に Dev Build apk を再インストール: `eas build --profile development --platform android` → 出来上がった apk をダウンロード or QR コード経由で実機に sideload
+
+### EAS Build
+
+- `eas build --profile development --platform android` — Android Dev Client apk (実機 sideload 用、 `eas.json` の development プロファイル)
+- `eas build --profile production --platform android` — Android 本番ビルド (配布用、 Phase 2 以降)
+- iOS は Phase 1 出荷判断の手前までスルー (Apple Developer Program $99/年が必要、 [TODO.md](TODO.md) 方針)
 
 ## ディレクトリ構成
 

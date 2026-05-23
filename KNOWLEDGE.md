@@ -67,6 +67,7 @@
 - **原因**: managed workflow + Expo Go の組み合わせでは、dev クライアントの SDK 制約条件をストア側（Apple/Google）がコントロールする。「依存バージョンを自分が決める」という前提が成立しない。
 - **解決**: (a) Expo Go ベースの開発を続けるなら SDK は常に最新追従する。(b) 特定 SDK にピン留めしたいなら EAS Dev Build に移行して自前で SDK バージョン管理する。(c) Phase 1 中は EAS Free tier の制約と time-to-device 優先から (a) を取る（ADR-0007 §トレードオフに反映済み）。
 - **教訓**: SDK バージョンは「ストア側がいつでも上げる可能性のある外部入力」として扱う。Phase 1.5/1.6 で時刻/場所アンカーを実装した後に SDK 強制移行が来ると壊れる可能性が高いため、その時点で **EAS Dev Build への移行判断を再評価** する。長期実機運用フェーズに入る前に Dev Build に降りるのが安全。
+- **追記 (PR-1.5b-1)**: ADR-0006 早期検証ゲート到達 + Phase 1.5b 通知実装の前提 (Expo Go では expo-notifications のローカル通知が動かない) から、Dev Client (`expo-dev-client` + EAS Build) に移行した ([ADR-0017](docs/decisions/0017-expo-dev-client-migration.md))。 Android 先行 / iOS は Phase 1 出荷判断の手前まで保留。これで K-008 の「Expo Go の SDK 外圧」リスクは解消。
 
 ## K-009: `expo install` / SDK バンプは tsconfig / babel.config / package.json / app.json に予期せぬ書き換えをする
 
