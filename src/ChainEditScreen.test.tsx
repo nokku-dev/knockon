@@ -8,6 +8,7 @@ const baseDraft = (): ChainEditDraft => ({
   chainId: 'c1',
   isNew: true,
   title: '',
+  status: 'active',
   anchor: {
     id: 'a1',
     title: '起点',
@@ -37,6 +38,7 @@ const noopProps = {
   locationPermission: 'undetermined' as const,
   locating: false,
   onSetTitle: () => {},
+  onSetStatus: () => {},
   onSetAnchorKind: () => {},
   onSetAnchorTime: () => {},
   onSetAnchorLocation: () => {},
@@ -80,6 +82,61 @@ describe('ChainEditScreen', () => {
     );
     expect(getByLabelText('保存').props.accessibilityState).toEqual({
       disabled: false,
+    });
+  });
+
+  test('新規モードではステータス切替 UI が表示されない', () => {
+    const { queryByLabelText } = render(
+      <ChainEditScreen draft={baseDraft()} {...noopProps} />,
+    );
+    expect(queryByLabelText('アクティブにする')).toBeNull();
+    expect(queryByLabelText('一時休止にする')).toBeNull();
+  });
+
+  test('編集モードではステータス切替 UI が表示される', () => {
+    const { getByLabelText } = render(
+      <ChainEditScreen draft={draftWithNodes()} {...noopProps} />,
+    );
+    expect(getByLabelText('アクティブにする')).toBeTruthy();
+    expect(getByLabelText('一時休止にする')).toBeTruthy();
+  });
+
+  test('「一時休止にする」押下で onSetStatus("stocked")', () => {
+    const onSetStatus = jest.fn();
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={draftWithNodes()}
+        {...noopProps}
+        onSetStatus={onSetStatus}
+      />,
+    );
+    fireEvent.press(getByLabelText('一時休止にする'));
+    expect(onSetStatus).toHaveBeenCalledWith('stocked');
+  });
+
+  test('「アクティブにする」押下で onSetStatus("active")', () => {
+    const onSetStatus = jest.fn();
+    const stockedDraft = { ...draftWithNodes(), status: 'stocked' as const };
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={stockedDraft}
+        {...noopProps}
+        onSetStatus={onSetStatus}
+      />,
+    );
+    fireEvent.press(getByLabelText('アクティブにする'));
+    expect(onSetStatus).toHaveBeenCalledWith('active');
+  });
+
+  test('現在の status (active) のオプションが selected', () => {
+    const { getByLabelText } = render(
+      <ChainEditScreen draft={draftWithNodes()} {...noopProps} />,
+    );
+    expect(getByLabelText('アクティブにする').props.accessibilityState).toEqual({
+      selected: true,
+    });
+    expect(getByLabelText('一時休止にする').props.accessibilityState).toEqual({
+      selected: false,
     });
   });
 

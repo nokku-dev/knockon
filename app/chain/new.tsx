@@ -20,6 +20,7 @@ export default function NewChainRoute() {
     loading,
     saving,
     setTitle,
+    setStatus,
     setAnchorKind,
     setAnchorTime,
     setAnchorLocation,
@@ -58,6 +59,7 @@ export default function NewChainRoute() {
             locationPermission={locationPermission}
             locating={locating}
             onSetTitle={setTitle}
+            onSetStatus={setStatus}
             onSetAnchorKind={setAnchorKind}
             onSetAnchorTime={setAnchorTime}
             onSetAnchorLocation={setAnchorLocation}
