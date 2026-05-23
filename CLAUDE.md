@@ -19,6 +19,7 @@ If-Then / habit stacking 型の習慣アプリ（nokku 配下）。起点アン�
 Expo の標準慣例に従う。具体的なスクリプト・依存バージョンは Phase 0 着手時（`expo init` 実行・`package.json` 確定時）に定める。
 
 - `npm install` / `pnpm install` — 依存関係インストール (`--legacy-peer-deps` を使うこともある、 K-009)
+- **`npx expo install <module>` — Expo モジュール (`expo-*` / Expo plugin 持ち) 追加時は必ずこちらを使う。 `npm install` は SDK 非互換版を入れる可能性 ([K-025](KNOWLEDGE.md))**
 - `npm test` — Jest（`jest-expo` プリセット）でテスト
 - `npm run type-check` — TypeScript 型チェック
 
