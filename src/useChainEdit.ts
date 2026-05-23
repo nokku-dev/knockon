@@ -332,6 +332,14 @@ export const useChainEdit = (
 
   // アクション更新 (タイトル + variant)。失敗時は false、 setError は呼ぶ。
   // availableActions と draft.nodes の actionTitle (= ChainEditScreen 表示用) を同期更新。
+  //
+  // K-010 受容判断:
+  // - DB 書き込み → 成功時のみ setState、 楽観更新ではないため rollback 不要。
+  // - setAvailableActions と setDraft は別 setState なので両方反映の間に 1 フレーム
+  //   ズレる可能性あり。 React batching で同 tick 内に反映される想定だが、 Phase 1
+  //   N=1 規模で UI block が起きないため受容。
+  // - 同 actionId への並列 updateAction 呼び出しは UX 動線上発生しない (鉛筆 → モーダル
+  //   閉じるまで再オープン不可) ため race を受容。
   const updateAction = useCallback(
     async (action: Action): Promise<boolean> => {
       try {

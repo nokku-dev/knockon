@@ -213,6 +213,12 @@ export const groupAchievementsByDate = (
 
 // IsoDate (YYYY-MM-DD) を曜日キーに変換する純粋関数 (Phase 2 variant)。
 // new Date(string + 'T00:00:00') で local timezone 解釈 → getDay() が曜日番号 (0=日, 1=月, ..., 6=土)。
+//
+// 受容判断: 不正な date 文字列 (e.g. 'garbage') を渡すと getDay() = NaN になり、
+// WEEKDAY_BY_DAY_INDEX[NaN] = undefined で「!」アサーションが嘘になる。
+// 呼び出し側で IsoDate 形式 (YYYY-MM-DD) を保証する前提で受容 (todayIsoDate /
+// listChains / Anchor.time の生成元はいずれも IsoDate を保証する型契約)。
+// Phase 2 N=1 で生成元が手動入力されない限り発火しない。
 const WEEKDAY_BY_DAY_INDEX: readonly WeekdayKey[] = [
   'sun',
   'mon',
