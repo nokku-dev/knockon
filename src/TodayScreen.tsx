@@ -69,7 +69,10 @@ const BOUNCE_UP_MS = 80;
 // マーカーは spring で戻り (弾む感じ)、テキストは withTiming で素直に戻す
 // (読み物なので揺り戻しがあると視認性が下がる、ユーザーフィードバック)。
 const MARKER_SPRING = { damping: 8, stiffness: 200 } as const;
-const TEXT_BOUNCE_DOWN_MS = 160;
+// テキストはマーカーより 1.5 倍ゆっくりで穏やかに伸縮 (PR-1.9 ユーザー判断)。
+// up/down を独立持ち、マーカーとの up 同期は意図的に崩している。
+const TEXT_BOUNCE_UP_MS = 120;
+const TEXT_BOUNCE_DOWN_MS = 240;
 
 const AnimatedLine = Animated.createAnimatedComponent(Line);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -276,11 +279,11 @@ const NodeRow = ({
   useEffect(() => {
     if (!prevAchievedRef.current && achieved) {
       // 文字は read 対象なので withSpring (揺り戻し) を使わず、 withTiming で
-      // 素直に scale up → down のみ。マーカーとは up タイミングだけ同期して、
-      // down のカーブは異なる (ユーザー判断 PR-1.9)。
+      // 素直に scale up → down のみ。マーカーより 1.5 倍ゆっくりで穏やかに
+      // 伸縮させる (PR-1.9 ユーザー判断)。
       scale.value = withSequence(
         withTiming(TEXT_BOUNCE_PEAK, {
-          duration: BOUNCE_UP_MS,
+          duration: TEXT_BOUNCE_UP_MS,
           easing: KNOCK_EASING,
         }),
         withTiming(1, {
