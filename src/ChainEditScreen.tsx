@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -14,8 +15,10 @@ import type {
   ReorderableListRenderItemInfo,
 } from 'react-native-reorderable-list';
 
+import { ActionEditor } from './ActionEditor';
 import { AnchorEditor } from './AnchorEditor';
 import type { Action, Anchor } from './domain';
+import { summarizeVariantDays } from './domain';
 import type { CurrentPosition, LocationPermissionStatus } from './location';
 import {
   COLOR_ACCENT,
@@ -54,6 +57,10 @@ export type ChainEditScreenProps = {
   // 既存アクションを削除する。未指定なら ActionPicker のチップに × ボタンが
   // 表示されない (新規モード / 削除非対応 UI のためのオプション)。
   onDeleteAction?: (action: Action) => void;
+  // 既存アクションを編集 (タイトル + variant) して保存。未指定なら ActionPicker の
+  // チップに鉛筆アイコンが表示されない (Phase 2 前倒し variant)。
+  // ChainEditScreen 内で ActionEditor モーダルを開き、 onSave 時に呼ぶ。
+  onSaveAction?: (action: Action) => Promise<boolean>;
 };
 
 export const ChainEditScreen = ({
@@ -76,9 +83,12 @@ export const ChainEditScreen = ({
   onSave,
   onDelete,
   onDeleteAction,
+  onSaveAction,
 }: ChainEditScreenProps) => {
   const [adderOpen, setAdderOpen] = useState(false);
   const [newActionDraft, setNewActionDraft] = useState('');
+  // Phase 2 variant: 編集中のアクション (Modal で ActionEditor を表示)。
+  const [editingAction, setEditingAction] = useState<Action | null>(null);
   const canSave =
     !saving && draft.title.trim().length > 0 && draft.nodes.length > 0;
 
@@ -209,6 +219,7 @@ export const ChainEditScreen = ({
               setNewActionDraft('');
             }}
             onDeleteExisting={onDeleteAction}
+            onEditExisting={onSaveAction ? setEditingAction : undefined}
           />
         )}
         {onDelete && (
@@ -233,21 +244,40 @@ export const ChainEditScreen = ({
       onAddNewAction,
       onDelete,
       onDeleteAction,
+      onSaveAction,
       saving,
     ],
   );
 
   return (
-    <ReorderableList
-      data={draft.nodes}
-      onReorder={handleReorder}
-      keyExtractor={keyExtractor}
-      renderItem={renderItem}
-      ListHeaderComponent={Header}
-      ListFooterComponent={Footer}
-      contentContainerStyle={styles.listContent}
-      keyboardShouldPersistTaps="handled"
-    />
+    <>
+      <ReorderableList
+        data={draft.nodes}
+        onReorder={handleReorder}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        ListHeaderComponent={Header}
+        ListFooterComponent={Footer}
+        contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="handled"
+      />
+      <Modal
+        visible={editingAction != null}
+        animationType="slide"
+        onRequestClose={() => setEditingAction(null)}
+      >
+        {editingAction && onSaveAction && (
+          <ActionEditor
+            action={editingAction}
+            onSave={async (updated) => {
+              const ok = await onSaveAction(updated);
+              if (ok) setEditingAction(null);
+            }}
+            onCancel={() => setEditingAction(null)}
+          />
+        )}
+      </Modal>
+    </>
   );
 };
 
@@ -276,6 +306,15 @@ const NodeEditorRow = ({ node, onRemove }: NodeEditorRowProps) => {
         <Text style={styles.dragHandleText}>≡</Text>
       </View>
       <Text style={styles.nodeTitle}>{node.actionTitle}</Text>
+      {node.actionVariants &&
+        summarizeVariantDays(node.actionVariants).length > 0 && (
+          <Text
+            style={styles.nodeVariantHint}
+            accessibilityLabel={`variant: ${summarizeVariantDays(node.actionVariants)}`}
+          >
+            {summarizeVariantDays(node.actionVariants)}
+          </Text>
+        )}
       <Pressable
         onPress={() => onRemove(node.id)}
         accessibilityRole="button"
@@ -298,6 +337,9 @@ type ActionPickerProps = {
   // 既存アクションの × ボタンが押されたときの確認 + 削除ハンドラ。
   // 未指定なら × は表示されない。
   onDeleteExisting?: (action: Action) => void;
+  // 既存アクションの鉛筆ボタンが押されたときの編集ハンドラ。
+  // 未指定なら鉛筆は表示されない (Phase 2 variant)。
+  onEditExisting?: (action: Action) => void;
 };
 
 const ActionPicker = ({
@@ -308,6 +350,7 @@ const ActionPicker = ({
   onSubmitNew,
   onCancel,
   onDeleteExisting,
+  onEditExisting,
 }: ActionPickerProps) => (
   <View style={styles.picker}>
     <View style={styles.pickerHeader}>
@@ -355,6 +398,25 @@ const ActionPicker = ({
               style={styles.existingChip}
             >
               <Text style={styles.existingChipText}>{a.title}</Text>
+              {a.variants && summarizeVariantDays(a.variants).length > 0 && (
+                <Text
+                  style={styles.existingChipVariantHint}
+                  accessibilityLabel={`variant: ${summarizeVariantDays(a.variants)}`}
+                >
+                  {summarizeVariantDays(a.variants)}
+                </Text>
+              )}
+              {onEditExisting && (
+                <Pressable
+                  onPress={() => onEditExisting(a)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`アクション「${a.title}」を編集`}
+                  style={styles.existingChipEdit}
+                  hitSlop={8}
+                >
+                  <Text style={styles.existingChipEditText}>✎</Text>
+                </Pressable>
+              )}
               {onDeleteExisting && (
                 <Pressable
                   onPress={() => onDeleteExisting(a)}
@@ -440,6 +502,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   nodeTitle: { color: COLOR_FG, fontSize: 16, flex: 1 },
+  // variant 設定済みアクションのバッジ (ノード行)。
+  // 例: 「筋トレ 月火水 ×」のようにタイトルと削除の間に控えめに表示。
+  nodeVariantHint: {
+    color: COLOR_FG_FAINT,
+    fontSize: 11,
+    fontWeight: '600',
+    marginRight: 8,
+  },
   removeBtn: {
     width: 32,
     height: 32,
@@ -524,6 +594,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLOR_LINE_BG,
   },
   existingChipText: { color: COLOR_FG, fontSize: 12 },
+  // variant 設定済みアクションのバッジ。
+  // 例: 「筋トレ 月火水 ✎ ×」のように曜日を併記して「曜日切替あり」を示す。
+  existingChipVariantHint: {
+    color: COLOR_FG_FAINT,
+    fontSize: 10,
+    fontWeight: '600',
+  },
   existingChipDelete: {
     width: 18,
     height: 18,
@@ -532,4 +609,12 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   existingChipDeleteText: { color: COLOR_FG_FAINT, fontSize: 12, fontWeight: '600' },
+  existingChipEdit: {
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+  },
+  existingChipEditText: { color: COLOR_FG_FAINT, fontSize: 11, fontWeight: '600' },
 });

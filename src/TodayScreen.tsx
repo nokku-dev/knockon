@@ -29,7 +29,18 @@ import {
   COLOR_LINE_BG,
 } from './tokens';
 
-export type TodayNode = { node: Node; action: Action };
+// Phase 2 variant: TodayNode は当日表示用に解決済みの label + kind を持つ。
+// useTodayData 側で resolveActionForDate(action, today) を計算し、 kind を保持。
+// - kind='fire': 通常のノード、 マーカー描画 + タップで達成可
+// - kind='skip': variant null の曜日、 マーカー描画なし + グレー表示 + タップ無効
+//   (「設定したのに表示されない」誤解を避けるため、 親 title でグレー表示する)
+// label は kind='fire' なら variant ラベルまたは親 title、 kind='skip' なら親 title。
+export type TodayNode = {
+  node: Node;
+  action: Action;
+  label: string;
+  kind: 'fire' | 'skip';
+};
 
 export type TodayScreenProps = {
   chain: Chain;
@@ -190,13 +201,18 @@ export const TodayScreen = ({
             r={ANCHOR_DOT_RADIUS}
             fill={COLOR_GROW}
           />
-          {nodes.map(({ node }, idx) => (
-            <MarkerCircle
-              key={node.id}
-              cy={nodeMarkerCenterY(idx)}
-              achieved={achievements[node.id] ?? false}
-            />
-          ))}
+          {nodes.map(({ node, kind }, idx) =>
+            // kind='skip' のノードはマーカー (ドット) を描画しない。
+            // 「ドット無し / スキップマーク有り / 親アクション名グレー」のレイアウト
+            // にするためここで描画スキップ。
+            kind === 'skip' ? null : (
+              <MarkerCircle
+                key={node.id}
+                cy={nodeMarkerCenterY(idx)}
+                achieved={achievements[node.id] ?? false}
+              />
+            ),
+          )}
         </Svg>
 
         <View
@@ -205,14 +221,18 @@ export const TodayScreen = ({
         >
           <Text style={styles.anchorRowLabel}>起点アンカー</Text>
         </View>
-        {nodes.map(({ node, action }) => (
-          <NodeRow
-            key={node.id}
-            actionTitle={action.title}
-            achieved={achievements[node.id] ?? false}
-            onPress={() => onToggleNode(node.id)}
-          />
-        ))}
+        {nodes.map(({ node, label, kind }) =>
+          kind === 'skip' ? (
+            <SkipNodeRow key={node.id} actionTitle={label} />
+          ) : (
+            <NodeRow
+              key={node.id}
+              actionTitle={label}
+              achieved={achievements[node.id] ?? false}
+              onPress={() => onToggleNode(node.id)}
+            />
+          ),
+        )}
       </View>
     </ScrollView>
   );
@@ -260,6 +280,20 @@ const MarkerCircle = ({
     />
   );
 };
+
+// variant null の曜日に Today で表示される休む日の行。
+// 「設定したのに表示されないと勘違いする」を防ぐため、 親アクション title を
+// グレーで出し、 スキップマーク (—) でこの日は休みであることを示す。
+// タップ不可 (Pressable ではなく View)、 マーカー (ドット) も描画されない。
+const SkipNodeRow = ({ actionTitle }: { actionTitle: string }) => (
+  <View
+    style={[styles.contentRow, { height: NODE_ROW_HEIGHT }]}
+    accessibilityLabel={`${actionTitle} (今日は休む日)`}
+  >
+    <Text style={styles.skipMark}>—</Text>
+    <Text style={styles.skipNodeText}>{actionTitle}</Text>
+  </View>
+);
 
 // ノード行のテキスト。マーカーと同じ false→true 遷移で同期バウンス。
 // 倍率はマーカーより控えめ (1.08) — 文字本来の可読性を優先しつつ、
@@ -391,6 +425,21 @@ const styles = StyleSheet.create({
   nodeTextWrap: { alignSelf: 'flex-start' },
   nodeText: {
     color: COLOR_FG,
+    fontSize: 16,
+  },
+  // variant null の休む日。 親 title をグレー (fg-faint) で表示、 スキップマーク (—) を
+  // SPINE_COLUMN_WIDTH 内に出してマーカーの代替とする。
+  skipMark: {
+    position: 'absolute',
+    left: 0,
+    width: SPINE_COLUMN_WIDTH,
+    textAlign: 'center',
+    color: COLOR_FG_FAINT,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  skipNodeText: {
+    color: COLOR_FG_FAINT,
     fontSize: 16,
   },
 });
