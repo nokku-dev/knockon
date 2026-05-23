@@ -29,6 +29,7 @@ const buildDraft = (overrides: Partial<ChainEditDraft> = {}): ChainEditDraft => 
   chainId: 'c1',
   isNew: true,
   title: '朝のルーティン',
+  status: 'active',
   anchor: {
     id: 'a1',
     title: '起点',
@@ -130,6 +131,66 @@ describe('validateChainDraft', () => {
       },
     });
     expect(validateChainDraft(d)).toBeNull();
+  });
+});
+
+describe('persistChainDraft — チェーンステータス (Phase 2 前倒し-2)', () => {
+  test('新規モード: draft.status=active が chains.status に保存される', async () => {
+    const db = await setup();
+    await persistChainDraft(
+      db,
+      buildDraft({
+        isNew: true,
+        status: 'active',
+        nodes: [node('n1', 'act-water')],
+      }),
+    );
+    const chains = await listChains(db);
+    expect(chains[0]?.status).toBe('active');
+    await teardown(db);
+  });
+
+  test('新規モード: draft.status=stocked が chains.status に保存される', async () => {
+    const db = await setup();
+    await persistChainDraft(
+      db,
+      buildDraft({
+        isNew: true,
+        status: 'stocked',
+        nodes: [node('n1', 'act-water')],
+      }),
+    );
+    // stocked は listChains() default (filter なし) でしか出ない
+    const allChains = await listChains(db);
+    expect(allChains[0]?.status).toBe('stocked');
+    // listChains(db, 'active') では出ない
+    const activeChains = await listChains(db, 'active');
+    expect(activeChains).toHaveLength(0);
+    await teardown(db);
+  });
+
+  test('編集モード: status を active → stocked に変更できる', async () => {
+    const db = await setup();
+    await persistChainDraft(
+      db,
+      buildDraft({
+        isNew: true,
+        status: 'active',
+        nodes: [node('n1', 'act-water')],
+      }),
+    );
+    await persistChainDraft(
+      db,
+      buildDraft({
+        isNew: false,
+        status: 'stocked',
+        nodes: [node('n1', 'act-water', false)],
+      }),
+    );
+    const stockedChains = await listChains(db, 'stocked');
+    expect(stockedChains).toHaveLength(1);
+    expect(stockedChains[0]?.id).toBe('c1');
+    await teardown(db);
   });
 });
 

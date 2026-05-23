@@ -2,7 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
-import type { Anchor, Chain } from './domain';
+import type { Anchor, Chain, ChainStatus } from './domain';
 import { getAnchor, listChains, listNodes } from './repository';
 
 export type ChainListItem = {
@@ -11,40 +11,67 @@ export type ChainListItem = {
   nodeCount: number;
 };
 
-const loadChainList = async (): Promise<ChainListItem[]> => {
+type LoadResult = {
+  items: ChainListItem[];
+  activeCount: number;
+  stockedCount: number;
+};
+
+const loadChainList = async (status: ChainStatus): Promise<LoadResult> => {
   const db = await getExpoSqliteClient();
-  const chains = await listChains(db, 'active');
+  // 両タブの count 表示用に全件取得し、 active/stocked それぞれカウント。
+  // Phase 2 N=1 規模 (チェーン数十件程度) では性能問題なし。
+  const allChains = await listChains(db);
+  const activeCount = allChains.filter((c) => c.status === 'active').length;
+  const stockedCount = allChains.filter((c) => c.status === 'stocked').length;
+  const filtered = allChains.filter((c) => c.status === status);
   const items = await Promise.all(
-    chains.map(async (chain) => {
+    filtered.map(async (chain) => {
       const anchor = await getAnchor(db, chain.anchorId);
       if (!anchor) return null;
       const nodes = await listNodes(db, chain.id);
       return { chain, anchor, nodeCount: nodes.length };
     }),
   );
-  return items.filter((x): x is ChainListItem => x !== null);
+  return {
+    items: items.filter((x): x is ChainListItem => x !== null),
+    activeCount,
+    stockedCount,
+  };
 };
 
 export type UseChainListDataResult = {
   items: ChainListItem[];
+  activeCount: number;
+  stockedCount: number;
   error: string | null;
   loading: boolean;
 };
 
-export const useChainListData = (): UseChainListDataResult => {
+// Phase 2 前倒し-2: status フィルタ ('active' | 'stocked') を受け取って
+// その status のチェーンだけリスト化。 切替で再 fetch する。
+export const useChainListData = (
+  status: ChainStatus,
+): UseChainListDataResult => {
   const [items, setItems] = useState<ChainListItem[]>([]);
+  const [activeCount, setActiveCount] = useState(0);
+  const [stockedCount, setStockedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // タブが focus されるたびに再読み込み (アンカー編集モーダル後に戻ったとき
-  // 時刻表示などを最新化するため)。
+  // 時刻表示などを最新化するため)。 status 変化でも再 fetch。
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       setLoading(true);
-      loadChainList()
-        .then((list) => {
-          if (!cancelled) setItems(list);
+      loadChainList(status)
+        .then((result) => {
+          if (!cancelled) {
+            setItems(result.items);
+            setActiveCount(result.activeCount);
+            setStockedCount(result.stockedCount);
+          }
         })
         .catch((e: unknown) => {
           if (!cancelled) {
@@ -57,8 +84,8 @@ export const useChainListData = (): UseChainListDataResult => {
       return () => {
         cancelled = true;
       };
-    }, []),
+    }, [status]),
   );
 
-  return { items, error, loading };
+  return { items, activeCount, stockedCount, error, loading };
 };

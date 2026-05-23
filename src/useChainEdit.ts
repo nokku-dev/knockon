@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
-import type { Action, Anchor, VariantMap } from './domain';
+import type { Action, Anchor, ChainStatus, VariantMap } from './domain';
 import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
 import {
   getCurrentPosition,
@@ -48,6 +48,10 @@ export type ChainEditDraft = {
   chainId: string;
   isNew: boolean;
   title: string;
+  // Phase 2 前倒し-2: チェーンステータス (active = 通常 / stocked = 一時休止)。
+  // stocked のチェーンは Today に出ず、 チェーン一覧の「休止中」タブから戻せる。
+  // 新規作成時は 'active'、 編集時は既存値を引き継ぐ。
+  status: ChainStatus;
   anchor: EditableAnchor;
   nodes: EditableNode[];
 };
@@ -58,6 +62,7 @@ const newDraft = (): ChainEditDraft => {
     chainId: newChainId(),
     isNew: true,
     title: '',
+    status: 'active',
     anchor: {
       id: anchorId,
       title: '起点',
@@ -96,6 +101,7 @@ const loadExisting = async (chainId: string): Promise<ChainEditDraft | null> => 
     chainId: chain.id,
     isNew: false,
     title: chain.title,
+    status: chain.status,
     anchor: {
       id: anchor.id,
       title: anchor.title,
@@ -116,6 +122,8 @@ export type UseChainEditResult = {
   loading: boolean;
   saving: boolean;
   setTitle: (title: string) => void;
+  // Phase 2 前倒し-2: ステータス切替 (active / stocked)。
+  setStatus: (status: ChainStatus) => void;
   // 起点アンカー編集 (inline in ChainEditScreen)
   setAnchorKind: (kind: Anchor['kind']) => void;
   setAnchorTime: (time: string) => void;
@@ -199,6 +207,10 @@ export const useChainEdit = (
 
   const setTitle = useCallback((title: string) => {
     setDraft((prev) => (prev ? { ...prev, title } : prev));
+  }, []);
+
+  const setStatus = useCallback((status: ChainStatus) => {
+    setDraft((prev) => (prev ? { ...prev, status } : prev));
   }, []);
 
   // ============ Anchor setters (inline anchor editor) ============
@@ -456,6 +468,7 @@ export const useChainEdit = (
     loading,
     saving,
     setTitle,
+    setStatus,
     setAnchorKind,
     setAnchorTime,
     setAnchorLocation,

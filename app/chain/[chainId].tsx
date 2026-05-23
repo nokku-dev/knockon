@@ -22,6 +22,7 @@ export default function EditChainRoute() {
     loading,
     saving,
     setTitle,
+    setStatus,
     setAnchorKind,
     setAnchorTime,
     setAnchorLocation,
@@ -100,6 +101,7 @@ export default function EditChainRoute() {
             locationPermission={locationPermission}
             locating={locating}
             onSetTitle={setTitle}
+            onSetStatus={setStatus}
             onSetAnchorKind={setAnchorKind}
             onSetAnchorTime={setAnchorTime}
             onSetAnchorLocation={setAnchorLocation}

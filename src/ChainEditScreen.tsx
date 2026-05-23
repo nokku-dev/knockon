@@ -17,7 +17,7 @@ import type {
 
 import { ActionEditor } from './ActionEditor';
 import { AnchorEditor } from './AnchorEditor';
-import type { Action, Anchor } from './domain';
+import type { Action, Anchor, ChainStatus } from './domain';
 import { summarizeVariantDays } from './domain';
 import type { CurrentPosition, LocationPermissionStatus } from './location';
 import {
@@ -39,6 +39,7 @@ export type ChainEditScreenProps = {
   locationPermission: LocationPermissionStatus;
   locating: boolean;
   onSetTitle: (title: string) => void;
+  onSetStatus: (status: ChainStatus) => void;
   onSetAnchorKind: (kind: Anchor['kind']) => void;
   onSetAnchorTime: (time: string) => void;
   onSetAnchorLocation: (latitude: number, longitude: number) => void;
@@ -70,6 +71,7 @@ export const ChainEditScreen = ({
   locationPermission,
   locating,
   onSetTitle,
+  onSetStatus,
   onSetAnchorKind,
   onSetAnchorTime,
   onSetAnchorLocation,
@@ -142,6 +144,57 @@ export const ChainEditScreen = ({
           />
         </View>
 
+        {!draft.isNew && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>ステータス</Text>
+            <View style={styles.statusToggle}>
+              <Pressable
+                onPress={() => onSetStatus('active')}
+                accessibilityRole="button"
+                accessibilityLabel="アクティブにする"
+                accessibilityState={{ selected: draft.status === 'active' }}
+                style={[
+                  styles.statusOption,
+                  draft.status === 'active' && styles.statusOptionSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusOptionText,
+                    draft.status === 'active' && styles.statusOptionTextSelected,
+                  ]}
+                >
+                  アクティブ
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onSetStatus('stocked')}
+                accessibilityRole="button"
+                accessibilityLabel="一時休止にする"
+                accessibilityState={{ selected: draft.status === 'stocked' }}
+                style={[
+                  styles.statusOption,
+                  draft.status === 'stocked' && styles.statusOptionSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusOptionText,
+                    draft.status === 'stocked' && styles.statusOptionTextSelected,
+                  ]}
+                >
+                  一時休止
+                </Text>
+              </Pressable>
+            </View>
+            {draft.status === 'stocked' && (
+              <Text style={styles.statusHint}>
+                Today に表示されません。 復活させるときは「アクティブ」に戻す。
+              </Text>
+            )}
+          </View>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>起点アンカー</Text>
           <AnchorEditor
@@ -170,6 +223,7 @@ export const ChainEditScreen = ({
     [
       draft.isNew,
       draft.title,
+      draft.status,
       draft.anchor,
       draft.nodes.length,
       saving,
@@ -179,6 +233,7 @@ export const ChainEditScreen = ({
       onCancel,
       onSave,
       onSetTitle,
+      onSetStatus,
       onSetAnchorKind,
       onSetAnchorTime,
       onSetAnchorLocation,
@@ -469,6 +524,35 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 12,
+  },
+  statusToggle: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  statusOption: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: COLOR_BG,
+    alignItems: 'center',
+  },
+  statusOptionSelected: {
+    backgroundColor: COLOR_LINE_BG,
+  },
+  statusOptionText: {
+    color: COLOR_FG_FAINT,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  statusOptionTextSelected: {
+    color: COLOR_FG,
+  },
+  statusHint: {
+    color: COLOR_FG_FAINT,
+    fontSize: 11,
+    marginTop: 6,
   },
   nodesHeader: {
     flexDirection: 'row',
