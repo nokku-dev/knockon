@@ -235,18 +235,21 @@ export const getWeekdayKey = (date: IsoDate): WeekdayKey => {
   return WEEKDAY_BY_DAY_INDEX[idx]!;
 };
 
-// アクションを当日に Today に出すかどうか + 表示ラベルを解決する純粋関数 (Phase 2 variant)。
-// - kind: 'fire' → 当日発火 (label を Today に表示)
-// - kind: 'skip' → 当日は発火スキップ (Today に出さない)
+// アクションを当日に Today にどう出すか解決する純粋関数 (Phase 2 variant)。
+// - kind: 'fire' → 当日発火 (タップで達成記録可能、 マーカー描画あり、 通常色)
+// - kind: 'skip' → 当日は休む日 (タップ無効、 マーカー描画なし、 グレー表示)
+//   PR-1.9 修正前は Today から除外していたが、 「設定したのに表示されないと
+//   バグと勘違いする」というユーザーフィードバックで「グレー表示で見せる」に変更。
+//   ラベルは親アクション title (variant が null だから「何の variant がない日か」
+//   が分からないので、 親 title を出すのが情報量最大)。
 //
 // 分岐:
-// - action.variants が null → variant 未設定アクション、既存挙動どおり毎日 fire
-//   (Phase 1 で作成済みアクションの後方互換)
+// - action.variants が null → variant 未設定アクション、 毎日 fire (後方互換)
 // - action.variants[weekday] が string → その曜日に variant ラベルで fire
-// - action.variants[weekday] が null → その曜日は skip (Q1=A: variant なしの曜日は Today に出さない)
+// - action.variants[weekday] が null → 親 title で skip (グレー表示用)
 export type ResolvedAction =
   | { kind: 'fire'; label: string }
-  | { kind: 'skip' };
+  | { kind: 'skip'; label: string };
 
 export const resolveActionForDate = (
   action: Action,
@@ -258,7 +261,7 @@ export const resolveActionForDate = (
   const weekday = getWeekdayKey(date);
   const variantLabel = action.variants[weekday];
   if (variantLabel == null) {
-    return { kind: 'skip' };
+    return { kind: 'skip', label: action.title };
   }
   return { kind: 'fire', label: variantLabel };
 };

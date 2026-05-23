@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
-import type { Action, Anchor } from './domain';
+import type { Action, Anchor, VariantMap } from './domain';
 import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
 import {
   getCurrentPosition,
@@ -28,7 +28,10 @@ export type EditableNode = {
   id: string; // 既存なら nodes.id、新規なら一時 ID
   isNew: boolean; // true なら save 時に INSERT、false なら必要に応じて UPDATE
   actionId: string;
-  actionTitle: string; // ActionPicker で表示するため
+  actionTitle: string; // ChainEditScreen の NodeEditorRow 表示用
+  // Phase 2 variant: NodeEditorRow にバッジ (例: 月火水) を出すために保持。
+  // updateAction で同期更新される。
+  actionVariants: VariantMap | null;
 };
 
 export type EditableAnchor = {
@@ -85,6 +88,7 @@ const loadExisting = async (chainId: string): Promise<ChainEditDraft | null> => 
         isNew: false,
         actionId: n.actionId,
         actionTitle: act?.title ?? '',
+        actionVariants: act?.variants ?? null,
       };
     }),
   );
@@ -264,16 +268,19 @@ export const useChainEdit = (
     (actionId: string, actionTitle: string) => {
       setDraft((prev) => {
         if (!prev) return prev;
+        // availableActions から variant を引いて NodeEditorRow のバッジ表示に渡す
+        const found = availableActions.find((a) => a.id === actionId);
         const next: EditableNode = {
           id: newNodeId(),
           isNew: true,
           actionId,
           actionTitle,
+          actionVariants: found?.variants ?? null,
         };
         return { ...prev, nodes: [...prev.nodes, next] };
       });
     },
-    [],
+    [availableActions],
   );
 
   const addNodeFromNewAction = useCallback(
@@ -297,6 +304,7 @@ export const useChainEdit = (
             isNew: true,
             actionId: action.id,
             actionTitle: action.title,
+            actionVariants: action.variants,
           };
           return { ...prev, nodes: [...prev.nodes, next] };
         });
@@ -349,15 +357,19 @@ export const useChainEdit = (
           setAvailableActions((prev) =>
             prev.map((a) => (a.id === action.id ? action : a)),
           );
-          // ChainEditScreen の NodeEditorRow が actionTitle を表示しているため、
-          // 同じ actionId を持つ draft.nodes の actionTitle も更新する。
+          // ChainEditScreen の NodeEditorRow が actionTitle / actionVariants
+          // を表示しているため、同じ actionId を持つ draft.nodes の両方を更新する。
           setDraft((prev) =>
             prev
               ? {
                   ...prev,
                   nodes: prev.nodes.map((n) =>
                     n.actionId === action.id
-                      ? { ...n, actionTitle: action.title }
+                      ? {
+                          ...n,
+                          actionTitle: action.title,
+                          actionVariants: action.variants,
+                        }
                       : n,
                   ),
                 }

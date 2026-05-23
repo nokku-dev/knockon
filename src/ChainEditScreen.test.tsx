@@ -25,9 +25,9 @@ const draftWithNodes = (): ChainEditDraft => ({
   isNew: false,
   title: '朝のルーティン',
   nodes: [
-    { id: 'n1', isNew: false, actionId: 'act1', actionTitle: '水を飲む' },
-    { id: 'n2', isNew: false, actionId: 'act2', actionTitle: 'ストレッチ' },
-    { id: 'n3', isNew: false, actionId: 'act3', actionTitle: '机に向かう' },
+    { id: 'n1', isNew: false, actionId: 'act1', actionTitle: '水を飲む', actionVariants: null },
+    { id: 'n2', isNew: false, actionId: 'act2', actionTitle: 'ストレッチ', actionVariants: null },
+    { id: 'n3', isNew: false, actionId: 'act3', actionTitle: '机に向かう', actionVariants: null },
   ],
 });
 

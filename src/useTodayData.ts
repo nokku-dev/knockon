@@ -76,14 +76,14 @@ const loadToday = async (): Promise<TodayData | null> => {
   const now = new Date();
   const today = todayIsoDate(now);
   // Phase 2 variant: 各アクションを resolveActionForDate で今日の発火可否 + ラベルに解決。
-  // kind='skip' のノードは Today から除外 (variant ない曜日は出さない、 Q1=A)。
+  // kind='skip' のノードも除外せず TodayNode として残す (グレー表示用、 ユーザー
+  // フィードバック「設定したのに表示されないと勘違いする」への対応)。
   const withActions = await Promise.all(
     nodes.map(async (node) => {
       const action = await getAction(db, node.actionId);
       if (!action) return null;
       const resolved = resolveActionForDate(action, today);
-      if (resolved.kind === 'skip') return null;
-      return { node, action, label: resolved.label };
+      return { node, action, label: resolved.label, kind: resolved.kind };
     }),
   );
   const validNodes = withActions.filter((x): x is TodayNode => x !== null);

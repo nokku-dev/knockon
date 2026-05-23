@@ -306,6 +306,15 @@ const NodeEditorRow = ({ node, onRemove }: NodeEditorRowProps) => {
         <Text style={styles.dragHandleText}>≡</Text>
       </View>
       <Text style={styles.nodeTitle}>{node.actionTitle}</Text>
+      {node.actionVariants &&
+        summarizeVariantDays(node.actionVariants).length > 0 && (
+          <Text
+            style={styles.nodeVariantHint}
+            accessibilityLabel={`variant: ${summarizeVariantDays(node.actionVariants)}`}
+          >
+            {summarizeVariantDays(node.actionVariants)}
+          </Text>
+        )}
       <Pressable
         onPress={() => onRemove(node.id)}
         accessibilityRole="button"
@@ -493,6 +502,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   nodeTitle: { color: COLOR_FG, fontSize: 16, flex: 1 },
+  // variant 設定済みアクションのバッジ (ノード行)。
+  // 例: 「筋トレ 月火水 ×」のようにタイトルと削除の間に控えめに表示。
+  nodeVariantHint: {
+    color: COLOR_FG_FAINT,
+    fontSize: 11,
+    fontWeight: '600',
+    marginRight: 8,
+  },
   removeBtn: {
     width: 32,
     height: 32,

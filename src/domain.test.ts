@@ -424,7 +424,7 @@ describe('resolveActionForDate (Phase 2 variant: 曜日ごとのラベル切替 
     });
   });
 
-  test('variants 設定済み + 当日 (木) に variant null → skip (Today に出さない)', () => {
+  test('variants 設定済み + 当日 (木) に variant null → skip (親 title を保持して Today にグレー表示)', () => {
     const action: Action = {
       ...base,
       variants: {
@@ -439,10 +439,11 @@ describe('resolveActionForDate (Phase 2 variant: 曜日ごとのラベル切替 
     };
     expect(resolveActionForDate(action, '2026-05-21')).toEqual({
       kind: 'skip',
+      label: '筋トレ',
     });
   });
 
-  test('全曜日 null の variants → 毎日 skip', () => {
+  test('全曜日 null の variants → 毎日 skip / 親 title 表示', () => {
     const action: Action = {
       ...base,
       variants: {
@@ -455,8 +456,14 @@ describe('resolveActionForDate (Phase 2 variant: 曜日ごとのラベル切替 
         sun: null,
       },
     };
-    expect(resolveActionForDate(action, '2026-05-18')).toEqual({ kind: 'skip' });
-    expect(resolveActionForDate(action, '2026-05-19')).toEqual({ kind: 'skip' });
+    expect(resolveActionForDate(action, '2026-05-18')).toEqual({
+      kind: 'skip',
+      label: '筋トレ',
+    });
+    expect(resolveActionForDate(action, '2026-05-19')).toEqual({
+      kind: 'skip',
+      label: '筋トレ',
+    });
   });
 });
 
