@@ -1,4 +1,14 @@
+import { useEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, { Circle, Line } from 'react-native-svg';
 
 import type {
@@ -46,6 +56,27 @@ const MARKER_RADIUS = 7;
 const ANCHOR_DOT_RADIUS = 4;
 const SPINE_STROKE = 2;
 
+// セレブレーション (PR-1.9): DESIGN-SYSTEM §4.3 達成ジェスチャ 1 セットを実装。
+// 構成: (a) ノック線伸び (cubic-bezier(.22, 1, .36, 1)) + (b) マーカーバウンス
+// + (c) テキストバウンス。(b) と (c) は同じ achieved 遷移トリガー / 同じ
+// イージング / 同じ duration で同期発火させる。
+// 達成解除 (true→false) では bounce しない (祝福主、マイナスを指差さない)。
+const KNOCK_DURATION_MS = 320;
+const KNOCK_EASING = Easing.bezier(0.22, 1, 0.36, 1);
+const MARKER_BOUNCE_PEAK = 1.25;
+const TEXT_BOUNCE_PEAK = 1.08;
+const BOUNCE_UP_MS = 80;
+// マーカーは spring で戻り (弾む感じ)、テキストは withTiming で素直に戻す
+// (読み物なので揺り戻しがあると視認性が下がる、ユーザーフィードバック)。
+const MARKER_SPRING = { damping: 8, stiffness: 200 } as const;
+// テキストはマーカーより 1.5 倍ゆっくりで穏やかに伸縮 (PR-1.9 ユーザー判断)。
+// up/down を独立持ち、マーカーとの up 同期は意図的に崩している。
+const TEXT_BOUNCE_UP_MS = 120;
+const TEXT_BOUNCE_DOWN_MS = 240;
+
+const AnimatedLine = Animated.createAnimatedComponent(Line);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
 export const TodayScreen = ({
   chain,
   anchor,
@@ -70,6 +101,24 @@ export const TodayScreen = ({
     lastAchievedIdx < 0 ? anchorCenterY : nodeMarkerCenterY(lastAchievedIdx);
 
   const svgHeight = ANCHOR_ROW_HEIGHT + nodes.length * NODE_ROW_HEIGHT;
+
+  // ノックモーション: filledEndY (明色線の終端) を SharedValue で持ち、変化を
+  // cubic-bezier(.22, 1, .36, 1) でアニメ。lastAchievedIdx < 0 のとき
+  // (達成 0 件) は anchorCenterY で開始 → 達成が増えると下に伸びる。
+  const filledEndYShared = useSharedValue(filledEndY);
+  useEffect(() => {
+    filledEndYShared.value = withTiming(filledEndY, {
+      duration: KNOCK_DURATION_MS,
+      easing: KNOCK_EASING,
+    });
+  }, [filledEndY, filledEndYShared]);
+
+  const animatedGrowLineProps = useAnimatedProps(() => ({
+    y2: filledEndYShared.value,
+  }));
+  const animatedBgLineProps = useAnimatedProps(() => ({
+    y1: filledEndYShared.value,
+  }));
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
@@ -113,21 +162,25 @@ export const TodayScreen = ({
           style={styles.svg}
           pointerEvents="none"
         >
-          {lastAchievedIdx >= 0 && (
-            <Line
-              x1={SPINE_X}
-              y1={anchorCenterY}
-              x2={SPINE_X}
-              y2={filledEndY}
-              stroke={COLOR_GROW}
-              strokeWidth={SPINE_STROKE}
-            />
-          )}
-          <Line
+          {/*
+            明色線 (--grow): y2 が filledEndY に向かってアニメで伸びる。
+            達成 0 件のときは y1=y2=anchorCenterY でゼロ長 (描画レス相当)。
+            旧コードは lastAchievedIdx<0 で条件描画していたが、アニメ前提では
+            常に描画して y2 の値変化に乗せる。
+          */}
+          <AnimatedLine
             x1={SPINE_X}
-            y1={filledEndY}
+            y1={anchorCenterY}
+            x2={SPINE_X}
+            animatedProps={animatedGrowLineProps}
+            stroke={COLOR_GROW}
+            strokeWidth={SPINE_STROKE}
+          />
+          <AnimatedLine
+            x1={SPINE_X}
             x2={SPINE_X}
             y2={lastNodeY}
+            animatedProps={animatedBgLineProps}
             stroke={COLOR_LINE_BG}
             strokeWidth={SPINE_STROKE}
           />
@@ -137,20 +190,13 @@ export const TodayScreen = ({
             r={ANCHOR_DOT_RADIUS}
             fill={COLOR_GROW}
           />
-          {nodes.map(({ node }, idx) => {
-            const achieved = achievements[node.id] ?? false;
-            return (
-              <Circle
-                key={node.id}
-                cx={SPINE_X}
-                cy={nodeMarkerCenterY(idx)}
-                r={MARKER_RADIUS}
-                fill={achieved ? COLOR_GROW : COLOR_BG}
-                stroke={achieved ? COLOR_GROW : COLOR_FG_FAINT}
-                strokeWidth={1.5}
-              />
-            );
-          })}
+          {nodes.map(({ node }, idx) => (
+            <MarkerCircle
+              key={node.id}
+              cy={nodeMarkerCenterY(idx)}
+              achieved={achievements[node.id] ?? false}
+            />
+          ))}
         </Svg>
 
         <View
@@ -159,23 +205,112 @@ export const TodayScreen = ({
         >
           <Text style={styles.anchorRowLabel}>起点アンカー</Text>
         </View>
-        {nodes.map(({ node, action }) => {
-          const achieved = achievements[node.id] ?? false;
-          return (
-            <Pressable
-              key={node.id}
-              onPress={() => onToggleNode(node.id)}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: achieved }}
-              accessibilityLabel={action.title}
-              style={[styles.contentRow, { height: NODE_ROW_HEIGHT }]}
-            >
-              <Text style={styles.nodeText}>{action.title}</Text>
-            </Pressable>
-          );
-        })}
+        {nodes.map(({ node, action }) => (
+          <NodeRow
+            key={node.id}
+            actionTitle={action.title}
+            achieved={achievements[node.id] ?? false}
+            onPress={() => onToggleNode(node.id)}
+          />
+        ))}
       </View>
     </ScrollView>
+  );
+};
+
+// 個別ノードマーカー。achieved の false→true 遷移時のみ scale 1→1.25→1 で
+// バウンス (Celebrate 主)。true→false (達成解除) では bounce しない。
+// SVG Circle の r を scale で乗じる形でアニメ化する (transform=scale より
+// 中心からの拡縮が安定)。
+const MarkerCircle = ({
+  cy,
+  achieved,
+}: {
+  cy: number;
+  achieved: boolean;
+}) => {
+  const scale = useSharedValue(1);
+  const prevAchievedRef = useRef(achieved);
+
+  useEffect(() => {
+    if (!prevAchievedRef.current && achieved) {
+      scale.value = withSequence(
+        withTiming(MARKER_BOUNCE_PEAK, {
+          duration: BOUNCE_UP_MS,
+          easing: KNOCK_EASING,
+        }),
+        withSpring(1, MARKER_SPRING),
+      );
+    }
+    prevAchievedRef.current = achieved;
+  }, [achieved, scale]);
+
+  const animatedProps = useAnimatedProps(() => ({
+    r: MARKER_RADIUS * scale.value,
+  }));
+
+  return (
+    <AnimatedCircle
+      cx={SPINE_X}
+      cy={cy}
+      animatedProps={animatedProps}
+      fill={achieved ? COLOR_GROW : COLOR_BG}
+      stroke={achieved ? COLOR_GROW : COLOR_FG_FAINT}
+      strokeWidth={1.5}
+    />
+  );
+};
+
+// ノード行のテキスト。マーカーと同じ false→true 遷移で同期バウンス。
+// 倍率はマーカーより控えめ (1.08) — 文字本来の可読性を優先しつつ、
+// 達成タップの中央視野フィードバックを補強する役割。
+const NodeRow = ({
+  actionTitle,
+  achieved,
+  onPress,
+}: {
+  actionTitle: string;
+  achieved: boolean;
+  onPress: () => void;
+}) => {
+  const scale = useSharedValue(1);
+  const prevAchievedRef = useRef(achieved);
+
+  useEffect(() => {
+    if (!prevAchievedRef.current && achieved) {
+      // 文字は read 対象なので withSpring (揺り戻し) を使わず、 withTiming で
+      // 素直に scale up → down のみ。マーカーより 1.5 倍ゆっくりで穏やかに
+      // 伸縮させる (PR-1.9 ユーザー判断)。
+      scale.value = withSequence(
+        withTiming(TEXT_BOUNCE_PEAK, {
+          duration: TEXT_BOUNCE_UP_MS,
+          easing: KNOCK_EASING,
+        }),
+        withTiming(1, {
+          duration: TEXT_BOUNCE_DOWN_MS,
+          easing: KNOCK_EASING,
+        }),
+      );
+    }
+    prevAchievedRef.current = achieved;
+  }, [achieved, scale]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: achieved }}
+      accessibilityLabel={actionTitle}
+      style={[styles.contentRow, { height: NODE_ROW_HEIGHT }]}
+    >
+      <Animated.View style={[styles.nodeTextWrap, animatedStyle]}>
+        <Text style={styles.nodeText}>{actionTitle}</Text>
+      </Animated.View>
+    </Pressable>
   );
 };
 
@@ -251,6 +386,9 @@ const styles = StyleSheet.create({
     color: COLOR_FG_FAINT,
     fontSize: 12,
   },
+  // テキストバウンスの transform 基点。alignSelf:'flex-start' で左端を
+  // アンカーにして scale すると、伸縮が右側に向かい行のレイアウトが揺れない。
+  nodeTextWrap: { alignSelf: 'flex-start' },
   nodeText: {
     color: COLOR_FG,
     fontSize: 16,
