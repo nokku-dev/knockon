@@ -11,24 +11,39 @@ export type ChainListItem = {
   nodeCount: number;
 };
 
-const loadChainList = async (
-  status: ChainStatus,
-): Promise<ChainListItem[]> => {
+type LoadResult = {
+  items: ChainListItem[];
+  activeCount: number;
+  stockedCount: number;
+};
+
+const loadChainList = async (status: ChainStatus): Promise<LoadResult> => {
   const db = await getExpoSqliteClient();
-  const chains = await listChains(db, status);
+  // 両タブの count 表示用に全件取得し、 active/stocked それぞれカウント。
+  // Phase 2 N=1 規模 (チェーン数十件程度) では性能問題なし。
+  const allChains = await listChains(db);
+  const activeCount = allChains.filter((c) => c.status === 'active').length;
+  const stockedCount = allChains.filter((c) => c.status === 'stocked').length;
+  const filtered = allChains.filter((c) => c.status === status);
   const items = await Promise.all(
-    chains.map(async (chain) => {
+    filtered.map(async (chain) => {
       const anchor = await getAnchor(db, chain.anchorId);
       if (!anchor) return null;
       const nodes = await listNodes(db, chain.id);
       return { chain, anchor, nodeCount: nodes.length };
     }),
   );
-  return items.filter((x): x is ChainListItem => x !== null);
+  return {
+    items: items.filter((x): x is ChainListItem => x !== null),
+    activeCount,
+    stockedCount,
+  };
 };
 
 export type UseChainListDataResult = {
   items: ChainListItem[];
+  activeCount: number;
+  stockedCount: number;
   error: string | null;
   loading: boolean;
 };
@@ -39,6 +54,8 @@ export const useChainListData = (
   status: ChainStatus,
 ): UseChainListDataResult => {
   const [items, setItems] = useState<ChainListItem[]>([]);
+  const [activeCount, setActiveCount] = useState(0);
+  const [stockedCount, setStockedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -49,8 +66,12 @@ export const useChainListData = (
       let cancelled = false;
       setLoading(true);
       loadChainList(status)
-        .then((list) => {
-          if (!cancelled) setItems(list);
+        .then((result) => {
+          if (!cancelled) {
+            setItems(result.items);
+            setActiveCount(result.activeCount);
+            setStockedCount(result.stockedCount);
+          }
         })
         .catch((e: unknown) => {
           if (!cancelled) {
@@ -66,5 +87,5 @@ export const useChainListData = (
     }, [status]),
   );
 
-  return { items, error, loading };
+  return { items, activeCount, stockedCount, error, loading };
 };

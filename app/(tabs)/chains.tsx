@@ -17,7 +17,8 @@ import { useChainListData } from '../../src/useChainListData';
 
 export default function ChainsTab() {
   const [status, setStatus] = useState<ChainStatus>('active');
-  const { items, error, loading } = useChainListData(status);
+  const { items, activeCount, stockedCount, error, loading } =
+    useChainListData(status);
   const router = useRouter();
 
   // チェーンカードタップ → 編集画面 (`/chain/[chainId]`)。
@@ -47,7 +48,7 @@ export default function ChainsTab() {
               status === 'active' && styles.statusTabTextActive,
             ]}
           >
-            アクティブ
+            アクティブ ({activeCount})
           </Text>
         </Pressable>
         <Pressable
@@ -63,7 +64,7 @@ export default function ChainsTab() {
               status === 'stocked' && styles.statusTabTextActive,
             ]}
           >
-            休止中
+            休止中 ({stockedCount})
           </Text>
         </Pressable>
       </View>
