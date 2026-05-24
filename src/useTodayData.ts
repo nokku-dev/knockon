@@ -7,6 +7,7 @@ import {
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
   resolveActionForDate,
+  sortChainsForDisplay,
   toAchievementMap,
   todayIsoDate,
   toggleAchievementInMap,
@@ -125,9 +126,12 @@ const loadToday = async (): Promise<TodayData> => {
   const loaded = await Promise.all(
     chains.map((c) => loadChainForToday(c, today, now)),
   );
+  const valid = loaded.filter((x): x is TodayChainData => x !== null);
+  // 表示順: 時刻アンカー (time 昇順) → place (createdAt 昇順) → behavior (createdAt 昇順)
+  // (PR feat/chain-sort-by-anchor-time、 ユーザー判断)
   return {
     today,
-    chains: loaded.filter((x): x is TodayChainData => x !== null),
+    chains: sortChainsForDisplay(valid),
   };
 };
 

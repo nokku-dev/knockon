@@ -18,6 +18,7 @@ import {
   lastAchievedNodeIndex,
   resolveActionForDate,
   shouldSeed,
+  sortChainsForDisplay,
   summarizeVariantDays,
   toAchievementMap,
   todayIsoDate,
@@ -526,5 +527,87 @@ describe('summarizeVariantDays (Phase 2 variant: UI バッジ用)', () => {
         sun: '休日ヨガ',
       }),
     ).toBe('土日');
+  });
+});
+
+describe('sortChainsForDisplay (Today / 一覧の表示順)', () => {
+  const mkChain = (id: string, createdAt: string): Chain => ({
+    id,
+    title: `chain ${id}`,
+    anchorId: `anchor-${id}`,
+    status: 'active',
+    createdAt,
+  });
+  const mkAnchor = (
+    kind: Anchor['kind'],
+    time: string | null = null,
+  ): Anchor => ({
+    id: `anchor-${time ?? kind}`,
+    title: '起点',
+    kind,
+    time,
+    latitude: null,
+    longitude: null,
+    radiusMeters: null,
+  });
+
+  test('時刻アンカーは time 昇順で並ぶ', () => {
+    const items = [
+      { chain: mkChain('a', '2026-05-01'), anchor: mkAnchor('time', '22:00') },
+      { chain: mkChain('b', '2026-05-02'), anchor: mkAnchor('time', '07:00') },
+      { chain: mkChain('c', '2026-05-03'), anchor: mkAnchor('time', '12:30') },
+    ];
+    const sorted = sortChainsForDisplay(items);
+    expect(sorted.map((s) => s.chain.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  test('グループ順は time → place → behavior', () => {
+    const items = [
+      { chain: mkChain('be', '2026-05-01'), anchor: mkAnchor('behavior') },
+      { chain: mkChain('pl', '2026-05-02'), anchor: mkAnchor('place') },
+      { chain: mkChain('ti', '2026-05-03'), anchor: mkAnchor('time', '07:00') },
+    ];
+    const sorted = sortChainsForDisplay(items);
+    expect(sorted.map((s) => s.chain.id)).toEqual(['ti', 'pl', 'be']);
+  });
+
+  test('place / behavior グループ内は createdAt 昇順', () => {
+    const items = [
+      { chain: mkChain('p2', '2026-05-10'), anchor: mkAnchor('place') },
+      { chain: mkChain('p1', '2026-05-01'), anchor: mkAnchor('place') },
+      { chain: mkChain('b2', '2026-05-20'), anchor: mkAnchor('behavior') },
+      { chain: mkChain('b1', '2026-05-15'), anchor: mkAnchor('behavior') },
+    ];
+    const sorted = sortChainsForDisplay(items);
+    expect(sorted.map((s) => s.chain.id)).toEqual(['p1', 'p2', 'b1', 'b2']);
+  });
+
+  test('kind=time だが time=null は behavior 相当 (末尾)', () => {
+    const items = [
+      {
+        chain: mkChain('null', '2026-05-01'),
+        anchor: mkAnchor('time', null),
+      },
+      {
+        chain: mkChain('valid', '2026-05-02'),
+        anchor: mkAnchor('time', '08:00'),
+      },
+    ];
+    const sorted = sortChainsForDisplay(items);
+    expect(sorted.map((s) => s.chain.id)).toEqual(['valid', 'null']);
+  });
+
+  test('空配列 → 空配列', () => {
+    expect(sortChainsForDisplay([])).toEqual([]);
+  });
+
+  test('元配列を破壊しない (新配列を返す)', () => {
+    const items = [
+      { chain: mkChain('a', '2026-05-01'), anchor: mkAnchor('time', '22:00') },
+      { chain: mkChain('b', '2026-05-02'), anchor: mkAnchor('time', '07:00') },
+    ];
+    const original = [...items];
+    sortChainsForDisplay(items);
+    expect(items).toEqual(original);
   });
 });

@@ -2,6 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
+import { sortChainsForDisplay } from './domain';
 import type { Anchor, Chain, ChainStatus } from './domain';
 import { getAnchor, listChains, listNodes } from './repository';
 
@@ -33,8 +34,10 @@ const loadChainList = async (status: ChainStatus): Promise<LoadResult> => {
       return { chain, anchor, nodeCount: nodes.length };
     }),
   );
+  const validItems = items.filter((x): x is ChainListItem => x !== null);
+  // 表示順: 時刻アンカー (time 昇順) → place (createdAt 昇順) → behavior (createdAt 昇順)
   return {
-    items: items.filter((x): x is ChainListItem => x !== null),
+    items: sortChainsForDisplay(validItems),
     activeCount,
     stockedCount,
   };

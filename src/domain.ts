@@ -296,3 +296,36 @@ export const summarizeVariantDays = (
     .map((k) => WEEKDAY_LABEL_BY_KEY[k])
     .join('');
 };
+
+// Today / チェーン一覧の表示順を「アンカー種別グループ + グループ内ソート」で決める
+// 純粋関数 (PR feat/chain-sort-by-anchor-time、 ユーザー判断)。
+//
+// グループ順 (上→下):
+//   1. kind='time' かつ time あり → 時刻昇順 (07:00 → 07:30 → 22:00 のように)
+//   2. kind='place' → createdAt 昇順
+//   3. それ以外 (kind='behavior' / kind='time' で time=null) → createdAt 昇順
+//
+// アンカー情報を chain と一緒に持つ任意の T 型に generic で動く。
+type ChainOrderable = { chain: Chain; anchor: Anchor };
+
+const kindOrderRank = (anchor: Anchor): number => {
+  if (anchor.kind === 'time' && anchor.time != null) return 0;
+  if (anchor.kind === 'place') return 1;
+  return 2;
+};
+
+export const sortChainsForDisplay = <T extends ChainOrderable>(
+  items: readonly T[],
+): T[] => {
+  return [...items].sort((a, b) => {
+    const ra = kindOrderRank(a.anchor);
+    const rb = kindOrderRank(b.anchor);
+    if (ra !== rb) return ra - rb;
+    if (ra === 0) {
+      // 時刻グループ: time 昇順 (HH:MM の文字列比較で OK)
+      return (a.anchor.time ?? '').localeCompare(b.anchor.time ?? '');
+    }
+    // 他グループ: createdAt 昇順
+    return a.chain.createdAt.localeCompare(b.chain.createdAt);
+  });
+};
