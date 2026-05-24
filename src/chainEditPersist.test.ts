@@ -243,6 +243,96 @@ describe('persistChainDraft — 新規モード', () => {
   });
 });
 
+describe('persistChainDraft — 編集モード でノード削除が永続化される (バグ修正)', () => {
+  test('既存ノードを draft から外して保存すると DB からも消える', async () => {
+    const db = await setup();
+    await persistChainDraft(
+      db,
+      buildDraft({
+        isNew: true,
+        nodes: [
+          node('n1', 'act-water'),
+          node('n2', 'act-stretch'),
+          node('n3', 'act-desk'),
+        ],
+      }),
+    );
+    // 中間ノード n2 を削除して保存
+    await persistChainDraft(
+      db,
+      buildDraft({
+        isNew: false,
+        nodes: [
+          node('n1', 'act-water', false),
+          node('n3', 'act-desk', false),
+        ],
+      }),
+    );
+    const nodes = await listNodes(db, 'c1');
+    expect(nodes.map((n) => n.id)).toEqual(['n1', 'n3']);
+    expect(nodes.map((n) => n.orderIndex)).toEqual([0, 1]);
+    await teardown(db);
+  });
+
+  test('ノード削除と並び替えが同時にあっても UNIQUE 衝突しない', async () => {
+    const db = await setup();
+    await persistChainDraft(
+      db,
+      buildDraft({
+        isNew: true,
+        nodes: [
+          node('n1', 'act-water'),
+          node('n2', 'act-stretch'),
+          node('n3', 'act-desk'),
+        ],
+      }),
+    );
+    // n2 を削除 + 順序を n3 → n1 に逆転
+    await expect(
+      persistChainDraft(
+        db,
+        buildDraft({
+          isNew: false,
+          nodes: [
+            node('n3', 'act-desk', false),
+            node('n1', 'act-water', false),
+          ],
+        }),
+      ),
+    ).resolves.toBeUndefined();
+    const nodes = await listNodes(db, 'c1');
+    expect(nodes.map((n) => n.id)).toEqual(['n3', 'n1']);
+    expect(nodes.map((n) => n.orderIndex)).toEqual([0, 1]);
+    await teardown(db);
+  });
+
+  test('全ノードを削除して 1 つだけ残しても保存できる', async () => {
+    const db = await setup();
+    await persistChainDraft(
+      db,
+      buildDraft({
+        isNew: true,
+        nodes: [
+          node('n1', 'act-water'),
+          node('n2', 'act-stretch'),
+          node('n3', 'act-desk'),
+        ],
+      }),
+    );
+    await persistChainDraft(
+      db,
+      buildDraft({
+        isNew: false,
+        nodes: [node('n2', 'act-stretch', false)],
+      }),
+    );
+    const nodes = await listNodes(db, 'c1');
+    expect(nodes.map((n) => n.id)).toEqual(['n2']);
+    expect(nodes.map((n) => n.orderIndex)).toEqual([0]);
+    await teardown(db);
+  });
+});
+
 describe('persistChainDraft — 編集モード で DnD 後の任意順序が永続化される (PR-1.7b)', () => {
   test('DnD で 1→3→2 の順に並び替えた状態を保存すると DB もその順序になる', async () => {
     const db = await setup();
