@@ -9,30 +9,32 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { initSchema } from '../src/db';
 import { getExpoSqliteClient } from '../src/db.expo';
+import { InAppNotificationToast } from '../src/InAppNotificationToast';
 import { syncAllNotifications } from '../src/notifications';
 import { extractChainIdFromResponse } from '../src/notificationsDeeplink';
 import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../src/tokens';
 
+type ToastState = { chainId: string; title: string; body: string };
+
 void SystemUI.setBackgroundColorAsync(COLOR_BG);
 
-// expo-notifications のデフォルトでは foreground 中の通知は OS 表示されない。
-// foreground 時もバナー / リストに通知を出すよう handler を設定 (PR-1.5b-3)。
-// shouldShowBanner / shouldShowList は SDK 53+ の API。 サウンド・バッジは
-// Phase 1 ではシンプルに sound=true、 badge=false。
+// foreground 中の通知は OS バナーを出さず、 アプリ内で独自 Toast を出す
+// (PR-1.5b-3 ユーザー判断)。 通知センターには残す (shouldShowList=true) ので
+// 後から見返せる。 サウンド・バッジは Phase 1 ではオフ (foreground は自前 Toast
+// で気づける)。
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowBanner: true,
+    shouldShowBanner: false,
     shouldShowList: true,
-    shouldPlaySound: true,
+    shouldPlaySound: false,
     shouldSetBadge: false,
-    // 旧 API (SDK 52 以前) 互換: 一部 OS / version で shouldShowAlert を読む
-    shouldShowAlert: true,
   }),
 });
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const router = useRouter();
   // cold start で通知タップから起動された場合、 最後の response が取れる。
   const lastResponse = Notifications.useLastNotificationResponse();
@@ -90,6 +92,26 @@ export default function RootLayout() {
     return () => subscription.remove();
   }, [ready, router]);
 
+  // foreground 中の通知受信を listen して in-app Toast 表示 (PR-1.5b-3 ユーザー判断)。
+  // setNotificationHandler で OS バナーを抑えているので、 自前 UI で表示しないと
+  // ユーザーが気づけない。
+  useEffect(() => {
+    if (!ready) return;
+    const subscription = Notifications.addNotificationReceivedListener(
+      (notification) => {
+        const data = notification.request.content.data;
+        if (data && typeof data === 'object' && typeof data.chainId === 'string') {
+          setToast({
+            chainId: data.chainId,
+            title: notification.request.content.title ?? '',
+            body: notification.request.content.body ?? '',
+          });
+        }
+      },
+    );
+    return () => subscription.remove();
+  }, [ready]);
+
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider style={styles.root}>
@@ -103,22 +125,40 @@ export default function RootLayout() {
             <ActivityIndicator color={COLOR_FG} />
           </View>
         ) : (
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: COLOR_BG },
-            }}
-          >
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="chain/new"
-              options={{ presentation: 'modal' }}
-            />
-            <Stack.Screen
-              name="chain/[chainId]"
-              options={{ presentation: 'modal' }}
-            />
-          </Stack>
+          <>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: COLOR_BG },
+              }}
+            >
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen
+                name="chain/new"
+                options={{ presentation: 'modal' }}
+              />
+              <Stack.Screen
+                name="chain/[chainId]"
+                options={{ presentation: 'modal' }}
+              />
+            </Stack>
+            {toast && (
+              <InAppNotificationToast
+                key={`${toast.chainId}-${toast.title}`}
+                title={toast.title}
+                body={toast.body}
+                onPress={() => {
+                  const targetChainId = toast.chainId;
+                  setToast(null);
+                  router.push({
+                    pathname: '/(tabs)',
+                    params: { openChainId: targetChainId },
+                  });
+                }}
+                onDismiss={() => setToast(null)}
+              />
+            )}
+          </>
         )}
       </SafeAreaProvider>
     </GestureHandlerRootView>

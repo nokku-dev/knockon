@@ -27,20 +27,22 @@ export const TodayScreen = ({
   initialOpenChainId = null,
 }: TodayScreenProps) => {
   const [openChainId, setOpenChainId] = useState<string | null>(null);
-  // BottomSheet の index を state で持って宣言的に制御する。
-  // 旧版は sheetRef.current?.expand() を呼んでいたが、 sheet が mount される
-  // 前に呼ぶと no-op になる race があったため index prop に切替 (PR-1.5b-3 修正)。
-  const [sheetIndex, setSheetIndex] = useState<number>(-1);
   const sheetRef = useRef<BottomSheet>(null);
 
   // initialOpenChainId が変化したら該当チェーンの sheet を開く。
   // 通知タップ → URL param 経由で発火する経路 (PR-1.5b-3)。
+  // sheetRef.current?.snapToIndex(0) は mount 完了を待つために rAF 経由で呼ぶ。
+  // (expand() / index prop だけだと初期 mount race で中途半端な高さで止まる
+  // 現象があった、 PR-1.5b-3 実機検証で観測)
   useEffect(() => {
     if (!initialOpenChainId) return;
     const exists = chains.find((c) => c.chain.id === initialOpenChainId);
     if (!exists) return;
     setOpenChainId(initialOpenChainId);
-    setSheetIndex(0);
+    const raf = requestAnimationFrame(() => {
+      sheetRef.current?.snapToIndex(0);
+    });
+    return () => cancelAnimationFrame(raf);
   }, [initialOpenChainId, chains]);
 
   const openChain = useMemo(
@@ -50,11 +52,10 @@ export const TodayScreen = ({
 
   const handleOpen = useCallback((chainId: string) => {
     setOpenChainId(chainId);
-    setSheetIndex(0);
+    sheetRef.current?.snapToIndex(0);
   }, []);
 
   const handleClose = useCallback((idx: number) => {
-    setSheetIndex(idx);
     if (idx === -1) setOpenChainId(null);
   }, []);
 
@@ -105,7 +106,7 @@ export const TodayScreen = ({
 
       <BottomSheet
         ref={sheetRef}
-        index={sheetIndex}
+        index={-1}
         snapPoints={snapPoints}
         enablePanDownToClose
         onChange={handleClose}
