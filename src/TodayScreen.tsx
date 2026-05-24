@@ -31,13 +31,20 @@ export const TodayScreen = ({
 
   // initialOpenChainId が変化したら該当チェーンの sheet を開く。
   // 通知タップ → URL param 経由で発火する経路 (PR-1.5b-3)。
+  //
+  // consume パターン (useRef): 同じ chainId は 1 回だけ open する。
+  // タブ切替 → Today 再 focus で initialOpenChainId が再評価される際に毎回
+  // open しないよう、 「最後に処理した chainId」を ref で覚えておく
+  // (PR-1.5b-3 実機検証 2 回目で観測した「Today に戻るたびに Sheet が開く」対応)。
+  //
   // sheetRef.current?.snapToIndex(0) は mount 完了を待つために rAF 経由で呼ぶ。
-  // (expand() / index prop だけだと初期 mount race で中途半端な高さで止まる
-  // 現象があった、 PR-1.5b-3 実機検証で観測)
+  const lastProcessedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!initialOpenChainId) return;
+    if (lastProcessedRef.current === initialOpenChainId) return;
     const exists = chains.find((c) => c.chain.id === initialOpenChainId);
     if (!exists) return;
+    lastProcessedRef.current = initialOpenChainId;
     setOpenChainId(initialOpenChainId);
     const raf = requestAnimationFrame(() => {
       sheetRef.current?.snapToIndex(0);

@@ -6,6 +6,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   COLOR_ACCENT,
@@ -35,6 +36,7 @@ export const InAppNotificationToast = ({
   onDismiss,
   autoDismissMs = 5000,
 }: InAppNotificationToastProps) => {
+  const insets = useSafeAreaInsets();
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(-20);
 
@@ -58,7 +60,7 @@ export const InAppNotificationToast = ({
   return (
     <Animated.View
       pointerEvents="box-none"
-      style={[styles.wrap, style]}
+      style={[styles.wrap, { top: insets.top + 8 }, style]}
       accessibilityLiveRegion="polite"
     >
       <Pressable
@@ -83,8 +85,8 @@ export const InAppNotificationToast = ({
 
 const styles = StyleSheet.create({
   wrap: {
+    // top は useSafeAreaInsets で動的に設定 (status bar / notch の下に配置)。
     position: 'absolute',
-    top: 12,
     left: 12,
     right: 12,
     zIndex: 999,

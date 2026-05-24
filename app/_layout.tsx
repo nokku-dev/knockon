@@ -93,8 +93,9 @@ export default function RootLayout() {
   }, [ready, router]);
 
   // foreground 中の通知受信を listen して in-app Toast 表示 (PR-1.5b-3 ユーザー判断)。
-  // setNotificationHandler で OS バナーを抑えているので、 自前 UI で表示しないと
-  // ユーザーが気づけない。
+  // setNotificationHandler の shouldShowBanner=false だけだと Android で
+  // channel importance に応じて OS バナーが出続けるケースがあるため、
+  // 受信時に Notifications.dismissNotificationAsync で OS 通知を即時消去する。
   useEffect(() => {
     if (!ready) return;
     const subscription = Notifications.addNotificationReceivedListener(
@@ -107,6 +108,10 @@ export default function RootLayout() {
             body: notification.request.content.body ?? '',
           });
         }
+        // OS の heads-up / banner を出さないよう即時消去 (foreground 中のみ).
+        void Notifications.dismissNotificationAsync(
+          notification.request.identifier,
+        ).catch(() => undefined);
       },
     );
     return () => subscription.remove();
