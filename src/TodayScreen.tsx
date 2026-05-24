@@ -3,7 +3,7 @@ import BottomSheet, {
   BottomSheetScrollView,
 } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ChainCard } from './ChainCard';
@@ -16,11 +16,28 @@ import type { TodayChainData } from './useTodayData';
 export type TodayScreenProps = {
   chains: readonly TodayChainData[];
   onToggleNode: (chainId: string, nodeId: string) => void;
+  // PR-1.5b-3: 通知タップから遷移してきたとき、 自動で開きたい chainId。
+  // 変化のたびに対応するチェーンの Bottom Sheet を expand する。
+  initialOpenChainId?: string | null;
 };
 
-export const TodayScreen = ({ chains, onToggleNode }: TodayScreenProps) => {
+export const TodayScreen = ({
+  chains,
+  onToggleNode,
+  initialOpenChainId = null,
+}: TodayScreenProps) => {
   const [openChainId, setOpenChainId] = useState<string | null>(null);
   const sheetRef = useRef<BottomSheet>(null);
+
+  // initialOpenChainId が変化したら該当チェーンの sheet を開く。
+  // 通知タップ → URL param 経由で発火する経路 (PR-1.5b-3)。
+  useEffect(() => {
+    if (!initialOpenChainId) return;
+    const exists = chains.find((c) => c.chain.id === initialOpenChainId);
+    if (!exists) return;
+    setOpenChainId(initialOpenChainId);
+    sheetRef.current?.expand();
+  }, [initialOpenChainId, chains]);
 
   const openChain = useMemo(
     () => chains.find((c) => c.chain.id === openChainId) ?? null,

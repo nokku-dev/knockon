@@ -1,4 +1,5 @@
-import { Stack } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useState } from 'react';
@@ -9,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initSchema } from '../src/db';
 import { getExpoSqliteClient } from '../src/db.expo';
 import { syncAllNotifications } from '../src/notifications';
+import { extractChainIdFromResponse } from '../src/notificationsDeeplink';
 import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../src/tokens';
 
 void SystemUI.setBackgroundColorAsync(COLOR_BG);
@@ -16,6 +18,9 @@ void SystemUI.setBackgroundColorAsync(COLOR_BG);
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  // cold start で通知タップから起動された場合、 最後の response が取れる。
+  const lastResponse = Notifications.useLastNotificationResponse();
 
   useEffect(() => {
     let cancelled = false;
@@ -40,6 +45,35 @@ export default function RootLayout() {
       cancelled = true;
     };
   }, []);
+
+  // PR-1.5b-3 通知タップ → Today ディープリンク。
+  // (a) アプリ実行中 (foreground / background) に通知タップ → listener が拾う
+  // (b) cold start (通知タップで起動) → useLastNotificationResponse が initial value で拾う
+  // どちらも router.push で /(tabs) に遷移 + ?openChainId=... を渡して TodayScreen に
+  // Bottom Sheet を自動 open させる。
+  useEffect(() => {
+    if (!ready) return;
+    const chainId = extractChainIdFromResponse(lastResponse);
+    if (chainId) {
+      router.push({ pathname: '/(tabs)', params: { openChainId: chainId } });
+    }
+  }, [ready, lastResponse, router]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const chainId = extractChainIdFromResponse(response);
+        if (chainId) {
+          router.push({
+            pathname: '/(tabs)',
+            params: { openChainId: chainId },
+          });
+        }
+      },
+    );
+    return () => subscription.remove();
+  }, [ready, router]);
 
   return (
     <GestureHandlerRootView style={styles.root}>
