@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 同一 PR で連続 push されたら古い job を cancel して最新だけ走らせる。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Type-check + Jest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # .npmrc の legacy-peer-deps=true がプロジェクトに置かれているため、
+      # ローカルと同じ依存解決ルールで install できる (K-021 / K-025 整合)。
+      - name: Install dependencies
+        run: npm ci --include=dev
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Run tests
+        run: npm test
