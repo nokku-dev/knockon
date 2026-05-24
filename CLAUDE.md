@@ -32,9 +32,16 @@ Expo の標準慣例に従う。具体的なスクリプト・依存バージョ
 
 ### EAS Build
 
-- `eas build --profile development --platform android` — Android Dev Client apk (実機 sideload 用、 `eas.json` の development プロファイル)
+- `eas build --profile development --platform android` — Android Dev Client apk (実機 sideload 用、 開発時)
+- **`eas build --profile preview --platform android` — Android preview apk (JS bundle 内包、 Metro 不要で単体起動可)**。 Phase 1 検証期間 (= 「Today を実機で数日回す」、 [ADR-0006](docs/decisions/0006-phase1-completion-and-scope-narrowing.md)) の日常運用ビルド。 外出先 / 通勤中で動く。 コード変更後は再ビルド必要 (10-15 分)。
 - `eas build --profile production --platform android` — Android 本番ビルド (配布用、 Phase 2 以降)
 - iOS は Phase 1 出荷判断の手前までスルー (Apple Developer Program $99/年が必要、 [TODO.md](TODO.md) 方針)
+
+### Dev Client / preview の使い分け
+
+- **コード書く / デバッグ**: Dev Client (`npx expo start --dev-client` + 自宅 PC + 同じ Wi-Fi)
+- **日常運用 / 検証期間 / 外出先**: preview apk (Metro 不要、 単体起動)
+- 大きな変更後は preview を再ビルドして実機に再 install
 
 ## ディレクトリ構成
 
