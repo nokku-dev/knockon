@@ -1,4 +1,5 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,6 +17,25 @@ import { useTodayData } from '../../src/useTodayData';
 export default function TodayTab() {
   const { data, error, loading, handleToggle } = useTodayData();
   const router = useRouter();
+  // 通知タップで遷移してきたときの chainId を URL params から拾う (PR-1.5b-3)。
+  // TodayScreen に渡したらすぐ undefined に戻す (リロード等で再 open しないため)。
+  const { openChainId } = useLocalSearchParams<{ openChainId?: string }>();
+  const [initialOpen, setInitialOpen] = useState<string | null>(null);
+  useEffect(() => {
+    if (openChainId) {
+      setInitialOpen(openChainId);
+      router.setParams({ openChainId: undefined });
+    }
+  }, [openChainId, router]);
+  // initialOpen を 1 tick 後に null に戻す (consume)。 TodayScreen の
+  // useEffect + rAF が動き切る時間を確保した上で親の state をクリア。
+  // これでタブ切替 → Today 再 focus 時に initialOpen=null になっているので
+  // Sheet が誤って再 open しない (PR-1.5b-3 実機検証で観測した問題への対応)。
+  useEffect(() => {
+    if (!initialOpen) return;
+    const timer = setTimeout(() => setInitialOpen(null), 300);
+    return () => clearTimeout(timer);
+  }, [initialOpen]);
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
@@ -41,7 +61,11 @@ export default function TodayTab() {
           </Pressable>
         </View>
       ) : (
-        <TodayScreen chains={data.chains} onToggleNode={handleToggle} />
+        <TodayScreen
+          chains={data.chains}
+          onToggleNode={handleToggle}
+          initialOpenChainId={initialOpen}
+        />
       )}
     </SafeAreaView>
   );
