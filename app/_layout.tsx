@@ -18,14 +18,13 @@ type ToastState = { chainId: string; title: string; body: string };
 
 void SystemUI.setBackgroundColorAsync(COLOR_BG);
 
-// foreground 中の通知は OS バナーを出さず、 アプリ内で独自 Toast を出す
-// (PR-1.5b-3 ユーザー判断)。 通知センターには残す (shouldShowList=true) ので
-// 後から見返せる。 サウンド・バッジは Phase 1 ではオフ (foreground は自前 Toast
-// で気づける)。
+// foreground 中の通知は OS バナーも通知センターも出さず、 アプリ内 Toast 一本に
+// (PR-1.5b-3 ユーザー判断)。 setNotificationHandler は foreground 受信時のみ
+// 呼ばれるので、 background での通知挙動には影響しない。
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: false,
-    shouldShowList: true,
+    shouldShowList: false,
     shouldPlaySound: false,
     shouldSetBadge: false,
   }),
