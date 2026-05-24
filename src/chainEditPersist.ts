@@ -1,9 +1,11 @@
 import type { DbClient } from './db';
 import type { Anchor, Chain } from './domain';
 import {
+  deleteNode,
   insertAnchor,
   insertChain,
   insertNode,
+  listNodes,
   reorderNodes,
   updateAnchor,
   updateChain,
@@ -94,6 +96,18 @@ export const persistChainDraft = async (
     // updateChain SQL は createdAt を SET しないので任意の placeholder
     createdAt: '',
   });
+
+  // バグ修正: draft から消えたノードを DB から DELETE する。
+  // これがないと reorderNodes 時に「draft にない既存ノードが古い order_index を
+  // 持ったまま」になり、 UNIQUE(chain_id, order_index) で衝突する
+  // (PR-1.7 系の実装漏れ、 検証期間中のバグ報告で発覚)。
+  const existingNodes = await listNodes(db, draft.chainId);
+  const draftIds = new Set(draft.nodes.map((n) => n.id));
+  for (const existing of existingNodes) {
+    if (!draftIds.has(existing.id)) {
+      await deleteNode(db, existing.id);
+    }
+  }
 
   // 既存ノードの action_id 更新のみ (order_index は触らない、衝突回避)
   for (const n of draft.nodes) {

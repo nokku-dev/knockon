@@ -227,6 +227,13 @@ export const insertNode = (db: DbClient, node: Node): Promise<void> =>
     [node.id, node.chainId, node.orderIndex, node.kind, node.actionId],
   );
 
+// ノード 1 つを物理削除。 関連 achievements は schema の ON DELETE CASCADE で
+// 自動削除 (PR-1.8a)。 nodes 削除に対応する CASCADE は actions/anchors と違い
+// 派生記録のみが消えるため、 副作用は限定的。
+// 存在しないノード ID の DELETE は no-op (SQLite の挙動、 deleteChain と整合)。
+export const deleteNode = (db: DbClient, nodeId: string): Promise<void> =>
+  db.run(`DELETE FROM nodes WHERE id = ?`, [nodeId]);
+
 export const updateNode = (db: DbClient, node: Node): Promise<void> =>
   db.run(
     `UPDATE nodes SET order_index = ?, action_id = ? WHERE id = ?`,
