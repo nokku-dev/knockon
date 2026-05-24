@@ -27,6 +27,10 @@ export const TodayScreen = ({
   initialOpenChainId = null,
 }: TodayScreenProps) => {
   const [openChainId, setOpenChainId] = useState<string | null>(null);
+  // BottomSheet の index を state で持って宣言的に制御する。
+  // 旧版は sheetRef.current?.expand() を呼んでいたが、 sheet が mount される
+  // 前に呼ぶと no-op になる race があったため index prop に切替 (PR-1.5b-3 修正)。
+  const [sheetIndex, setSheetIndex] = useState<number>(-1);
   const sheetRef = useRef<BottomSheet>(null);
 
   // initialOpenChainId が変化したら該当チェーンの sheet を開く。
@@ -36,7 +40,7 @@ export const TodayScreen = ({
     const exists = chains.find((c) => c.chain.id === initialOpenChainId);
     if (!exists) return;
     setOpenChainId(initialOpenChainId);
-    sheetRef.current?.expand();
+    setSheetIndex(0);
   }, [initialOpenChainId, chains]);
 
   const openChain = useMemo(
@@ -46,10 +50,11 @@ export const TodayScreen = ({
 
   const handleOpen = useCallback((chainId: string) => {
     setOpenChainId(chainId);
-    sheetRef.current?.expand();
+    setSheetIndex(0);
   }, []);
 
   const handleClose = useCallback((idx: number) => {
+    setSheetIndex(idx);
     if (idx === -1) setOpenChainId(null);
   }, []);
 
@@ -100,7 +105,7 @@ export const TodayScreen = ({
 
       <BottomSheet
         ref={sheetRef}
-        index={-1}
+        index={sheetIndex}
         snapPoints={snapPoints}
         enablePanDownToClose
         onChange={handleClose}

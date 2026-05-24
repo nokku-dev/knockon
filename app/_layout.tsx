@@ -15,6 +15,21 @@ import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../src/tokens';
 
 void SystemUI.setBackgroundColorAsync(COLOR_BG);
 
+// expo-notifications のデフォルトでは foreground 中の通知は OS 表示されない。
+// foreground 時もバナー / リストに通知を出すよう handler を設定 (PR-1.5b-3)。
+// shouldShowBanner / shouldShowList は SDK 53+ の API。 サウンド・バッジは
+// Phase 1 ではシンプルに sound=true、 badge=false。
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    // 旧 API (SDK 52 以前) 互換: 一部 OS / version で shouldShowAlert を読む
+    shouldShowAlert: true,
+  }),
+});
+
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
