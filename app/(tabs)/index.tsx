@@ -25,7 +25,7 @@ export default function TodayTab() {
         </View>
       ) : error ? (
         <Text style={styles.error}>{error}</Text>
-      ) : !data ? (
+      ) : !data || data.chains.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>Today</Text>
           <Text style={styles.emptyBody}>
@@ -41,14 +41,7 @@ export default function TodayTab() {
           </Pressable>
         </View>
       ) : (
-        <TodayScreen
-          chain={data.chain}
-          anchor={data.anchor}
-          nodes={data.nodes}
-          achievements={data.achievements}
-          onToggleNode={handleToggle}
-          anchorFiredToday={data.anchorFiredToday}
-        />
+        <TodayScreen chains={data.chains} onToggleNode={handleToggle} />
       )}
     </SafeAreaView>
   );
