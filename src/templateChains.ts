@@ -17,12 +17,25 @@ export const BUILTIN_TEMPLATE_CHAINS: ReadonlyArray<TemplateChain> = [
   {
     id: 'morning-routine',
     title: '朝のルーティン',
-    actions: ['水を飲む', 'ストレッチ', '顔を洗う', '着替え'],
+    actions: [
+      '水を飲む',
+      '朝食器を浸け置き',
+      '筋トレ',
+      'シャワー時に洗濯スタート',
+      'ロボ掃除機を起動',
+      'ウォーキング',
+    ],
   },
   {
     id: 'workout',
     title: '筋トレ',
-    actions: ['ウォームアップ', 'メイン種目', 'クールダウン', 'プロテイン'],
+    actions: [
+      'ウォームアップ',
+      'スキルワーク (聖域)',
+      'メイン種目',
+      'クールダウン',
+      'プロテイン',
+    ],
   },
   {
     id: 'study',
@@ -33,5 +46,27 @@ export const BUILTIN_TEMPLATE_CHAINS: ReadonlyArray<TemplateChain> = [
     id: 'sleep',
     title: '就寝前',
     actions: ['歯磨き', 'スマホを置く', 'ストレッチ', '読書'],
+  },
+  {
+    id: 'laundry',
+    title: '洗濯',
+    actions: [
+      '服を洗濯機に入れる',
+      '洗濯機を ON',
+      '乾燥済みを取り出す',
+      'たたむ',
+      'しまう',
+    ],
+  },
+  {
+    id: 'bath',
+    title: 'お風呂',
+    actions: [
+      '風呂掃除',
+      '風呂を沸かす',
+      '入浴',
+      '鏡にクエン酸スプレー',
+      '髪を乾かす',
+    ],
   },
 ];
