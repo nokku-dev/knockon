@@ -9,7 +9,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Line } from 'react-native-svg';
+import Svg, { Circle, Line, Polygon } from 'react-native-svg';
 
 import type {
   AchievementMap,
@@ -27,6 +27,7 @@ import {
   COLOR_FG_SOFT,
   COLOR_GROW,
   COLOR_LINE_BG,
+  COLOR_STAR,
 } from './tokens';
 
 // Phase 2 variant: TodayNode は当日表示用に解決済みの label + kind を持つ。
@@ -43,6 +44,10 @@ export type TodayNode = {
 // PR-X (ADR-0021): Bottom Sheet 内に表示する 1 チェーン分の詳細ビュー。
 // 旧 TodayScreen の中身 (アンカー行 + チェーンタイトル + スパイン + ノードリスト)
 // を切り出した。 「Today」見出しと scroll wrap は呼び出し側 (TodayScreen) が担当。
+//
+// PR-Z1 (ADR-0024 §3a): 定着済み (14D 中 10 日以上達成) のノードは円→塗り星に切替。
+// 定着判定は親 (TodayScreen / useTodayData) で派生計算し、 nodeIdsEstablished として
+// 渡す (= ChainDetail は判定責務を持たず view 専念、 純粋関数結果の表示係)。
 export type ChainDetailProps = {
   chain: Chain;
   anchor: Anchor;
@@ -50,6 +55,7 @@ export type ChainDetailProps = {
   achievements: AchievementMap;
   onToggleNode: (nodeId: string) => void;
   anchorFiredToday?: boolean;
+  nodeIdsEstablished?: ReadonlySet<string>;
 };
 
 const SPINE_X = 9;
@@ -72,6 +78,30 @@ const TEXT_BOUNCE_DOWN_MS = 240;
 
 const AnimatedLine = Animated.createAnimatedComponent(Line);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
+
+// 5 角星の頂点を文字列で返す純粋ヘルパー (PR-Z1)。 outerR を渡すと scale 反映済みの
+// points 文字列を構成する。 reanimated worklet から毎フレーム呼ぶため (animatedProps
+// 経由) JS で軽量に保つ (ループ 10 回 / call)。 worklet 化のために関数内で
+// 'worklet' ディレクティブを宣言する。
+const STAR_INNER_RATIO = 0.382;
+const buildStarPoints = (
+  cx: number,
+  cy: number,
+  outerR: number,
+): string => {
+  'worklet';
+  const innerR = outerR * STAR_INNER_RATIO;
+  let result = '';
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const angle = (-90 + i * 36) * (Math.PI / 180);
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+    result += `${x},${y} `;
+  }
+  return result.trim();
+};
 
 export const ChainDetail = ({
   chain,
@@ -80,6 +110,7 @@ export const ChainDetail = ({
   achievements,
   onToggleNode,
   anchorFiredToday = false,
+  nodeIdsEstablished,
 }: ChainDetailProps) => {
   const domainNodes = nodes.map((n) => n.node);
   const lastAchievedIdx = lastAchievedNodeIndex(domainNodes, achievements);
@@ -171,10 +202,12 @@ export const ChainDetail = ({
           />
           {nodes.map(({ node, kind }, idx) =>
             kind === 'skip' ? null : (
-              <MarkerCircle
+              <NodeMarker
                 key={node.id}
+                nodeId={node.id}
                 cy={nodeMarkerCenterY(idx)}
                 achieved={achievements[node.id] ?? false}
+                established={nodeIdsEstablished?.has(node.id) ?? false}
               />
             ),
           )}
@@ -203,12 +236,20 @@ export const ChainDetail = ({
   );
 };
 
-const MarkerCircle = ({
+// PR-Z1 (ADR-0024): established (定着) なら塗り星、 そうでなければ円。
+// 達成 false→true 遷移時のバウンスは両形状で共通 (達成ジェスチャの一部、
+// DESIGN-SYSTEM §4.3)。 星 (定着) はバウンス時に頂点座標を毎フレーム再計算する
+// (10 頂点なのでコスト無視できる)。
+const NodeMarker = ({
+  nodeId,
   cy,
   achieved,
+  established,
 }: {
+  nodeId: string;
   cy: number;
   achieved: boolean;
+  established: boolean;
 }) => {
   const scale = useSharedValue(1);
   const prevAchievedRef = useRef(achieved);
@@ -226,15 +267,32 @@ const MarkerCircle = ({
     prevAchievedRef.current = achieved;
   }, [achieved, scale]);
 
-  const animatedProps = useAnimatedProps(() => ({
+  const circleAnimatedProps = useAnimatedProps(() => ({
     r: MARKER_RADIUS * scale.value,
   }));
 
+  const starAnimatedProps = useAnimatedProps(() => ({
+    points: buildStarPoints(SPINE_X, cy, MARKER_RADIUS * scale.value),
+  }));
+
+  if (established) {
+    return (
+      <AnimatedPolygon
+        testID={`node-marker-star-${nodeId}`}
+        animatedProps={starAnimatedProps}
+        fill={COLOR_STAR}
+        stroke={COLOR_STAR}
+        strokeWidth={1.5}
+      />
+    );
+  }
+
   return (
     <AnimatedCircle
+      testID={`node-marker-circle-${nodeId}`}
       cx={SPINE_X}
       cy={cy}
-      animatedProps={animatedProps}
+      animatedProps={circleAnimatedProps}
       fill={achieved ? COLOR_GROW : COLOR_BG}
       stroke={achieved ? COLOR_GROW : COLOR_FG_FAINT}
       strokeWidth={1.5}
