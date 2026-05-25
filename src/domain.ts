@@ -379,6 +379,9 @@ export type EstablishedOptions = {
   minAchievedDays?: number;
 };
 
+// 試行値 (PR-Z1 着手時に決定、 ユーザー判断で再調整): 14D 中 10 日達成 ≈ 71% で定着。
+// Z2 で variant-aware threshold (= variant 適用日数を分母にする) に再判断する候補。
+// 変更タイミング: 実機検証で「定着の手応えがズレている」シグナルが出たとき (K-014 ルート)。
 const DEFAULT_ESTABLISHED_WINDOW_DAYS = 14;
 const DEFAULT_ESTABLISHED_MIN_ACHIEVED = 10;
 

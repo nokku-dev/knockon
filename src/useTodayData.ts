@@ -232,6 +232,14 @@ export const useTodayData = (): UseTodayDataResult => {
   // 楽観更新: タップで UI を即時反転 → 非同期で永続化 (K-010 受容判断)。
   // PR-Z1: recentAchievements + nodeIdsEstablished も同時に再計算
   // (定着到達 / 解除を即時反映、 円→星マーカー切替が当該タップで起きる)。
+  //
+  // 計算量 (K-010 受容判断の明示): 1 タップで以下のコピーが走る:
+  //   - target.recentAchievements.map(...) → 14D × 全ノード = 数十件規模 (Phase 1 N=1)
+  //   - new Set(target.nodeIdsEstablished) → ノード数規模
+  //   - setData の chains.map(...) → 全 active チェーン数
+  // Phase 1 では体感影響なし。 PR-Z2 で windowDays が 31D に拡張 / 複数デバイス同期で
+  // 並行操作が増えた段階で「functional update + Map 化」「タップキューイング」を
+  // 判断する。 K-010 の同型ハマりを繰り返さないため数字を明文化しておく。
   const handleToggle = useCallback(
     async (chainId: string, nodeId: string) => {
       if (!data) return;

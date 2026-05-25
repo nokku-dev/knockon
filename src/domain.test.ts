@@ -672,11 +672,16 @@ describe('countAchievedDaysInWindow (定着判定の中間集計: ウィンド�
     ).toBe(3); // 5/19, 5/18, 5/10 (5/17 は achieved=false)
   });
 
-  test('ウィンドウ外の達成は除外', () => {
-    // 5/5 は 14 日前より過去 (5/19 から 14D = 5/6~5/19) なので除外
+  test('境界: 14D ウィンドウ inclusive 端 (5/6) は含む / 1 日超え (5/5) は含まない', () => {
+    // 5/19 を today にした 14D = 5/6 から 5/19 (両端 inclusive)。
+    // 5/6 の達成は count に含まれ、 5/5 の達成は含まれないことを境界 1 日差で対比検証。
+    const boundaryRecords: Achievement[] = [
+      { nodeId: 'nb', date: '2026-05-06', achieved: true }, // ウィンドウ内 (端)
+      { nodeId: 'nb', date: '2026-05-05', achieved: true }, // ウィンドウ外 (1 日越え)
+    ];
     expect(
-      countAchievedDaysInWindow(achievements, 'n1', '2026-05-19', 14),
-    ).toBe(3); // 5/5 は含まれない
+      countAchievedDaysInWindow(boundaryRecords, 'nb', '2026-05-19', 14),
+    ).toBe(1); // 5/6 のみ count、 5/5 は除外
   });
 
   test('他ノードの達成は除外', () => {
