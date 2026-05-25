@@ -10,7 +10,3 @@ export const newNodeId = (): string => `node-${Crypto.randomUUID()}`;
 export const newActionId = (): string => `action-${Crypto.randomUUID()}`;
 export const newAnchorId = (): string => `anchor-${Crypto.randomUUID()}`;
 export const newMetricId = (): string => `metric-${Crypto.randomUUID()}`;
-
-// generic randomId (metric / 他 entity 用、 prefix なし)。
-// PR-Z3a で metricsRepository.insertMetric が呼び出す。
-export const randomId = (): string => Crypto.randomUUID();

@@ -71,6 +71,9 @@ CREATE TABLE IF NOT EXISTS anchor_firings (
 -- 観測した事実として保存。 チェーン / アクション / ノードへの外部キーは持たない (疎結合)。
 -- 派生値 (移動平均 / 達成率) は保存しない (ADR-0001 維持、 表示時派生計算)。
 -- source: 'manual' (手入力) / 'notion' (Notion Body Metrics 連携、 PR-Z3b)。
+-- recorded_at format: 'YYYY-MM-DDTHH:MM:SS' (秒精度の ISO-like 文字列、 UTC ベース、
+-- timezone 標識なし)。 PR-Z3b で Notion 連携も同フォーマットに揃える。 日付のみ
+-- ('YYYY-MM-DD') は禁止 (listMetricsInRange の境界比較が壊れる)。
 CREATE TABLE IF NOT EXISTS metrics (
   id TEXT PRIMARY KEY,
   metric_key TEXT NOT NULL,

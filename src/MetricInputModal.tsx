@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -45,10 +45,24 @@ export const MetricInputModal = ({
   onCancel,
   onSubmit,
 }: MetricInputModalProps) => {
-  const initial =
-    METRIC_KINDS.find((k) => k.key === initialKind) ?? METRIC_KINDS[0];
-  const [kind, setKind] = useState<MetricKind>(initial!);
+  const [kind, setKind] = useState<MetricKind>(
+    () =>
+      METRIC_KINDS.find((k) => k.key === initialKind) ?? METRIC_KINDS[0]!,
+  );
   const [valueText, setValueText] = useState('');
+
+  // 親が Modal を永続マウントして open でトグルする構造のため、 useState(initial!)
+  // の初期値は初回マウント時しか評価されない。 「+ 体重」→キャンセル→「+ 運動」と続けて
+  // 開いたとき initialKind props は変わるが kind state が前回値のまま残るバグ対応。
+  // open 遷移ごとに initialKind に再同期 + 値もクリア (キャンセル時も値が残らない)。
+  useEffect(() => {
+    if (open) {
+      const next =
+        METRIC_KINDS.find((k) => k.key === initialKind) ?? METRIC_KINDS[0]!;
+      setKind(next);
+      setValueText('');
+    }
+  }, [open, initialKind]);
 
   const handleSubmit = async () => {
     const value = parseFloat(valueText);

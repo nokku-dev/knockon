@@ -88,4 +88,75 @@ describe('MetricInputModal', () => {
     fireEvent.press(getByLabelText('キャンセル'));
     expect(onCancel).toHaveBeenCalled();
   });
+
+  test('open=true で再オープン時、 initialKind 変更が反映される (K-026 同型バグ防止)', () => {
+    const { getByLabelText, rerender } = render(
+      <MetricInputModal
+        open={false}
+        initialKind="weight"
+        onCancel={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+    // 最初に体重で open
+    rerender(
+      <MetricInputModal
+        open={true}
+        initialKind="weight"
+        onCancel={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+    expect(getByLabelText('体重 の値')).toBeTruthy();
+    // close → 別 initialKind (運動) で再 open。 props 変更が state に反映されること
+    rerender(
+      <MetricInputModal
+        open={false}
+        initialKind="exercise_minutes"
+        onCancel={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+    rerender(
+      <MetricInputModal
+        open={true}
+        initialKind="exercise_minutes"
+        onCancel={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+    // open 遷移時に kind state が initialKind=運動 に再同期される
+    expect(getByLabelText('運動 の値')).toBeTruthy();
+  });
+
+  test('open 遷移で valueText が空に reset される (前回入力が残らない)', () => {
+    const { getByLabelText, rerender } = render(
+      <MetricInputModal
+        open={true}
+        initialKind="weight"
+        onCancel={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+    fireEvent.changeText(getByLabelText('体重 の値'), '72');
+    // close → 再 open で値がリセットされる
+    rerender(
+      <MetricInputModal
+        open={false}
+        initialKind="weight"
+        onCancel={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+    rerender(
+      <MetricInputModal
+        open={true}
+        initialKind="weight"
+        onCancel={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+    // input 内容が空に戻る (placeholder 'numeric' で 0 が表示される TextInput)
+    expect(getByLabelText('体重 の値').props.value).toBe('');
+  });
 });

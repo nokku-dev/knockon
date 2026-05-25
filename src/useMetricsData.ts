@@ -105,7 +105,10 @@ export const useMetricsData = (): UseMetricsDataResult => {
         id: newMetricId(),
         metricKey,
         value,
-        // 今この瞬間の ISO-like 文字列 (秒精度、 timezone 情報なし=ローカル想定)
+        // recorded_at は UTC ISO-like 文字列 (秒精度、 末尾 Z を剥がしただけ)。
+        // ローカル時刻ではない点に注意 (Phase 1 N=1 で同 TZ 単機運用なので実害なし)。
+        // PR-Z3b で Notion 連携を実装するとき、 Notion 側も UTC 想定なら整合する。
+        // ローカル時刻に厳密に揃えたくなったら年/月/日/時/分/秒を個別取得して組む。
         recordedAt: new Date().toISOString().replace('Z', '').slice(0, 19),
         source: 'manual',
       });
