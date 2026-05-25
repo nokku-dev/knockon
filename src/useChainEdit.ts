@@ -10,6 +10,7 @@ import {
 } from './location';
 import type { CurrentPosition, LocationPermissionStatus } from './location';
 import { persistChainDraft, validateChainDraft } from './chainEditPersist';
+import type { TemplateChain } from './templateChains';
 import {
   cancelNotificationForChain,
   scheduleNotificationForChain,
@@ -139,6 +140,10 @@ export type UseChainEditResult = {
   // ノード編集
   addNodeFromExistingAction: (actionId: string, actionTitle: string) => void;
   addNodeFromNewAction: (actionTitle: string) => Promise<void>;
+  // PR-Y1 (ADR-0023): テンプレチェーンを選んで末尾にフラット追加。
+  // 各アクションを新規 INSERT (= 既存 actions と重複しても別物として扱う) +
+  // ノードを末尾に追加。
+  addNodesFromTemplate: (template: TemplateChain) => Promise<void>;
   removeNode: (nodeId: string) => void;
   // react-native-reorderable-list の onReorder({from, to}) からそのまま受け取る形。
   // DnD ライブラリ依存度を最小にするため、from/to の単純な index 並び替えに限定。
@@ -333,6 +338,47 @@ export const useChainEdit = (
     [],
   );
 
+  // PR-Y1 (ADR-0023): テンプレチェーンを末尾追加。
+  // 各アクションを新規 INSERT (= 重複名を許容、 「胸トレ」が複数生まれてもよい)
+  // → 新規 EditableNode をまとめて末尾に追加。
+  const addNodesFromTemplate = useCallback(
+    async (template: TemplateChain) => {
+      try {
+        const db = await getExpoSqliteClient();
+        const newActions: Action[] = [];
+        for (const actionTitle of template.actions) {
+          const trimmed = actionTitle.trim();
+          if (trimmed.length === 0) continue;
+          const action: Action = {
+            id: newActionId(),
+            title: trimmed,
+            variants: null,
+          };
+          await insertAction(db, action);
+          newActions.push(action);
+        }
+        if (!mountedRef.current) return;
+        setAvailableActions((prev) => [...prev, ...newActions]);
+        setDraft((prev) => {
+          if (!prev) return prev;
+          const appended: EditableNode[] = newActions.map((action) => ({
+            id: newNodeId(),
+            isNew: true,
+            actionId: action.id,
+            actionTitle: action.title,
+            actionVariants: null,
+          }));
+          return { ...prev, nodes: [...prev.nodes, ...appended] };
+        });
+      } catch (e: unknown) {
+        if (mountedRef.current) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+      }
+    },
+    [],
+  );
+
   const removeNode = useCallback((nodeId: string) => {
     setDraft((prev) => {
       if (!prev) return prev;
@@ -506,6 +552,7 @@ export const useChainEdit = (
     fetchCurrentLocation,
     addNodeFromExistingAction,
     addNodeFromNewAction,
+    addNodesFromTemplate,
     removeNode,
     reorderNodes,
     save,

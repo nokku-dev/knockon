@@ -32,6 +32,7 @@ export default function EditChainRoute() {
     fetchCurrentLocation,
     addNodeFromExistingAction,
     addNodeFromNewAction,
+    addNodesFromTemplate,
     removeNode,
     reorderNodes,
     save,
@@ -109,6 +110,7 @@ export default function EditChainRoute() {
             onFetchLocation={fetchCurrentLocation}
             onAddExistingAction={addNodeFromExistingAction}
             onAddNewAction={addNodeFromNewAction}
+            onAddNodesFromTemplate={addNodesFromTemplate}
             onRemoveNode={removeNode}
             onReorderNodes={reorderNodes}
             onCancel={() => router.back()}
