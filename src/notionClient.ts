@@ -54,8 +54,21 @@ const extractNumberProperties = (
 // データソース ID は Notion の URL 末尾の hyphenated UUID。
 // API token は integration secret (page を share した integration の token)。
 //
-// Notion 公式 API は「database」と呼んでいるが、 本プロジェクトでは「データソース」と
-// 呼ぶ (Notion 側の最新 UI 用語と整合、 ADR-0024 内表記も同じ)。
+// 用語注意: 本プロジェクトでは「データソース」と呼ぶが、 実装は **旧 database API**
+// (`/v1/databases/{id}/query`) を Notion-Version 2022-06-28 で叩いている。 Notion 公式は
+// 2025-09 以降 `/v1/data_sources/{id}/query` を新 API として導入済み。 Phase 1 N=1 では
+// 1 database = 1 data source 前提で旧 API のままで動く。 user の Notion DB が複数
+// data source 構成だと 404 になる。 その場合は Phase 2 で新 API + Notion-Version 更新を判断。
+//
+// throw されるエラー: HTTP status を error.message のプレフィックスに含めて呼び出し側
+// (useMetricsData) で区別する。 401 は永続エラー (token 無効) として再試行しない設計。
+export class NotionApiError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = 'NotionApiError';
+  }
+}
+
 export const queryNotionDataSource = async (
   apiToken: string,
   dataSourceId: string,
@@ -80,7 +93,10 @@ export const queryNotionDataSource = async (
   );
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`Notion API ${res.status}: ${text.slice(0, 200)}`);
+    throw new NotionApiError(
+      res.status,
+      `Notion API ${res.status}: ${text.slice(0, 200)}`,
+    );
   }
   const json = (await res.json()) as NotionQueryResponse;
   return json.results.map((p) => ({

@@ -16,6 +16,11 @@ const METRIC_KEYS = new Set(METRIC_KINDS.map((k) => k.key));
 
 // Notion datetime ('2026-05-26T09:00:00.000Z') を 'YYYY-MM-DDTHH:MM:SS' に正規化。
 // recorded_at の format 規約 (db.ts スキーマコメント) に合わせる。
+//
+// **前提**: Notion API の created_time は常に UTC + 'Z' 終端固定 (ms 精度)。
+// TZ offset 形式 (例: '+09:00') が将来返るようになると同一時刻が別 key 扱いされ
+// 重複判定が壊れる (K-018 同型の test/prod 差リスク)。 Phase 1 N=1 受容、 Phase 2 で
+// Notion API ドキュメント変更を見て防御強化判断。
 export const normalizeNotionDatetime = (iso: string): string => {
   // 'Z' 末尾を剥がし、 ミリ秒を切る
   const noZ = iso.replace('Z', '');

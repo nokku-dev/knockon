@@ -20,3 +20,7 @@ android/
 *.db-journal
 .DS_Store
 
+# Secrets (PR-Z3b: Notion API token 等は .env から process.env 経由で読む。 commit しない)
+.env
+.env.local
+

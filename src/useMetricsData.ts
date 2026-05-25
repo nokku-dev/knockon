@@ -14,7 +14,7 @@ import {
   listRecentMetrics,
 } from './metricsRepository';
 import type { Metric } from './metricsRepository';
-import { queryNotionDataSource } from './notionClient';
+import { NotionApiError, queryNotionDataSource } from './notionClient';
 import { getNotionConfig, isNotionConfigured } from './notionConfig';
 import {
   filterNewNotionMetrics,
@@ -43,6 +43,12 @@ const ANALYTICS_WINDOW_DAYS = 14;
 // page size = 14 で 14D 分を取得 (Notion 側に古い record があっても 14 件目までで足りる前提)。
 // 重複判定は (metricKey, recordedAt, source='notion') の組み合わせで、 既存 record と
 // 一致するものは insert しない。 insert 件数を返す (UI 側で「新規取り込みあり」判定に使う)。
+//
+// 受容判断 (K-010 / K-024 同型):
+// - 重複判定で listMetricsInRange を kind 数だけ実行 (N+1)。 Phase 1 N=1 で 3 kind ×
+//   3 query = 数 ms、 体感問題なし。 Phase 2 で kind が増えたら listMetricsInRangeBulk 化判断
+// - 401 (token 無効) は永続エラー扱い → NotionApiError を 401 で識別して再送出。
+//   呼び出し側で「同セッション内では再 query しない」judgement
 const syncNotionMetricsInBackground = async (
   today: IsoDate,
 ): Promise<number> => {
@@ -57,7 +63,7 @@ const syncNotionMetricsInBackground = async (
   const candidates = mapNotionPagesToMetrics(pages);
   if (candidates.length === 0) return 0;
   const db = await getExpoSqliteClient();
-  // 既存の notion 由来 record を 14D 範囲で取得 (重複判定用)
+  // 既存の notion 由来 record を 14D 範囲で取得 (重複判定用)。 N+1 受容 (上記コメント)。
   const window = recentDateRange(today, ANALYTICS_WINDOW_DAYS);
   const windowStart = window[0] ?? today;
   const allExisting: Pick<Metric, 'metricKey' | 'recordedAt' | 'source'>[] = [];
@@ -131,6 +137,8 @@ export const useMetricsData = (): UseMetricsDataResult => {
   const [refreshTick, setRefreshTick] = useState(0);
   // PR-Z3b: Notion sync は session 内で 1 度だけ。 useFocusEffect が再発火しても
   // 重複しないように ref で「今日 sync 済みか」を持つ (cold start ごとに再 sync)。
+  // 失敗時も ref はそのまま保持 (= 同セッション中は再試行しない、 cold start で再試行する受容判断、 K-024 同型)。
+  // 401 (token 無効) は永続エラー扱いで特別な値 '-disabled-' をセットして cold start 後でも再 query しない。
   const notionSyncedRef = useRef<string | null>(null);
 
   useFocusEffect(
@@ -146,16 +154,25 @@ export const useMetricsData = (): UseMetricsDataResult => {
           // Notion sync を非同期で発火 (loading に乗せず、 backround 取り込み)。
           // 失敗時は silently fallback (UI に出さない、 K-024 同型 / ADR-0024 構造的策)。
           if (notionSyncedRef.current === d.today) return; // 既に今日 sync 済み
+          if (notionSyncedRef.current === '-disabled-') return; // 401 で永続 disable
           notionSyncedRef.current = d.today;
           syncNotionMetricsInBackground(d.today)
             .then((inserted) => {
               if (cancelled || inserted === 0) return;
               setRefreshTick((t) => t + 1); // 新規 record があれば UI 再描画
             })
-            .catch(() => {
-              // silently fallback。 ログだけ残す (UI には出さない)
-              // eslint-disable-next-line no-console
-              console.warn('Notion metrics sync failed, falling back to local');
+            .catch((e: unknown) => {
+              // 401 (token 無効) は永続化 — 同セッション内では二度と query しない。
+              // それ以外 (429 / 5xx / network) は今日中の同セッションでは再試行しない
+              // (cold start で再試行)。 K-024 silently fallback と整合。
+              if (e instanceof NotionApiError && e.status === 401) {
+                notionSyncedRef.current = '-disabled-';
+                // eslint-disable-next-line no-console
+                console.warn('Notion API 401 — sync disabled for this session');
+              } else {
+                // eslint-disable-next-line no-console
+                console.warn('Notion metrics sync failed, falling back to local');
+              }
             });
         })
         .catch((e: unknown) => {
