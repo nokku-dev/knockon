@@ -39,6 +39,9 @@ export const AnalyticsScreen = ({
 
 const AnalyticsChainCard = ({ data }: { data: AnalyticsChainData }) => {
   const { chain, anchor, nodeCount, stats, series } = data;
+  // 達成率の rounding 判断: Math.round で四捨五入 (= 99.5% は 100% 表示)。
+  // Celebrate 主の核と整合 (= 達成側に寄せる)、 K-010 同型の暗黙にしない判断。
+  // 切り捨て (Math.floor) に変えると「実態より厳しい表示」となり Augmentation 原則と逆行。
   const rate =
     stats.applicableDays === 0
       ? 0
@@ -52,8 +55,8 @@ const AnalyticsChainCard = ({ data }: { data: AnalyticsChainData }) => {
         <Text style={styles.cardRate}>{rate}%</Text>
       </View>
       <Text style={styles.cardMeta}>
-        {anchor.title} · {nodeCount} ノード · {stats.achievedDays} /{' '}
-        {stats.applicableDays} 日
+        {anchor.title} · {nodeCount} ノード · 達成 {stats.achievedDays} /{' '}
+        対象 {stats.applicableDays} 日
       </Text>
       <LineChart series={series} width={300} height={64} />
     </View>

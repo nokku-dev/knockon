@@ -89,14 +89,15 @@ describe('AnalyticsScreen', () => {
     expect(getAllByTestId('line-chart')).toHaveLength(2);
   });
 
-  test('カードに「N ノード」「N/M 日」メタ情報が表示される', () => {
+  test('カードに「N ノード」「達成 X / 対象 Y 日」メタ情報が表示される (variant 適用日数の対比明示)', () => {
     const chains = [buildAnalyticsData('c1', '朝のルーティン', 10, 14)];
     const { getByText } = render(
       <AnalyticsScreen chains={chains} windowDays={14} />,
     );
-    // 「起点 · 3 ノード · 10 / 14 日」のような結合表示
+    // 「起点 · 3 ノード · 達成 10 / 対象 14 日」のような結合表示
     expect(getByText(/3 ノード/)).toBeTruthy();
-    expect(getByText(/10 \/ 14 日/)).toBeTruthy();
+    expect(getByText(/達成 10/)).toBeTruthy();
+    expect(getByText(/対象 14 日/)).toBeTruthy();
   });
 
   test('windowDays が「過去 N 日の達成率」サブ見出しに反映', () => {

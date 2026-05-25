@@ -8,7 +8,7 @@ import {
 import type { ChainStats, DailyChainPoint } from './analyticsDerivation';
 import { getExpoSqliteClient } from './db.expo';
 import { recentDateRange, sortChainsForDisplay, todayIsoDate } from './domain';
-import type { Action, Anchor, Chain, IsoDate, Node } from './domain';
+import type { Action, Anchor, Chain, IsoDate } from './domain';
 import {
   getAction,
   getAnchor,
@@ -46,12 +46,16 @@ const loadAnalytics = async (): Promise<AnalyticsData> => {
   // active なチェーンだけ集計 (stocked は別軸の意思決定で休止中のため分析から除外)。
   const chains = await listChains(db, 'active');
 
+  // K-010 同型の受容判断: chain 間は Promise.all で並列だが、 chain 内は逐次 (anchor →
+   // nodes → 各 action → achievements)。 Phase 1 N=1 規模で集計 ~10ms / 体感問題なし。
+   // 多人数 / 多チェーン (PR-Z3+ 出荷後レイヤー) で遅延が出たら chain 内も並列化 + action
+   // を全チェーン横断キャッシュにする判断トリガー。
   const results = await Promise.all(
     chains.map(async (chain) => {
       const anchor = await getAnchor(db, chain.anchorId);
       if (!anchor) return null;
       const nodes = await listNodes(db, chain.id);
-      // action を 1 回ずつだけ fetch (重複しないので Map 経由)。
+      // action を 1 回ずつだけ fetch (1 chain 内で重複しないので Map 経由)。
       const actionMap = new Map<string, Action>();
       for (const node of nodes) {
         if (actionMap.has(node.actionId)) continue;
@@ -66,14 +70,14 @@ const loadAnalytics = async (): Promise<AnalyticsData> => {
       );
       const stats = chainAchievementStats(
         records,
-        nodes as Node[],
+        nodes,
         actionMap,
         today,
         ANALYTICS_WINDOW_DAYS,
       );
       const series = dailyChainAchievementSeries(
         records,
-        nodes as Node[],
+        nodes,
         actionMap,
         today,
         ANALYTICS_WINDOW_DAYS,
