@@ -129,6 +129,7 @@ export const TodayScreen = ({
               nodes={openChain.nodes}
               achievements={openChain.achievements}
               anchorFiredToday={openChain.anchorFiredToday}
+              nodeIdsEstablished={openChain.nodeIdsEstablished}
               onToggleNode={(nodeId) => onToggleNode(openChain.chain.id, nodeId)}
             />
           )}
