@@ -329,3 +329,73 @@ export const sortChainsForDisplay = <T extends ChainOrderable>(
     return a.chain.createdAt.localeCompare(b.chain.createdAt);
   });
 };
+
+// PR-Z1 (ADR-0024 §3a) 定着判定の純粋関数群。
+//
+// 「定着 = 14D ウィンドウ中の達成日数が閾値以上」の単純判定。 デフォルト閾値は
+// 14D 中 10 日 (約 71%、 ユーザー判断で着手時に確定)。 variant 適用日数は当面
+// 考慮しない (= 「Mon のみ variant」のような低頻度アクションは定着しにくい状態
+// を受容)。 Phase 3 dashboard / Z2 で variant 考慮の達成率を実装したら再判断。
+
+// 今日を含む過去 N 日の IsoDate 配列を返す (昇順)。 14D ウィンドウの基礎ヘルパー。
+// 月またぎ / 年またぎは Date オブジェクトに委ねる (timezone は呼び出し側 today
+// の解釈に依存。 todayIsoDate 経由なら local timezone 一貫)。
+export const recentDateRange = (
+  today: IsoDate,
+  windowDays: number,
+): IsoDate[] => {
+  if (windowDays <= 0) return [];
+  const base = new Date(today + 'T00:00:00');
+  const out: IsoDate[] = [];
+  for (let i = windowDays - 1; i >= 0; i--) {
+    const d = new Date(base);
+    d.setDate(d.getDate() - i);
+    out.push(todayIsoDate(d));
+  }
+  return out;
+};
+
+// ウィンドウ内の達成日数を集計。 achievements は全期間分の配列を受け取る
+// (呼び出し側で絞り込まなくて良い API)。
+export const countAchievedDaysInWindow = (
+  achievements: readonly Achievement[],
+  nodeId: string,
+  today: IsoDate,
+  windowDays: number,
+): number => {
+  const range = new Set(recentDateRange(today, windowDays));
+  let count = 0;
+  for (const a of achievements) {
+    if (a.nodeId === nodeId && a.achieved && range.has(a.date)) count++;
+  }
+  return count;
+};
+
+// 定着判定 (ADR-0024 PR-Z1)。 14D 中 X 日以上達成で定着。
+// 円→星マーカー (DESIGN-SYSTEM §4.2) の切替判定に使う。
+// オプションで windowDays / minAchievedDays を上書き可能 (テスト / 将来の調整用)。
+export type EstablishedOptions = {
+  windowDays?: number;
+  minAchievedDays?: number;
+};
+
+const DEFAULT_ESTABLISHED_WINDOW_DAYS = 14;
+const DEFAULT_ESTABLISHED_MIN_ACHIEVED = 10;
+
+export const isNodeEstablished = (
+  achievements: readonly Achievement[],
+  nodeId: string,
+  today: IsoDate,
+  options?: EstablishedOptions,
+): boolean => {
+  const windowDays = options?.windowDays ?? DEFAULT_ESTABLISHED_WINDOW_DAYS;
+  const minAchievedDays =
+    options?.minAchievedDays ?? DEFAULT_ESTABLISHED_MIN_ACHIEVED;
+  const count = countAchievedDaysInWindow(
+    achievements,
+    nodeId,
+    today,
+    windowDays,
+  );
+  return count >= minAchievedDays;
+};

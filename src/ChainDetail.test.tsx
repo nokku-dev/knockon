@@ -236,6 +236,42 @@ describe('ChainDetail', () => {
     expect(queryAllByText('100m').length).toBe(0);
   });
 
+  test('nodeIdsEstablished に含まれるノードは塗り星マーカー (Polygon) で描画', () => {
+    const { getByTestId, queryByTestId } = render(
+      <ChainDetail
+        chain={chain}
+        anchor={anchor}
+        nodes={todayNodes}
+        achievements={{ n1: true }}
+        onToggleNode={() => {}}
+        nodeIdsEstablished={new Set(['n1'])}
+      />,
+    );
+    // n1 は定着 → 星
+    expect(getByTestId('node-marker-star-n1')).toBeTruthy();
+    expect(queryByTestId('node-marker-circle-n1')).toBeNull();
+    // n2 / n3 は未定着 → 円
+    expect(getByTestId('node-marker-circle-n2')).toBeTruthy();
+    expect(getByTestId('node-marker-circle-n3')).toBeTruthy();
+    expect(queryByTestId('node-marker-star-n2')).toBeNull();
+  });
+
+  test('nodeIdsEstablished が未指定なら全ノード円マーカー (定着なし)', () => {
+    const { getByTestId, queryByTestId } = render(
+      <ChainDetail
+        chain={chain}
+        anchor={anchor}
+        nodes={todayNodes}
+        achievements={{ n1: true, n2: true, n3: true }}
+        onToggleNode={() => {}}
+      />,
+    );
+    expect(getByTestId('node-marker-circle-n1')).toBeTruthy();
+    expect(getByTestId('node-marker-circle-n2')).toBeTruthy();
+    expect(getByTestId('node-marker-circle-n3')).toBeTruthy();
+    expect(queryByTestId('node-marker-star-n1')).toBeNull();
+  });
+
   test('kind=skip のノードはスキップマーク (—) + 親 title でグレー表示 + タップ不可', () => {
     const onToggleNode = jest.fn();
     const skipNodes: readonly TodayNode[] = [

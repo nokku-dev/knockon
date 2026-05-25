@@ -4,15 +4,23 @@ import { useCallback, useState } from 'react';
 import { getExpoSqliteClient } from './db.expo';
 import {
   isAnchorFiringToday,
+  isNodeEstablished,
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
+  recentDateRange,
   resolveActionForDate,
   sortChainsForDisplay,
   toAchievementMap,
   todayIsoDate,
   toggleAchievementInMap,
 } from './domain';
-import type { AchievementMap, Anchor, Chain, IsoDate } from './domain';
+import type {
+  Achievement,
+  AchievementMap,
+  Anchor,
+  Chain,
+  IsoDate,
+} from './domain';
 import {
   getCurrentPosition,
   getLocationPermissionStatus,
@@ -37,6 +45,12 @@ export type TodayChainData = {
   achievements: AchievementMap;
   // ADR-0012: アンカー発火イベントモデル (時刻/場所共通の 1 日 1 回不可逆)。
   anchorFiredToday: boolean;
+  // PR-Z1 (ADR-0024 §3a): 14D ウィンドウの達成記録 (派生値の元データ)。
+  // 楽観更新時に nodeIdsEstablished を再計算するために保持。 永続化はしない。
+  recentAchievements: readonly Achievement[];
+  // PR-Z1 (ADR-0024 §3a): 定着判定済みノード ID の集合 (派生値)。 14D ウィンドウで
+  // 10 日以上達成しているノードを派生計算。 楽観更新時は recentAchievements 経由で再計算。
+  nodeIdsEstablished: ReadonlySet<string>;
 };
 
 // Today 画面全体の状態。 ADR-0020 で「手動発火」概念を廃止、 active な全チェーンを
@@ -90,12 +104,23 @@ const loadChainForToday = async (
     }),
   );
   const validNodes = withActions.filter((x): x is TodayNode => x !== null);
+  // PR-Z1 (ADR-0024 §3a): 定着判定のため 14D 範囲で記録取得。 today 単独取得から拡張。
+  // 14D 取得を要求しているのは定着判定だけだが、 同じクエリでまとめて済ませる
+  // (パフォーマンス影響: チェーン × 14 行 × ノード数、 N=1 規模で無視できる)。
+  const recentWindow = recentDateRange(today, 14);
+  const windowStart = recentWindow[0] ?? today;
   const records = await listAchievementsForNodes(
     db,
     validNodes.map((n) => n.node.id),
-    today,
+    windowStart,
     today,
   );
+  const nodeIdsEstablished = new Set<string>();
+  for (const n of validNodes) {
+    if (isNodeEstablished(records, n.node.id, today)) {
+      nodeIdsEstablished.add(n.node.id);
+    }
+  }
 
   // ADR-0012: 既存の発火 record があれば「今日発火済み」確定。
   const todayFirings = await listAnchorFiringsForDate(db, anchor.id, today);
@@ -114,6 +139,8 @@ const loadChainForToday = async (
     nodes: validNodes,
     achievements: toAchievementMap(records, today),
     anchorFiredToday,
+    recentAchievements: records,
+    nodeIdsEstablished,
   };
 };
 
@@ -203,6 +230,8 @@ export const useTodayData = (): UseTodayDataResult => {
   );
 
   // 楽観更新: タップで UI を即時反転 → 非同期で永続化 (K-010 受容判断)。
+  // PR-Z1: recentAchievements + nodeIdsEstablished も同時に再計算
+  // (定着到達 / 解除を即時反映、 円→星マーカー切替が当該タップで起きる)。
   const handleToggle = useCallback(
     async (chainId: string, nodeId: string) => {
       if (!data) return;
@@ -212,13 +241,40 @@ export const useTodayData = (): UseTodayDataResult => {
         target.achievements,
         nodeId,
       );
+      const nextAchieved = nextAchievements[nodeId] ?? false;
+      // recentAchievements: 今日の該当ノード record を更新 (なければ追加)。
+      const hadTodayRecord = target.recentAchievements.some(
+        (r) => r.nodeId === nodeId && r.date === data.today,
+      );
+      const nextRecent: readonly Achievement[] = hadTodayRecord
+        ? target.recentAchievements.map((r) =>
+            r.nodeId === nodeId && r.date === data.today
+              ? { ...r, achieved: nextAchieved }
+              : r,
+          )
+        : [
+            ...target.recentAchievements,
+            { nodeId, date: data.today, achieved: nextAchieved },
+          ];
+      // 定着判定再計算: 対象ノードのみ集合に add/delete (他ノードは変化なし)。
+      const nextEstablished = new Set(target.nodeIdsEstablished);
+      if (isNodeEstablished(nextRecent, nodeId, data.today)) {
+        nextEstablished.add(nodeId);
+      } else {
+        nextEstablished.delete(nodeId);
+      }
       setData((prev) =>
         prev
           ? {
               ...prev,
               chains: prev.chains.map((c) =>
                 c.chain.id === chainId
-                  ? { ...c, achievements: nextAchievements }
+                  ? {
+                      ...c,
+                      achievements: nextAchievements,
+                      recentAchievements: nextRecent,
+                      nodeIdsEstablished: nextEstablished,
+                    }
                   : c,
               ),
             }
@@ -229,7 +285,7 @@ export const useTodayData = (): UseTodayDataResult => {
         await recordAchievement(db, {
           nodeId,
           date: data.today,
-          achieved: nextAchievements[nodeId] ?? false,
+          achieved: nextAchieved,
         });
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : String(e));

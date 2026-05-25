@@ -7,15 +7,18 @@ import type {
   Node,
 } from './domain';
 import {
+  countAchievedDaysInWindow,
   countAchievedNodesOn,
   distanceMeters,
   getWeekdayKey,
   groupAchievementsByDate,
   isAnchorFiringToday,
   isNodeAchievedOn,
+  isNodeEstablished,
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
   lastAchievedNodeIndex,
+  recentDateRange,
   resolveActionForDate,
   shouldSeed,
   sortChainsForDisplay,
@@ -609,5 +612,140 @@ describe('sortChainsForDisplay (Today / 一覧の表示順)', () => {
     const original = [...items];
     sortChainsForDisplay(items);
     expect(items).toEqual(original);
+  });
+});
+
+describe('recentDateRange (今日を含む過去 N 日の IsoDate 配列を返す: 14D ウィンドウ用)', () => {
+  test('windowDays=3 → 今日と前 2 日 (昇順)', () => {
+    expect(recentDateRange('2026-05-19', 3)).toEqual([
+      '2026-05-17',
+      '2026-05-18',
+      '2026-05-19',
+    ]);
+  });
+
+  test('月またぎを跨ぐ (4/30 windowDays=3 → 4/28, 4/29, 4/30)', () => {
+    expect(recentDateRange('2026-04-30', 3)).toEqual([
+      '2026-04-28',
+      '2026-04-29',
+      '2026-04-30',
+    ]);
+  });
+
+  test('年またぎ (2026/01/02 windowDays=3 → 2025/12/31, 2026/01/01, 2026/01/02)', () => {
+    expect(recentDateRange('2026-01-02', 3)).toEqual([
+      '2025-12-31',
+      '2026-01-01',
+      '2026-01-02',
+    ]);
+  });
+
+  test('windowDays=14 → 14 件', () => {
+    const range = recentDateRange('2026-05-19', 14);
+    expect(range.length).toBe(14);
+    expect(range[13]).toBe('2026-05-19');
+    expect(range[0]).toBe('2026-05-06');
+  });
+
+  test('windowDays=1 → 今日 1 件のみ', () => {
+    expect(recentDateRange('2026-05-19', 1)).toEqual(['2026-05-19']);
+  });
+
+  test('windowDays=0 → 空配列', () => {
+    expect(recentDateRange('2026-05-19', 0)).toEqual([]);
+  });
+});
+
+describe('countAchievedDaysInWindow (定着判定の中間集計: ウィンドウ内達成日数)', () => {
+  const achievements: Achievement[] = [
+    { nodeId: 'n1', date: '2026-05-19', achieved: true },
+    { nodeId: 'n1', date: '2026-05-18', achieved: true },
+    { nodeId: 'n1', date: '2026-05-17', achieved: false },
+    { nodeId: 'n1', date: '2026-05-10', achieved: true },
+    { nodeId: 'n1', date: '2026-05-05', achieved: true }, // 14D ウィンドウ外 (>14 日前)
+    { nodeId: 'n2', date: '2026-05-19', achieved: true },
+  ];
+
+  test('14D ウィンドウ内の達成日数を集計', () => {
+    expect(
+      countAchievedDaysInWindow(achievements, 'n1', '2026-05-19', 14),
+    ).toBe(3); // 5/19, 5/18, 5/10 (5/17 は achieved=false)
+  });
+
+  test('ウィンドウ外の達成は除外', () => {
+    // 5/5 は 14 日前より過去 (5/19 から 14D = 5/6~5/19) なので除外
+    expect(
+      countAchievedDaysInWindow(achievements, 'n1', '2026-05-19', 14),
+    ).toBe(3); // 5/5 は含まれない
+  });
+
+  test('他ノードの達成は除外', () => {
+    expect(
+      countAchievedDaysInWindow(achievements, 'n2', '2026-05-19', 14),
+    ).toBe(1);
+  });
+
+  test('該当ノードなしなら 0', () => {
+    expect(
+      countAchievedDaysInWindow(achievements, 'unknown', '2026-05-19', 14),
+    ).toBe(0);
+  });
+
+  test('windowDays=1 (今日のみ) で集計', () => {
+    expect(countAchievedDaysInWindow(achievements, 'n1', '2026-05-19', 1)).toBe(1);
+  });
+});
+
+describe('isNodeEstablished (定着判定: ADR-0024 PR-Z1 / 14D 中 10 日以上達成で定着)', () => {
+  // 14D 連続達成
+  const allAchieved = (nodeId: string): Achievement[] =>
+    Array.from({ length: 14 }, (_, i) => {
+      const day = String(6 + i).padStart(2, '0');
+      return { nodeId, date: `2026-05-${day}`, achieved: true };
+    });
+
+  test('14D 中 10 日達成 (デフォルト閾値) → 定着 (true)', () => {
+    const records: Achievement[] = Array.from({ length: 10 }, (_, i) => {
+      const day = String(10 + i).padStart(2, '0');
+      return { nodeId: 'n1', date: `2026-05-${day}`, achieved: true };
+    });
+    expect(isNodeEstablished(records, 'n1', '2026-05-19')).toBe(true);
+  });
+
+  test('14D 中 9 日達成 (閾値未満) → 未定着 (false)', () => {
+    const records: Achievement[] = Array.from({ length: 9 }, (_, i) => {
+      const day = String(11 + i).padStart(2, '0');
+      return { nodeId: 'n1', date: `2026-05-${day}`, achieved: true };
+    });
+    expect(isNodeEstablished(records, 'n1', '2026-05-19')).toBe(false);
+  });
+
+  test('14D 連続達成 → 定着', () => {
+    expect(isNodeEstablished(allAchieved('n1'), 'n1', '2026-05-19')).toBe(true);
+  });
+
+  test('14D 中 0 日達成 → 未定着', () => {
+    expect(isNodeEstablished([], 'n1', '2026-05-19')).toBe(false);
+  });
+
+  test('閾値カスタム (minAchievedDays=5) → 14D 中 5 日で定着', () => {
+    const records: Achievement[] = Array.from({ length: 5 }, (_, i) => {
+      const day = String(15 + i).padStart(2, '0');
+      return { nodeId: 'n1', date: `2026-05-${day}`, achieved: true };
+    });
+    expect(
+      isNodeEstablished(records, 'n1', '2026-05-19', {
+        minAchievedDays: 5,
+      }),
+    ).toBe(true);
+  });
+
+  test('ウィンドウ外の連続達成は定着判定に含めない', () => {
+    // 5/19 を基準に 14D = 5/6~5/19。 4 月の達成 14 日連続は範囲外
+    const records: Achievement[] = Array.from({ length: 14 }, (_, i) => {
+      const day = String(15 + i).padStart(2, '0');
+      return { nodeId: 'n1', date: `2026-04-${day}`, achieved: true };
+    });
+    expect(isNodeEstablished(records, 'n1', '2026-05-19')).toBe(false);
   });
 });
