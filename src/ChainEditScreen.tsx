@@ -17,6 +17,9 @@ import type {
 
 import { ActionEditor } from './ActionEditor';
 import { AnchorEditor } from './AnchorEditor';
+import { TemplateChainPicker } from './TemplateChainPicker';
+import { BUILTIN_TEMPLATE_CHAINS } from './templateChains';
+import type { TemplateChain } from './templateChains';
 import type { Action, Anchor, ChainStatus } from './domain';
 import { summarizeVariantDays } from './domain';
 import type { CurrentPosition, LocationPermissionStatus } from './location';
@@ -48,6 +51,9 @@ export type ChainEditScreenProps = {
   onAddExistingAction: (actionId: string, actionTitle: string) => void;
   onAddNewAction: (actionTitle: string) => void;
   onRemoveNode: (nodeId: string) => void;
+  // PR-Y1: テンプレチェーンを選んで末尾追加 (各アクションを新規 INSERT + ノード追加)。
+  // 未指定なら Footer の「+ テンプレから追加」ボタンは表示されない。
+  onAddNodesFromTemplate?: (template: TemplateChain) => void;
   // react-native-reorderable-list の onReorder({from, to}) をそのまま受ける形。
   onReorderNodes: (from: number, to: number) => void;
   onCancel: () => void;
@@ -79,6 +85,7 @@ export const ChainEditScreen = ({
   onFetchLocation,
   onAddExistingAction,
   onAddNewAction,
+  onAddNodesFromTemplate,
   onRemoveNode,
   onReorderNodes,
   onCancel,
@@ -91,6 +98,8 @@ export const ChainEditScreen = ({
   const [newActionDraft, setNewActionDraft] = useState('');
   // Phase 2 variant: 編集中のアクション (Modal で ActionEditor を表示)。
   const [editingAction, setEditingAction] = useState<Action | null>(null);
+  // PR-Y1: テンプレチェーン選択モーダルの open 状態。
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const canSave =
     !saving && draft.title.trim().length > 0 && draft.nodes.length > 0;
 
@@ -246,14 +255,26 @@ export const ChainEditScreen = ({
     () => (
       <View style={styles.footerContent}>
         {!adderOpen ? (
-          <Pressable
-            onPress={() => setAdderOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="ノードを追加"
-            style={styles.addBtn}
-          >
-            <Text style={styles.addBtnText}>+ ノードを追加</Text>
-          </Pressable>
+          <View style={styles.addRow}>
+            <Pressable
+              onPress={() => setAdderOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="ノードを追加"
+              style={styles.addBtn}
+            >
+              <Text style={styles.addBtnText}>+ ノードを追加</Text>
+            </Pressable>
+            {onAddNodesFromTemplate && (
+              <Pressable
+                onPress={() => setTemplatePickerOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="テンプレから追加"
+                style={styles.addBtn}
+              >
+                <Text style={styles.addBtnText}>+ テンプレから追加</Text>
+              </Pressable>
+            )}
+          </View>
         ) : (
           <ActionPicker
             actions={availableActions}
@@ -297,6 +318,7 @@ export const ChainEditScreen = ({
       newActionDraft,
       onAddExistingAction,
       onAddNewAction,
+      onAddNodesFromTemplate,
       onDelete,
       onDeleteAction,
       onSaveAction,
@@ -329,6 +351,22 @@ export const ChainEditScreen = ({
               if (ok) setEditingAction(null);
             }}
             onCancel={() => setEditingAction(null)}
+          />
+        )}
+      </Modal>
+      <Modal
+        visible={templatePickerOpen}
+        animationType="slide"
+        onRequestClose={() => setTemplatePickerOpen(false)}
+      >
+        {onAddNodesFromTemplate && (
+          <TemplateChainPicker
+            templates={BUILTIN_TEMPLATE_CHAINS}
+            onSelect={(t) => {
+              onAddNodesFromTemplate(t);
+              setTemplatePickerOpen(false);
+            }}
+            onCancel={() => setTemplatePickerOpen(false)}
           />
         )}
       </Modal>
@@ -603,6 +641,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLOR_LINE_BG,
   },
   removeBtnText: { color: COLOR_FG, fontSize: 16, fontWeight: '600' },
+  addRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
   addBtn: {
     marginTop: 4,
     alignSelf: 'flex-start',

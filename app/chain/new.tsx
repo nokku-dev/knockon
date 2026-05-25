@@ -30,6 +30,7 @@ export default function NewChainRoute() {
     fetchCurrentLocation,
     addNodeFromExistingAction,
     addNodeFromNewAction,
+    addNodesFromTemplate,
     removeNode,
     reorderNodes,
     save,
@@ -67,6 +68,7 @@ export default function NewChainRoute() {
             onFetchLocation={fetchCurrentLocation}
             onAddExistingAction={addNodeFromExistingAction}
             onAddNewAction={addNodeFromNewAction}
+            onAddNodesFromTemplate={addNodesFromTemplate}
             onRemoveNode={removeNode}
             onReorderNodes={reorderNodes}
             onCancel={() => router.back()}
