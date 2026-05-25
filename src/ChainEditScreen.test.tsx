@@ -242,6 +242,24 @@ describe('ChainEditScreen', () => {
     });
   });
 
+  test('onAddNodesFromTemplate 未指定では「+ テンプレから追加」ボタンが表示されない', () => {
+    const { queryByLabelText } = render(
+      <ChainEditScreen draft={baseDraft()} {...noopProps} />,
+    );
+    expect(queryByLabelText('テンプレから追加')).toBeNull();
+  });
+
+  test('onAddNodesFromTemplate 指定で「+ テンプレから追加」ボタンが表示される', () => {
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        onAddNodesFromTemplate={() => {}}
+      />,
+    );
+    expect(getByLabelText('テンプレから追加')).toBeTruthy();
+  });
+
   test('既存アクションリストから選択で onAddExistingAction', () => {
     const onAddExistingAction = jest.fn();
     const existingActions: Action[] = [
