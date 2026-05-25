@@ -67,9 +67,25 @@ CREATE TABLE IF NOT EXISTS anchor_firings (
   PRIMARY KEY (anchor_id, date)
 );
 
+-- ADR-0024 (PR-Z3a): メトリクス (体重 / 運動時間 / 睡眠時間 等)。
+-- 観測した事実として保存。 チェーン / アクション / ノードへの外部キーは持たない (疎結合)。
+-- 派生値 (移動平均 / 達成率) は保存しない (ADR-0001 維持、 表示時派生計算)。
+-- source: 'manual' (手入力) / 'notion' (Notion Body Metrics 連携、 PR-Z3b)。
+-- recorded_at format: 'YYYY-MM-DDTHH:MM:SS' (秒精度の ISO-like 文字列、 UTC ベース、
+-- timezone 標識なし)。 PR-Z3b で Notion 連携も同フォーマットに揃える。 日付のみ
+-- ('YYYY-MM-DD') は禁止 (listMetricsInRange の境界比較が壊れる)。
+CREATE TABLE IF NOT EXISTS metrics (
+  id TEXT PRIMARY KEY,
+  metric_key TEXT NOT NULL,
+  value REAL NOT NULL,
+  recorded_at TEXT NOT NULL,
+  source TEXT NOT NULL CHECK(source IN ('manual', 'notion'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_nodes_chain_order ON nodes(chain_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_achievements_date ON achievements(date);
 CREATE INDEX IF NOT EXISTS idx_anchor_firings_date ON anchor_firings(date);
+CREATE INDEX IF NOT EXISTS idx_metrics_key_date ON metrics(metric_key, recorded_at);
 `;
 
 // スキーマバージョン管理。PR-1.8a で導入。
@@ -82,9 +98,10 @@ CREATE INDEX IF NOT EXISTS idx_anchor_firings_date ON anchor_firings(date);
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const DROP_SQL = `
+DROP TABLE IF EXISTS metrics;
 DROP TABLE IF EXISTS achievements;
 DROP TABLE IF EXISTS anchor_firings;
 DROP TABLE IF EXISTS nodes;

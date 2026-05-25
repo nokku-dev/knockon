@@ -1,6 +1,7 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { LineChart } from './LineChart';
+import { MetricsSection } from './MetricsSection';
 import {
   COLOR_FG,
   COLOR_FG_FAINT,
@@ -9,6 +10,7 @@ import {
   COLOR_SURFACE,
 } from './tokens';
 import type { AnalyticsChainData } from './useAnalyticsData';
+import type { MetricSeries } from './useMetricsData';
 
 // PR-Z2 (ADR-0024 §3b): 達成率ダッシュボード画面。 active な全チェーンを
 // カードで並べ、 各カードに「14D 達成率 (%) + 折れ線グラフ」を表示。
@@ -17,11 +19,15 @@ import type { AnalyticsChainData } from './useAnalyticsData';
 export type AnalyticsScreenProps = {
   chains: readonly AnalyticsChainData[];
   windowDays: number;
+  metricsSeries?: readonly MetricSeries[];
+  onAddMetric?: (metricKey: string, value: number) => Promise<void> | void;
 };
 
 export const AnalyticsScreen = ({
   chains,
   windowDays,
+  metricsSeries,
+  onAddMetric,
 }: AnalyticsScreenProps) => (
   <ScrollView contentContainerStyle={styles.scroll}>
     <Text style={styles.heading}>分析</Text>
@@ -33,6 +39,9 @@ export const AnalyticsScreen = ({
       </Text>
     ) : (
       chains.map((c) => <AnalyticsChainCard key={c.chain.id} data={c} />)
+    )}
+    {metricsSeries && onAddMetric && (
+      <MetricsSection series={metricsSeries} onAddMetric={onAddMetric} />
     )}
   </ScrollView>
 );
