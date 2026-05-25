@@ -40,6 +40,15 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="analytics"
+        options={{
+          title: '分析',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bar-chart-outline" color={color} size={size} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
