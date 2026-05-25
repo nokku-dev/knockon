@@ -250,9 +250,28 @@ describe('スキーマの不変条件', () => {
         'anchor_firings',
         'anchors',
         'chains',
+        'metrics',
         'nodes',
       ].sort(),
     );
+    await teardown(db);
+  });
+
+  test('metrics テーブル (ADR-0024 PR-Z3a): カラムは 5 固定、 派生値カラム禁止', async () => {
+    const db = await setup();
+    type ColumnRow = { name: string };
+    const cols = await db.all<ColumnRow>(`PRAGMA table_info(metrics)`);
+    const colNames = cols.map((c) => c.name).sort();
+    expect(colNames).toEqual(['id', 'metric_key', 'recorded_at', 'source', 'value']);
+    await teardown(db);
+  });
+
+  test('metrics テーブル: チェーン / アクション / ノードへの外部キーは持たない (疎結合)', async () => {
+    const db = await setup();
+    type FkRow = { table: string; from: string };
+    const fks = await db.all<FkRow>(`PRAGMA foreign_key_list(metrics)`);
+    // metrics は他テーブルとの FK を一切持たない (= ADR-0024 疎結合方針)
+    expect(fks).toEqual([]);
     await teardown(db);
   });
 
