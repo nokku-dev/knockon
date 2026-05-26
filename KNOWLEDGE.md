@@ -174,6 +174,7 @@
 - **原因**: テスト env (`createBetterSqliteClient(':memory:')`) は毎回新規 DB なのでこの問題に遭遇しない。テストでは全 pass するのに prod で破綻する典型 (K-018 と同型の test/prod 環境差)。
 - **解決**: `PRAGMA user_version` でスキーマバージョン追跡を導入。`SCHEMA_VERSION` 定数 + `initSchema` で `current < SCHEMA_VERSION` なら全テーブル DROP → CREATE → user_version 更新。Phase 1 N=1 開発中なので「drop + recreate」で十分 (試作データの再作成は許容)。
 - **教訓**: SQLite の `CREATE TABLE IF NOT EXISTS` だけに依存する schema は「初回作成時しか反映されない」性質を持つ。`REFERENCES` 句 / CHECK 制約 / `UNIQUE` 等の変更は migration なしには既存 DB に反映されない。`PRAGMA user_version` ベースの単純 migration は Phase 1 N=1 で十分。Phase 2 で履歴が必要になれば ALTER TABLE 系に拡張。K-006 のスキーマ不変条件テストは「scheme 定義の存在」を機械検証するが、「既存 DB ファイルに対する migration が走るか」までは検証できない (K-018 と同じ test/prod 差の限界事例)。
+- **追記 (ADR-0027)**: 検証期間 ([ADR-0022](docs/decisions/0022-phase-1-completion-and-verification-operation.md)) でユーザーが運用データを蓄積し始めたため、 「drop+recreate」だと毎 PR でデータ消失する不便が顕在化。 ADR-0027 で **v4 (= PR-CC 後) 以降は ALTER ベース migration** に切替。 v1-v3 範囲は drop+recreate を維持 (= 試作期間扱い)、 v4 以降は `MIGRATIONS: Record<number, Migration>` を順次適用 + データ保全。 教訓の更新: 「`CREATE TABLE IF NOT EXISTS` で不足 → drop+recreate **か** ALTER」の判断は **データの蓄積フェーズ** で切替える (= 試作期間中は drop+recreate、 検証期間以降は ALTER)。
 
 ## K-022: 「同 TX」のような実態を伴わない用語をコメントで使わない
 

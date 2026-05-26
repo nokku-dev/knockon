@@ -128,27 +128,71 @@ DROP TABLE IF EXISTS anchors;
 DROP TABLE IF EXISTS actions;
 `;
 
+// ADR-0027: schema migration を ALTER ベースに切替 (v4 → 以降)。
+// v4 までは drop+recreate (= ADR-0016 / K-021 試作期間方針)、 v5 以降は MIGRATIONS の
+// 段階関数を順に実行してデータ保全。 将来 schema 変更時はここに step を追加する。
+//
+// 例:
+//   5: async (client) => { await client.exec(`ALTER TABLE actions ADD COLUMN xxx TEXT`); },
+//
+// 各 step は **冪等にしない** (= user_version で 1 度だけ実行される前提)。
+// 列削除 / 型変更が必要になったら、 SQLite の制約から「テーブルコピー方式」を採用 (= 新テーブル
+// 作成 → INSERT SELECT → 旧 drop → ALTER RENAME)。 1 トランザクション内に閉じる責務を
+// コメントで明示 (K-022 同型)。
+type Migration = (client: DbClient) => Promise<void>;
+// export しているのはテスト経由で MIGRATIONS step の発火を検証するため。
+// production code から直接書き換える用途ではない (= 将来 SCHEMA_VERSION bump 時に
+// 本ファイル内で step を追加するのが正規ルート)。
+export const MIGRATIONS: Record<number, Migration> = {
+  // 将来の SCHEMA_VERSION bump 時にここに追加
+};
+
+// schema 構築済み状態 (= ADR-0026 PR-CC で確定した v4) の番号。
+// これ未満なら drop+recreate (= legacy 試作期間)、 これ以上は MIGRATIONS で段階的 ALTER。
+const LEGACY_FALLBACK_VERSION = 4;
+
 export const initSchema = async (client: DbClient): Promise<void> => {
   const rows = await client.all<{ user_version: number }>(`PRAGMA user_version`);
   const current = rows[0]?.user_version ?? 0;
-  if (current < SCHEMA_VERSION) {
-    // 古い schema を破棄して新規作成。CREATE IF NOT EXISTS だと CASCADE 句が
-    // 反映されない問題への対応。
+
+  if (current === 0) {
+    // 初回起動: 最新 schema を構築 + builtin seed
+    await client.exec(SCHEMA_SQL);
+    await client.exec(BUILTIN_METRIC_KINDS_SEED_SQL);
+    await client.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+    return;
+  }
+
+  if (current < LEGACY_FALLBACK_VERSION) {
+    // legacy 試作期間 (v1-v3): drop+recreate でデータ消失受容 (ADR-0016 / K-021)。
+    // この経路は「PR-CC マージ前から起動していたユーザー」のみ通過、
+    // 通過後は v4 = ALTER ベース migration の対象になる。
     await client.exec(DROP_SQL);
     await client.exec(SCHEMA_SQL);
-    await client.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
-    // PR-CC (ADR-0026): schema migration 後にだけ builtin メトリクス種別を seed。
-    // 通常起動では走らないので、 ユーザーが builtin を削除しても次回起動で
-    // 再投入されない (= 削除の意図が保持される)。
     await client.exec(BUILTIN_METRIC_KINDS_SEED_SQL);
-  } else {
-    // 既に最新バージョン: 空 DB の保険として CREATE IF NOT EXISTS は通す
-    await client.exec(SCHEMA_SQL);
+    await client.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+    return;
+  }
+
+  // v4 以降 (= 検証期間以降): ALTER ベース migration でデータ保全 (ADR-0027)。
+  // current = LEGACY_FALLBACK_VERSION の場合は MIGRATIONS が空ならループも回らず、
+  // **完全に noop** (= データ保全の保証)。
+  //
+  // safety net としての SCHEMA_SQL 実行は意図的に**入れない**: K-021 の罠
+  // (= CREATE TABLE IF NOT EXISTS で新 schema が反映されない) を再導入する素地になる。
+  // テーブル欠損は MIGRATIONS step で明示的に書く責務 (= 「SCHEMA_SQL と MIGRATIONS の
+  // 二重 truth source」を作らない)。
+  for (let v = current + 1; v <= SCHEMA_VERSION; v++) {
+    const migration = MIGRATIONS[v];
+    if (migration) {
+      await migration(client);
+    }
+    await client.exec(`PRAGMA user_version = ${v};`);
   }
 };
 
 // PR-CC (ADR-0026): builtin メトリクス種別の DB seed SQL。
-// SCHEMA_VERSION bump (drop+recreate) のときだけ走る。 INSERT OR IGNORE で key 衝突回避。
+// 初回起動 + legacy fallback drop+recreate のときだけ走る。 INSERT OR IGNORE で key 衝突回避。
 // key 維持 (weight / exercise_minutes / sleep_hours) で Notion 連携 (PR-Z3b) 互換性確保。
 const BUILTIN_METRIC_KINDS_SEED_SQL = `
 INSERT OR IGNORE INTO metric_kinds (id, key, label, unit, order_index, is_builtin) VALUES
