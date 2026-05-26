@@ -18,6 +18,9 @@ export type Action = {
   id: string;
   title: string;
   variants: VariantMap | null;
+  // ADR-0025 (PR-BB): タイマー秒数 (NULL = タイマーなし、 既存挙動)。
+  // 入力単位は分 (UI で 30 → 1800 秒に変換) / DB は秒で精度確保。
+  timerSeconds: number | null;
 };
 
 export type WeekdayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';

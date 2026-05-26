@@ -51,11 +51,13 @@ describe('repository — チェーン1本のラウンドトリップ', () => {
       id: 'action-1',
       title: '水を飲む',
       variants: null,
+      timerSeconds: null,
     });
     await insertAction(db, {
       id: 'action-2',
       title: 'ストレッチ',
       variants: null,
+      timerSeconds: null,
     });
     await insertChain(db, {
       id: 'chain-1',
@@ -125,7 +127,7 @@ describe('recordAchievement — 正準データ (ノード, 日付, bool) のみ
       longitude: null,
       radiusMeters: null,
     });
-    await insertAction(db, { id: 'act1', title: 'A', variants: null });
+    await insertAction(db, { id: 'act1', title: 'A', variants: null, timerSeconds: null });
     await insertChain(db, {
       id: 'c1',
       title: 'C',
@@ -223,15 +225,15 @@ describe('スキーマの不変条件', () => {
     await teardown(db);
   });
 
-  test('actions テーブル: カラムは id / title / variants_json のみ (3 カラム固定、 派生値カラム禁止)', async () => {
-    // ADR-0018 で variant_json は正準保存先として位置づけられたが、
-    // 達成率 / 使用回数 / 最終使用日などの派生値カラムが滑って入らないよう
-    // K-006 ハードガードレールで固定する。
+  test('actions テーブル: カラムは id / title / variants_json / timer_seconds のみ (4 カラム固定、 派生値カラム禁止)', async () => {
+    // ADR-0018 で variant_json、 ADR-0025 で timer_seconds が正準保存先として
+    // 位置づけられた。 達成率 / 使用回数 / 最終使用日などの派生値カラムが滑って
+    // 入らないよう、 K-006 ハードガードレールで固定する。
     const db = await setup();
     type ColumnRow = { name: string };
     const actionCols = await db.all<ColumnRow>(`PRAGMA table_info(actions)`);
     const colNames = actionCols.map((c) => c.name).sort();
-    expect(colNames).toEqual(['id', 'title', 'variants_json']);
+    expect(colNames).toEqual(['id', 'timer_seconds', 'title', 'variants_json']);
     await teardown(db);
   });
 
@@ -339,8 +341,8 @@ describe('deleteChain — チェーン削除 + 関連レコードの CASCADE', (
       longitude: null,
       radiusMeters: null,
     });
-    await insertAction(db, { id: 'act-water', title: '水を飲む', variants: null });
-    await insertAction(db, { id: 'act-stretch', title: 'ストレッチ', variants: null });
+    await insertAction(db, { id: 'act-water', title: '水を飲む', variants: null, timerSeconds: null });
+    await insertAction(db, { id: 'act-stretch', title: 'ストレッチ', variants: null, timerSeconds: null });
     await insertChain(db, {
       id: 'c1',
       title: '朝のルーティン',
@@ -439,7 +441,7 @@ describe('deleteChain — チェーン削除 + 関連レコードの CASCADE', (
 describe('deleteAction — アクション削除 + 使用中の拒否 (PR-1.8b)', () => {
   test('未使用アクション削除で listActions から消える', async () => {
     const db = await setup();
-    await insertAction(db, { id: 'act-orphan', title: '使われていない', variants: null });
+    await insertAction(db, { id: 'act-orphan', title: '使われていない', variants: null, timerSeconds: null });
     await deleteAction(db, 'act-orphan');
     const actions = await listActions(db);
     expect(actions.find((a) => a.id === 'act-orphan')).toBeUndefined();
@@ -457,7 +459,7 @@ describe('deleteAction — アクション削除 + 使用中の拒否 (PR-1.8b)'
       longitude: null,
       radiusMeters: null,
     });
-    await insertAction(db, { id: 'act-water', title: '水を飲む', variants: null });
+    await insertAction(db, { id: 'act-water', title: '水を飲む', variants: null, timerSeconds: null });
     await insertChain(db, {
       id: 'c1',
       title: '朝のルーティン',
@@ -498,7 +500,7 @@ describe('deleteAction — アクション削除 + 使用中の拒否 (PR-1.8b)'
       longitude: null,
       radiusMeters: null,
     });
-    await insertAction(db, { id: 'act-water', title: '水を飲む', variants: null });
+    await insertAction(db, { id: 'act-water', title: '水を飲む', variants: null, timerSeconds: null });
     await insertChain(db, {
       id: 'c1',
       title: '朝のルーティン',
@@ -627,8 +629,8 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
 
   test('updateAction で title を変更できる', async () => {
     const db = await setup();
-    await insertAction(db, { id: 'act1', title: '水を飲む', variants: null });
-    await updateAction(db, { id: 'act1', title: 'お茶を淹れる', variants: null });
+    await insertAction(db, { id: 'act1', title: '水を飲む', variants: null, timerSeconds: null });
+    await updateAction(db, { id: 'act1', title: 'お茶を淹れる', variants: null, timerSeconds: null });
     const actions = await listActions(db);
     expect(actions.find((a) => a.id === 'act1')?.title).toBe('お茶を淹れる');
     await teardown(db);
@@ -636,7 +638,7 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
 
   test('updateAction で variant を設定 → listActions で JSON 往復が成立する (ADR-0018)', async () => {
     const db = await setup();
-    await insertAction(db, { id: 'act-workout', title: '筋トレ', variants: null });
+    await insertAction(db, { id: 'act-workout', title: '筋トレ', variants: null, timerSeconds: null });
     await updateAction(db, {
       id: 'act-workout',
       title: '筋トレ',
@@ -649,6 +651,7 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
         sat: null,
         sun: null,
       },
+      timerSeconds: null,
     });
     const actions = await listActions(db);
     const updated = actions.find((a) => a.id === 'act-workout');
@@ -678,8 +681,9 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
         sat: null,
         sun: null,
       },
+      timerSeconds: null,
     });
-    await updateAction(db, { id: 'act-workout', title: '筋トレ', variants: null });
+    await updateAction(db, { id: 'act-workout', title: '筋トレ', variants: null, timerSeconds: null });
     const actions = await listActions(db);
     expect(actions.find((a) => a.id === 'act-workout')?.variants).toBeNull();
     await teardown(db);
@@ -704,7 +708,7 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
       createdAt: '2026-05-20T00:00:00Z',
     });
     for (const id of ['act1', 'act2', 'act3']) {
-      await insertAction(db, { id, title: id, variants: null });
+      await insertAction(db, { id, title: id, variants: null, timerSeconds: null });
     }
     await insertNode(db, {
       id: 'n1',
@@ -737,8 +741,8 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
 
   test('listActions が全アクションを title 昇順で返す', async () => {
     const db = await setup();
-    await insertAction(db, { id: 'b', title: 'B アクション', variants: null });
-    await insertAction(db, { id: 'a', title: 'A アクション', variants: null });
+    await insertAction(db, { id: 'b', title: 'B アクション', variants: null, timerSeconds: null });
+    await insertAction(db, { id: 'a', title: 'A アクション', variants: null, timerSeconds: null });
     const actions = await listActions(db);
     expect(actions.map((a) => a.title)).toEqual(['A アクション', 'B アクション']);
     await teardown(db);
@@ -762,8 +766,8 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
       status: 'active',
       createdAt: '2026-05-20T00:00:00Z',
     });
-    await insertAction(db, { id: 'act1', title: '水を飲む', variants: null });
-    await insertAction(db, { id: 'act2', title: 'ストレッチ', variants: null });
+    await insertAction(db, { id: 'act1', title: '水を飲む', variants: null, timerSeconds: null });
+    await insertAction(db, { id: 'act2', title: 'ストレッチ', variants: null, timerSeconds: null });
     await insertNode(db, {
       id: 'n1',
       chainId: 'c1',

@@ -399,7 +399,7 @@ describe('getWeekdayKey (Phase 2 variant)', () => {
 });
 
 describe('resolveActionForDate (Phase 2 variant: 曜日ごとのラベル切替 + 発火スキップ)', () => {
-  const base = { id: 'a1', title: '筋トレ' };
+  const base = { id: 'a1', title: '筋トレ', timerSeconds: null };
 
   test('variants=null → 既存挙動 (毎日 fire / ラベル=親 title)', () => {
     const action: Action = { ...base, variants: null };

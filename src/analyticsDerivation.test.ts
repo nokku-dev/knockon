@@ -17,6 +17,7 @@ const buildAction = (id: string, title = id): Action => ({
   id,
   title,
   variants: null,
+  timerSeconds: null,
 });
 
 const buildVariantAction = (
@@ -26,6 +27,7 @@ const buildVariantAction = (
   id,
   title: id,
   variants,
+  timerSeconds: null,
 });
 
 describe('nodeAchievementStats (PR-Z2 / variant-aware ノード単位達成率の中間集計)', () => {

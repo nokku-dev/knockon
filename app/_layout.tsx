@@ -21,13 +21,22 @@ void SystemUI.setBackgroundColorAsync(COLOR_BG);
 // foreground 中の通知は OS バナーも通知センターも出さず、 アプリ内 Toast 一本に
 // (PR-1.5b-3 ユーザー判断)。 setNotificationHandler は foreground 受信時のみ
 // 呼ばれるので、 background での通知挙動には影響しない。
+//
+// PR-BB (ADR-0025) 例外: タイマー完了通知 (data.kind === 'timer-complete') は
+// foreground 中も音を鳴らす (= タイマー画面のアラーム要件)。 K-026 (handler の
+// 個別 sound 指定は global handler が勝つ) を回避するための分岐。
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: false,
-    shouldShowList: false,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => {
+    const isTimer =
+      (notification.request.content.data as { kind?: string } | null)?.kind ===
+      'timer-complete';
+    return {
+      shouldShowBanner: false,
+      shouldShowList: false,
+      shouldPlaySound: isTimer,
+      shouldSetBadge: false,
+    };
+  },
 });
 
 export default function RootLayout() {

@@ -24,6 +24,7 @@ type ActionRow = {
   id: string;
   title: string;
   variants_json: string | null;
+  timer_seconds: number | null;
 };
 
 type ChainRow = {
@@ -69,6 +70,7 @@ const rowToAction = (r: ActionRow): Action => ({
   variants: r.variants_json
     ? (JSON.parse(r.variants_json) as VariantMap)
     : null,
+  timerSeconds: r.timer_seconds,
 });
 
 const rowToChain = (r: ChainRow): Chain => ({
@@ -168,18 +170,26 @@ export const deleteAction = async (
 };
 
 export const insertAction = (db: DbClient, action: Action): Promise<void> =>
-  db.run(`INSERT INTO actions (id, title, variants_json) VALUES (?, ?, ?)`, [
-    action.id,
-    action.title,
-    action.variants ? JSON.stringify(action.variants) : null,
-  ]);
+  db.run(
+    `INSERT INTO actions (id, title, variants_json, timer_seconds) VALUES (?, ?, ?, ?)`,
+    [
+      action.id,
+      action.title,
+      action.variants ? JSON.stringify(action.variants) : null,
+      action.timerSeconds,
+    ],
+  );
 
 export const updateAction = (db: DbClient, action: Action): Promise<void> =>
-  db.run(`UPDATE actions SET title = ?, variants_json = ? WHERE id = ?`, [
-    action.title,
-    action.variants ? JSON.stringify(action.variants) : null,
-    action.id,
-  ]);
+  db.run(
+    `UPDATE actions SET title = ?, variants_json = ?, timer_seconds = ? WHERE id = ?`,
+    [
+      action.title,
+      action.variants ? JSON.stringify(action.variants) : null,
+      action.timerSeconds,
+      action.id,
+    ],
+  );
 
 export const insertChain = (db: DbClient, chain: Chain): Promise<void> =>
   db.run(

@@ -32,7 +32,10 @@ CREATE TABLE IF NOT EXISTS anchors (
 CREATE TABLE IF NOT EXISTS actions (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
-  variants_json TEXT
+  variants_json TEXT,
+  -- ADR-0025 (PR-BB): タイマー秒数 (NULL = タイマーなし、 既存挙動)。
+  -- 入力単位は分 / DB は秒で精度確保。 action 単位 (= 同じアクションを別チェーンで使っても同じ時間)
+  timer_seconds INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS chains (
@@ -98,7 +101,7 @@ CREATE INDEX IF NOT EXISTS idx_metrics_key_date ON metrics(metric_key, recorded_
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const DROP_SQL = `
 DROP TABLE IF EXISTS metrics;

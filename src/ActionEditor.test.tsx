@@ -3,7 +3,12 @@ import { fireEvent, render } from '@testing-library/react-native';
 import { ActionEditor } from './ActionEditor';
 import type { Action } from './domain';
 
-const simpleAction: Action = { id: 'act1', title: '筋トレ', variants: null };
+const simpleAction: Action = {
+  id: 'act1',
+  title: '筋トレ',
+  variants: null,
+  timerSeconds: null,
+};
 
 const variantAction: Action = {
   id: 'act2',
@@ -17,6 +22,7 @@ const variantAction: Action = {
     sat: null,
     sun: null,
   },
+  timerSeconds: null,
 };
 
 describe('ActionEditor', () => {
@@ -106,6 +112,51 @@ describe('ActionEditor', () => {
         variants: expect.objectContaining({ mon: null }),
       }),
     );
+  });
+
+  test('PR-BB (ADR-0025): タイマー分入力 → 保存で timerSeconds = 分×60', () => {
+    const onSave = jest.fn();
+    const { getByLabelText } = render(
+      <ActionEditor action={simpleAction} onSave={onSave} onCancel={() => {}} />,
+    );
+    fireEvent.changeText(getByLabelText('タイマー分'), '30');
+    fireEvent.press(getByLabelText('アクション保存'));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ timerSeconds: 1800 }),
+    );
+  });
+
+  test('PR-BB: タイマー分を空にする → timerSeconds=null (タイマーなし扱い)', () => {
+    const onSave = jest.fn();
+    const actionWithTimer = { ...simpleAction, timerSeconds: 1800 };
+    const { getByLabelText } = render(
+      <ActionEditor action={actionWithTimer} onSave={onSave} onCancel={() => {}} />,
+    );
+    fireEvent.changeText(getByLabelText('タイマー分'), '');
+    fireEvent.press(getByLabelText('アクション保存'));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ timerSeconds: null }),
+    );
+  });
+
+  test('PR-BB: タイマー分=0 / 不正値 → timerSeconds=null', () => {
+    const onSave = jest.fn();
+    const { getByLabelText } = render(
+      <ActionEditor action={simpleAction} onSave={onSave} onCancel={() => {}} />,
+    );
+    fireEvent.changeText(getByLabelText('タイマー分'), '0');
+    fireEvent.press(getByLabelText('アクション保存'));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ timerSeconds: null }),
+    );
+  });
+
+  test('PR-BB: 既存 timerSeconds=1800 → 入力欄に 30 (分) で初期表示', () => {
+    const actionWithTimer = { ...simpleAction, timerSeconds: 1800 };
+    const { getByLabelText } = render(
+      <ActionEditor action={actionWithTimer} onSave={() => {}} onCancel={() => {}} />,
+    );
+    expect(getByLabelText('タイマー分').props.value).toBe('30');
   });
 
   test('キャンセル → onCancel が呼ばれる', () => {
