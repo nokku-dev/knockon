@@ -4,7 +4,8 @@ import { useCallback, useRef, useState } from 'react';
 import { getExpoSqliteClient } from './db.expo';
 import { recentDateRange, todayIsoDate } from './domain';
 import type { IsoDate } from './domain';
-import { newMetricId } from './ids';
+import { newMetricId, newMetricKindId } from './ids';
+import { BUILTIN_METRIC_KINDS } from './metricKinds';
 import {
   deleteMetricKind,
   insertMetricKind,
@@ -12,7 +13,6 @@ import {
   updateMetricKind,
 } from './metricKindsRepository';
 import type { MetricKind } from './metricKindsRepository';
-import { newMetricKindId } from './ids';
 import {
   deleteMetric,
   insertMetric,
@@ -73,13 +73,17 @@ const syncNotionMetricsInBackground = async (
   const window = recentDateRange(today, ANALYTICS_WINDOW_DAYS);
   const windowStart = window[0] ?? today;
   const allExisting: Pick<Metric, 'metricKey' | 'recordedAt' | 'source'>[] = [];
-  // PR-CC: DB の metric_kinds から取得 (= ユーザー追加分も sync 対象に含めない、
-  // candidate の metric_key と一致するもののみ重複判定する)。
-  const kinds = await listMetricKinds(db);
-  for (const kind of kinds) {
+  // K-028 (PR-CC レビュー Major 対応): 既存判定の key 集合は **BUILTIN_METRIC_KINDS** ベース。
+  // ユーザーが builtin (例: weight) を削除した場合でも、 Notion から weight pages が来た
+  // ら過去取り込み済み record と重複判定する必要がある。 listMetricKinds(db) で取ると
+  // 削除済み key の重複が拾えず、 cold start ごとに同じ pages を毎回 insert する累積バグ
+  // が発生する (= ADR-0026 想定「sync 停止」と実態「重複累積」の乖離)。
+  // mapNotionPagesToMetrics の METRIC_KEYS も BUILTIN_METRIC_KINDS ベースなので、
+  // ここも揃えるのが正しい。
+  for (const seed of BUILTIN_METRIC_KINDS) {
     const records = await listMetricsInRange(
       db,
-      kind.key,
+      seed.key,
       `${windowStart}T00:00:00`,
       `${today}T23:59:59`,
     );
@@ -234,6 +238,8 @@ export const useMetricsData = (): UseMetricsDataResult => {
 
   // PR-CC (ADR-0026): 種別 CRUD。 失敗時は K-024 同型 silently fallback + error set。
   // 成功で refreshTick を上げて loadMetrics を再走させる。
+  // UNIQUE 違反 (key 重複) は SQLite 生 error.message が error state に乗る。
+  // Phase 1 N=1 受容 (= UX 改善は Phase 2 で error code 化判断、 K-024 同型)。
   const addKind = useCallback(
     async (key: string, label: string, unit: string) => {
       try {

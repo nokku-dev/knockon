@@ -74,12 +74,15 @@ ADR-0024 §3c (将来の覆すコスト) では「テンプレを DB 永続化 (
   - `updateMetricKind(db, kind)`: id 指定で update
   - `deleteMetricKind(db, kindId)`: 行削除。 関連 metrics record はそのまま残す (疎結合)
 
-### ドメイン / 既存 metricKinds.ts の廃止
+### ドメイン / 既存 metricKinds.ts の変更
 
-- `src/metricKinds.ts` の `METRIC_KINDS` 定数は削除
-  - `findMetricKind(key)` も廃止 (DB から取得する想定)
-- 代わりに builtin seed を `src/metricKindsSeed.ts` で持つ (DB seed 用)
-- `MetricKind` 型は `metricKindsRepository.ts` に移動
+- `src/metricKinds.ts` の `METRIC_KINDS` 定数は **`BUILTIN_METRIC_KINDS` に rename + 中身変更** (ファイル維持で実装)
+  - 旧: 単純な定数配列、 アプリ表示用
+  - 新: DB seed 用 (`BuiltinMetricKindSeed` 型)、 起動時 schema migration 経由で metric_kinds テーブルに挿入
+- `MetricKind` 型は `metricKindsRepository.ts` に新設 (id / orderIndex / isBuiltin 含む完全形)
+- `BUILTIN_METRIC_KINDS` は本実装で 2 箇所に参照される (= 1 出典化は将来 refactor 判断、 spec-sync 文脈):
+  1. `src/db.ts` の `BUILTIN_METRIC_KINDS_SEED_SQL` (schema migration の INSERT 文字列)
+  2. `src/notionMetricsSync.ts` および `src/useMetricsData.ts` の Notion 連携重複判定 (= K-028 同型バグ回避、 後述)
 
 ### useMetricsData hook 変更
 
@@ -101,6 +104,7 @@ ADR-0024 §3c (将来の覆すコスト) では「テンプレを DB 永続化 (
 ### Notion 連携への影響
 
 - ユーザーが builtin の key を変更すると、 [src/notionMetricsSync.ts](../../src/notionMetricsSync.ts) の `mapNotionPagesToMetrics` で取り込めなくなる
+- ユーザーが builtin そのものを削除した場合は **「取り込み停止」ではなく「重複累積」リスクがある** (K-028 同型): mapNotionPagesToMetrics は `BUILTIN_METRIC_KINDS` の key 集合で照合するため、 削除済み builtin key の pages も candidate に残る。 重複判定 (existing 取得) も `BUILTIN_METRIC_KINDS` を基準にすることで対処済み ([src/useMetricsData.ts](../../src/useMetricsData.ts) syncNotionMetricsInBackground)
 - UI 警告: key 編集時に「Notion 連携を使っている場合は key 変更で sync が壊れます」
 - これはユーザー責任、 silent fallback (K-024 同型受容)
 
