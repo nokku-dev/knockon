@@ -21,6 +21,8 @@ export type AnalyticsScreenProps = {
   windowDays: number;
   metricsSeries?: readonly MetricSeries[];
   onAddMetric?: (metricKey: string, value: number) => Promise<void> | void;
+  // PR-CC (ADR-0026): 「種別を編集」ボタン押下動線。 未指定なら非表示。
+  onEditKinds?: () => void;
 };
 
 export const AnalyticsScreen = ({
@@ -28,6 +30,7 @@ export const AnalyticsScreen = ({
   windowDays,
   metricsSeries,
   onAddMetric,
+  onEditKinds,
 }: AnalyticsScreenProps) => (
   <ScrollView contentContainerStyle={styles.scroll}>
     <Text style={styles.heading}>分析</Text>
@@ -41,7 +44,11 @@ export const AnalyticsScreen = ({
       chains.map((c) => <AnalyticsChainCard key={c.chain.id} data={c} />)
     )}
     {metricsSeries && onAddMetric && (
-      <MetricsSection series={metricsSeries} onAddMetric={onAddMetric} />
+      <MetricsSection
+        series={metricsSeries}
+        onAddMetric={onAddMetric}
+        onEditKinds={onEditKinds}
+      />
     )}
   </ScrollView>
 );

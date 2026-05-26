@@ -8,6 +8,7 @@ import {
   COLOR_FG_FAINT,
   COLOR_FG_SOFT,
   COLOR_GROW,
+  COLOR_LINE_BG,
   COLOR_SURFACE,
 } from './tokens';
 
@@ -25,11 +26,14 @@ import {
 export type MetricsSectionProps = {
   series: readonly MetricSeries[];
   onAddMetric: (metricKey: string, value: number) => Promise<void> | void;
+  // PR-CC (ADR-0026): 「種別を編集」ボタンの動線。 未指定なら非表示 (発見性は親が制御)。
+  onEditKinds?: () => void;
 };
 
 export const MetricsSection = ({
   series,
   onAddMetric,
+  onEditKinds,
 }: MetricsSectionProps) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [initialKind, setInitialKind] = useState<string | undefined>(undefined);
@@ -41,10 +45,29 @@ export const MetricsSection = ({
 
   return (
     <View style={styles.root}>
-      <Text style={styles.sectionTitle}>メトリクス</Text>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>メトリクス</Text>
+        {onEditKinds && (
+          <Pressable
+            onPress={onEditKinds}
+            accessibilityRole="button"
+            accessibilityLabel="メトリクス種別を編集"
+            style={styles.editKindsBtn}
+          >
+            <Text style={styles.editKindsBtnText}>種別を編集</Text>
+          </Pressable>
+        )}
+      </View>
       <Text style={styles.sectionSub}>
-        体重 / 運動 / 睡眠の記録 (任意、 使わなくても困らない)
+        任意の記録 (使わなくても困らない)。 種別はカスタマイズ可能 (ADR-0026)。
       </Text>
+      {series.length === 0 && (
+        <View style={styles.emptyRow}>
+          <Text style={styles.emptyText}>
+            メトリクス種別がありません。「種別を編集」から追加してください。
+          </Text>
+        </View>
+      )}
       {series.map((s) => (
         <View
           key={s.kind.key}
@@ -75,6 +98,7 @@ export const MetricsSection = ({
       ))}
       <MetricInputModal
         open={modalOpen}
+        kinds={series.map((s) => s.kind)}
         initialKind={initialKind}
         onCancel={() => setModalOpen(false)}
         onSubmit={async (key, value) => {
@@ -96,11 +120,37 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 16,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
   sectionTitle: {
     color: COLOR_FG,
     fontSize: 18,
     fontWeight: '700',
-    marginBottom: 2,
+  },
+  editKindsBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: COLOR_LINE_BG,
+  },
+  editKindsBtnText: {
+    color: COLOR_FG_SOFT,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  emptyRow: {
+    backgroundColor: COLOR_SURFACE,
+    borderRadius: 14,
+    padding: 16,
+  },
+  emptyText: {
+    color: COLOR_FG_FAINT,
+    fontSize: 13,
+    lineHeight: 20,
   },
   sectionSub: {
     color: COLOR_FG_FAINT,

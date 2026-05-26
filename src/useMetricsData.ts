@@ -5,8 +5,14 @@ import { getExpoSqliteClient } from './db.expo';
 import { recentDateRange, todayIsoDate } from './domain';
 import type { IsoDate } from './domain';
 import { newMetricId } from './ids';
-import { METRIC_KINDS } from './metricKinds';
-import type { MetricKind } from './metricKinds';
+import {
+  deleteMetricKind,
+  insertMetricKind,
+  listMetricKinds,
+  updateMetricKind,
+} from './metricKindsRepository';
+import type { MetricKind } from './metricKindsRepository';
+import { newMetricKindId } from './ids';
 import {
   deleteMetric,
   insertMetric,
@@ -67,7 +73,10 @@ const syncNotionMetricsInBackground = async (
   const window = recentDateRange(today, ANALYTICS_WINDOW_DAYS);
   const windowStart = window[0] ?? today;
   const allExisting: Pick<Metric, 'metricKey' | 'recordedAt' | 'source'>[] = [];
-  for (const kind of METRIC_KINDS) {
+  // PR-CC: DB の metric_kinds から取得 (= ユーザー追加分も sync 対象に含めない、
+  // candidate の metric_key と一致するもののみ重複判定する)。
+  const kinds = await listMetricKinds(db);
+  for (const kind of kinds) {
     const records = await listMetricsInRange(
       db,
       kind.key,
@@ -100,8 +109,10 @@ const loadMetrics = async (): Promise<MetricsData> => {
   const today = todayIsoDate(new Date());
   const window = recentDateRange(today, ANALYTICS_WINDOW_DAYS);
   const windowStart = window[0] ?? today;
+  // PR-CC (ADR-0026): DB の metric_kinds テーブルから動的取得 (= ユーザー編集反映)。
+  const kinds = await listMetricKinds(db);
   const series = await Promise.all(
-    METRIC_KINDS.map(async (kind) => {
+    kinds.map(async (kind) => {
       const [latestList, range] = await Promise.all([
         listRecentMetrics(db, kind.key, 1),
         listMetricsInRange(
@@ -128,6 +139,10 @@ export type UseMetricsDataResult = {
   loading: boolean;
   addMetric: (metricKey: string, value: number) => Promise<void>;
   removeMetric: (metricId: string) => Promise<void>;
+  // PR-CC (ADR-0026): メトリクス種別 CRUD
+  addKind: (key: string, label: string, unit: string) => Promise<void>;
+  updateKind: (id: string, patch: Partial<MetricKind>) => Promise<void>;
+  removeKind: (kind: MetricKind) => Promise<void>;
 };
 
 export const useMetricsData = (): UseMetricsDataResult => {
@@ -217,5 +232,67 @@ export const useMetricsData = (): UseMetricsDataResult => {
     }
   }, []);
 
-  return { data, error, loading, addMetric, removeMetric };
+  // PR-CC (ADR-0026): 種別 CRUD。 失敗時は K-024 同型 silently fallback + error set。
+  // 成功で refreshTick を上げて loadMetrics を再走させる。
+  const addKind = useCallback(
+    async (key: string, label: string, unit: string) => {
+      try {
+        const db = await getExpoSqliteClient();
+        const existing = await listMetricKinds(db);
+        const nextOrder =
+          existing.length === 0
+            ? 0
+            : Math.max(...existing.map((k) => k.orderIndex)) + 1;
+        await insertMetricKind(db, {
+          id: newMetricKindId(),
+          key,
+          label,
+          unit,
+          orderIndex: nextOrder,
+          isBuiltin: false,
+        });
+        setRefreshTick((t) => t + 1);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [],
+  );
+
+  const updateKind = useCallback(
+    async (id: string, patch: Partial<MetricKind>) => {
+      try {
+        const db = await getExpoSqliteClient();
+        const existing = await listMetricKinds(db);
+        const target = existing.find((k) => k.id === id);
+        if (!target) return;
+        await updateMetricKind(db, { ...target, ...patch });
+        setRefreshTick((t) => t + 1);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [],
+  );
+
+  const removeKind = useCallback(async (kind: MetricKind) => {
+    try {
+      const db = await getExpoSqliteClient();
+      await deleteMetricKind(db, kind.id);
+      setRefreshTick((t) => t + 1);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  return {
+    data,
+    error,
+    loading,
+    addMetric,
+    removeMetric,
+    addKind,
+    updateKind,
+    removeKind,
+  };
 };
