@@ -252,10 +252,49 @@ describe('スキーマの不変条件', () => {
         'anchor_firings',
         'anchors',
         'chains',
+        'metric_kinds',
         'metrics',
         'nodes',
       ].sort(),
     );
+    await teardown(db);
+  });
+
+  test('metric_kinds テーブル (ADR-0026 PR-CC): 6 カラム固定、 派生値カラム禁止', async () => {
+    const db = await setup();
+    type ColumnRow = { name: string };
+    const cols = await db.all<ColumnRow>(`PRAGMA table_info(metric_kinds)`);
+    const colNames = cols.map((c) => c.name).sort();
+    expect(colNames).toEqual([
+      'id',
+      'is_builtin',
+      'key',
+      'label',
+      'order_index',
+      'unit',
+    ]);
+    await teardown(db);
+  });
+
+  test('metric_kinds テーブル: metrics への外部キーは持たない (疎結合)', async () => {
+    const db = await setup();
+    type FkRow = { table: string; from: string };
+    const fks = await db.all<FkRow>(`PRAGMA foreign_key_list(metric_kinds)`);
+    expect(fks).toEqual([]);
+    await teardown(db);
+  });
+
+  test('metric_kinds テーブル: builtin 3 種が seed されている (起動時 schema migration)', async () => {
+    const db = await setup();
+    type KindRow = { key: string; label: string; unit: string; is_builtin: number };
+    const rows = await db.all<KindRow>(
+      `SELECT key, label, unit, is_builtin FROM metric_kinds ORDER BY order_index`,
+    );
+    expect(rows).toEqual([
+      { key: 'weight', label: '体重', unit: 'kg', is_builtin: 1 },
+      { key: 'exercise_minutes', label: '運動', unit: '分', is_builtin: 1 },
+      { key: 'sleep_hours', label: '睡眠', unit: '時間', is_builtin: 1 },
+    ]);
     await teardown(db);
   });
 

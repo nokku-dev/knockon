@@ -4,9 +4,15 @@ import { useCallback, useRef, useState } from 'react';
 import { getExpoSqliteClient } from './db.expo';
 import { recentDateRange, todayIsoDate } from './domain';
 import type { IsoDate } from './domain';
-import { newMetricId } from './ids';
-import { METRIC_KINDS } from './metricKinds';
-import type { MetricKind } from './metricKinds';
+import { newMetricId, newMetricKindId } from './ids';
+import { BUILTIN_METRIC_KINDS } from './metricKinds';
+import {
+  deleteMetricKind,
+  insertMetricKind,
+  listMetricKinds,
+  updateMetricKind,
+} from './metricKindsRepository';
+import type { MetricKind } from './metricKindsRepository';
 import {
   deleteMetric,
   insertMetric,
@@ -67,10 +73,17 @@ const syncNotionMetricsInBackground = async (
   const window = recentDateRange(today, ANALYTICS_WINDOW_DAYS);
   const windowStart = window[0] ?? today;
   const allExisting: Pick<Metric, 'metricKey' | 'recordedAt' | 'source'>[] = [];
-  for (const kind of METRIC_KINDS) {
+  // K-028 (PR-CC レビュー Major 対応): 既存判定の key 集合は **BUILTIN_METRIC_KINDS** ベース。
+  // ユーザーが builtin (例: weight) を削除した場合でも、 Notion から weight pages が来た
+  // ら過去取り込み済み record と重複判定する必要がある。 listMetricKinds(db) で取ると
+  // 削除済み key の重複が拾えず、 cold start ごとに同じ pages を毎回 insert する累積バグ
+  // が発生する (= ADR-0026 想定「sync 停止」と実態「重複累積」の乖離)。
+  // mapNotionPagesToMetrics の METRIC_KEYS も BUILTIN_METRIC_KINDS ベースなので、
+  // ここも揃えるのが正しい。
+  for (const seed of BUILTIN_METRIC_KINDS) {
     const records = await listMetricsInRange(
       db,
-      kind.key,
+      seed.key,
       `${windowStart}T00:00:00`,
       `${today}T23:59:59`,
     );
@@ -100,8 +113,10 @@ const loadMetrics = async (): Promise<MetricsData> => {
   const today = todayIsoDate(new Date());
   const window = recentDateRange(today, ANALYTICS_WINDOW_DAYS);
   const windowStart = window[0] ?? today;
+  // PR-CC (ADR-0026): DB の metric_kinds テーブルから動的取得 (= ユーザー編集反映)。
+  const kinds = await listMetricKinds(db);
   const series = await Promise.all(
-    METRIC_KINDS.map(async (kind) => {
+    kinds.map(async (kind) => {
       const [latestList, range] = await Promise.all([
         listRecentMetrics(db, kind.key, 1),
         listMetricsInRange(
@@ -128,6 +143,10 @@ export type UseMetricsDataResult = {
   loading: boolean;
   addMetric: (metricKey: string, value: number) => Promise<void>;
   removeMetric: (metricId: string) => Promise<void>;
+  // PR-CC (ADR-0026): メトリクス種別 CRUD
+  addKind: (key: string, label: string, unit: string) => Promise<void>;
+  updateKind: (id: string, patch: Partial<MetricKind>) => Promise<void>;
+  removeKind: (kind: MetricKind) => Promise<void>;
 };
 
 export const useMetricsData = (): UseMetricsDataResult => {
@@ -217,5 +236,69 @@ export const useMetricsData = (): UseMetricsDataResult => {
     }
   }, []);
 
-  return { data, error, loading, addMetric, removeMetric };
+  // PR-CC (ADR-0026): 種別 CRUD。 失敗時は K-024 同型 silently fallback + error set。
+  // 成功で refreshTick を上げて loadMetrics を再走させる。
+  // UNIQUE 違反 (key 重複) は SQLite 生 error.message が error state に乗る。
+  // Phase 1 N=1 受容 (= UX 改善は Phase 2 で error code 化判断、 K-024 同型)。
+  const addKind = useCallback(
+    async (key: string, label: string, unit: string) => {
+      try {
+        const db = await getExpoSqliteClient();
+        const existing = await listMetricKinds(db);
+        const nextOrder =
+          existing.length === 0
+            ? 0
+            : Math.max(...existing.map((k) => k.orderIndex)) + 1;
+        await insertMetricKind(db, {
+          id: newMetricKindId(),
+          key,
+          label,
+          unit,
+          orderIndex: nextOrder,
+          isBuiltin: false,
+        });
+        setRefreshTick((t) => t + 1);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [],
+  );
+
+  const updateKind = useCallback(
+    async (id: string, patch: Partial<MetricKind>) => {
+      try {
+        const db = await getExpoSqliteClient();
+        const existing = await listMetricKinds(db);
+        const target = existing.find((k) => k.id === id);
+        if (!target) return;
+        await updateMetricKind(db, { ...target, ...patch });
+        setRefreshTick((t) => t + 1);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [],
+  );
+
+  const removeKind = useCallback(async (kind: MetricKind) => {
+    try {
+      const db = await getExpoSqliteClient();
+      await deleteMetricKind(db, kind.id);
+      setRefreshTick((t) => t + 1);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  return {
+    data,
+    error,
+    loading,
+    addMetric,
+    removeMetric,
+    addKind,
+    updateKind,
+    removeKind,
+  };
 };

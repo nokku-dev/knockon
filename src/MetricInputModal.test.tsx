@@ -1,11 +1,15 @@
 import { fireEvent, render } from '@testing-library/react-native';
 
 import { MetricInputModal } from './MetricInputModal';
+import { BUILTIN_METRIC_KINDS } from './metricKinds';
+
+// PR-CC: builtin 3 種を kinds prop に渡す (テストの既存 expectations と整合)
+const KINDS = BUILTIN_METRIC_KINDS;
 
 describe('MetricInputModal', () => {
   test('open=false なら何もレンダリングしない (Modal visible=false)', () => {
     const { queryByText } = render(
-      <MetricInputModal
+      <MetricInputModal kinds={KINDS}
         open={false}
         onCancel={() => {}}
         onSubmit={() => {}}
@@ -16,7 +20,7 @@ describe('MetricInputModal', () => {
 
   test('open=true なら kind タブ + 入力 + アクションが表示', () => {
     const { getByText, getByLabelText } = render(
-      <MetricInputModal open={true} onCancel={() => {}} onSubmit={() => {}} />,
+      <MetricInputModal kinds={KINDS} open={true} onCancel={() => {}} onSubmit={() => {}} />,
     );
     expect(getByText('メトリクスを記録')).toBeTruthy();
     expect(getByLabelText('体重 を選択')).toBeTruthy();
@@ -29,7 +33,7 @@ describe('MetricInputModal', () => {
 
   test('kind タブ切替で input の accessibility ラベルが更新される', () => {
     const { getByLabelText } = render(
-      <MetricInputModal open={true} onCancel={() => {}} onSubmit={() => {}} />,
+      <MetricInputModal kinds={KINDS} open={true} onCancel={() => {}} onSubmit={() => {}} />,
     );
     expect(getByLabelText('体重 の値')).toBeTruthy();
     fireEvent.press(getByLabelText('運動 を選択'));
@@ -40,7 +44,7 @@ describe('MetricInputModal', () => {
     const onSubmit = jest.fn();
     const onCancel = jest.fn();
     const { getByLabelText } = render(
-      <MetricInputModal
+      <MetricInputModal kinds={KINDS}
         open={true}
         initialKind="weight"
         onCancel={onCancel}
@@ -56,7 +60,7 @@ describe('MetricInputModal', () => {
   test('保存タップ + 値が NaN / 負数 → onSubmit 呼ばれない (簡易バリデーション)', async () => {
     const onSubmit = jest.fn();
     const { getByLabelText } = render(
-      <MetricInputModal open={true} onCancel={() => {}} onSubmit={onSubmit} />,
+      <MetricInputModal kinds={KINDS} open={true} onCancel={() => {}} onSubmit={onSubmit} />,
     );
     // 空 → parseFloat('') = NaN
     await fireEvent.press(getByLabelText('保存'));
@@ -69,7 +73,7 @@ describe('MetricInputModal', () => {
 
   test('initialKind を指定すれば最初からその kind が選択', () => {
     const { getByLabelText } = render(
-      <MetricInputModal
+      <MetricInputModal kinds={KINDS}
         open={true}
         initialKind="sleep_hours"
         onCancel={() => {}}
@@ -83,7 +87,7 @@ describe('MetricInputModal', () => {
   test('キャンセルタップで onCancel が呼ばれる', () => {
     const onCancel = jest.fn();
     const { getByLabelText } = render(
-      <MetricInputModal open={true} onCancel={onCancel} onSubmit={() => {}} />,
+      <MetricInputModal kinds={KINDS} open={true} onCancel={onCancel} onSubmit={() => {}} />,
     );
     fireEvent.press(getByLabelText('キャンセル'));
     expect(onCancel).toHaveBeenCalled();
@@ -91,7 +95,7 @@ describe('MetricInputModal', () => {
 
   test('open=true で再オープン時、 initialKind 変更が反映される (K-026 同型バグ防止)', () => {
     const { getByLabelText, rerender } = render(
-      <MetricInputModal
+      <MetricInputModal kinds={KINDS}
         open={false}
         initialKind="weight"
         onCancel={() => {}}
@@ -100,7 +104,7 @@ describe('MetricInputModal', () => {
     );
     // 最初に体重で open
     rerender(
-      <MetricInputModal
+      <MetricInputModal kinds={KINDS}
         open={true}
         initialKind="weight"
         onCancel={() => {}}
@@ -110,7 +114,7 @@ describe('MetricInputModal', () => {
     expect(getByLabelText('体重 の値')).toBeTruthy();
     // close → 別 initialKind (運動) で再 open。 props 変更が state に反映されること
     rerender(
-      <MetricInputModal
+      <MetricInputModal kinds={KINDS}
         open={false}
         initialKind="exercise_minutes"
         onCancel={() => {}}
@@ -118,7 +122,7 @@ describe('MetricInputModal', () => {
       />,
     );
     rerender(
-      <MetricInputModal
+      <MetricInputModal kinds={KINDS}
         open={true}
         initialKind="exercise_minutes"
         onCancel={() => {}}
@@ -131,7 +135,7 @@ describe('MetricInputModal', () => {
 
   test('open 遷移で valueText が空に reset される (前回入力が残らない)', () => {
     const { getByLabelText, rerender } = render(
-      <MetricInputModal
+      <MetricInputModal kinds={KINDS}
         open={true}
         initialKind="weight"
         onCancel={() => {}}
@@ -141,7 +145,7 @@ describe('MetricInputModal', () => {
     fireEvent.changeText(getByLabelText('体重 の値'), '72');
     // close → 再 open で値がリセットされる
     rerender(
-      <MetricInputModal
+      <MetricInputModal kinds={KINDS}
         open={false}
         initialKind="weight"
         onCancel={() => {}}
@@ -149,7 +153,7 @@ describe('MetricInputModal', () => {
       />,
     );
     rerender(
-      <MetricInputModal
+      <MetricInputModal kinds={KINDS}
         open={true}
         initialKind="weight"
         onCancel={() => {}}
