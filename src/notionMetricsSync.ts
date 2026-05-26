@@ -1,4 +1,4 @@
-import { METRIC_KINDS } from './metricKinds';
+import { BUILTIN_METRIC_KINDS } from './metricKinds';
 import type { Metric } from './metricsRepository';
 import type { NotionPage } from './notionClient';
 
@@ -12,7 +12,11 @@ import type { NotionPage } from './notionClient';
 // - recorded_at = Notion page の created_time (UTC ISO datetime、 末尾 Z は剥がす)
 // - source = 'notion' で固定
 
-const METRIC_KEYS = new Set(METRIC_KINDS.map((k) => k.key));
+// PR-CC (ADR-0026): Notion 連携の取り込み対象 key は builtin 3 種固定。
+// ユーザー追加分は Notion 取り込み対象外 (= Notion DB の property name は builtin と
+// 一致する必要あり、 [docs/notion-setup.md](../docs/notion-setup.md))。 Phase 2 で
+// 「ユーザー追加 kind を Notion property mapping できる」要件が出たら別 ADR で再判断。
+const METRIC_KEYS = new Set(BUILTIN_METRIC_KINDS.map((k) => k.key));
 
 // Notion datetime ('2026-05-26T09:00:00.000Z') を 'YYYY-MM-DDTHH:MM:SS' に正規化。
 // recorded_at の format 規約 (db.ts スキーマコメント) に合わせる。

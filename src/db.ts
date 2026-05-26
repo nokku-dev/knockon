@@ -85,10 +85,24 @@ CREATE TABLE IF NOT EXISTS metrics (
   source TEXT NOT NULL CHECK(source IN ('manual', 'notion'))
 );
 
+-- ADR-0026 (PR-CC): メトリクス種別マスタ。 ユーザーがカスタマイズ可能 (追加/編集/削除)。
+-- metrics テーブルとは疎結合 (FK なし)。 種別削除しても観測 record は残る (= データ保全)。
+-- is_builtin = 1: 起動時 seed の builtin (weight / exercise_minutes / sleep_hours)。
+-- key UNIQUE: アプリ内識別子、 metric_key と一致。 編集可だが Notion 連携の互換性に影響。
+CREATE TABLE IF NOT EXISTS metric_kinds (
+  id TEXT PRIMARY KEY,
+  key TEXT NOT NULL UNIQUE,
+  label TEXT NOT NULL,
+  unit TEXT NOT NULL,
+  order_index INTEGER NOT NULL,
+  is_builtin INTEGER NOT NULL CHECK(is_builtin IN (0, 1))
+);
+
 CREATE INDEX IF NOT EXISTS idx_nodes_chain_order ON nodes(chain_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_achievements_date ON achievements(date);
 CREATE INDEX IF NOT EXISTS idx_anchor_firings_date ON anchor_firings(date);
 CREATE INDEX IF NOT EXISTS idx_metrics_key_date ON metrics(metric_key, recorded_at);
+CREATE INDEX IF NOT EXISTS idx_metric_kinds_order ON metric_kinds(order_index);
 `;
 
 // スキーマバージョン管理。PR-1.8a で導入。
@@ -101,9 +115,10 @@ CREATE INDEX IF NOT EXISTS idx_metrics_key_date ON metrics(metric_key, recorded_
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 const DROP_SQL = `
+DROP TABLE IF EXISTS metric_kinds;
 DROP TABLE IF EXISTS metrics;
 DROP TABLE IF EXISTS achievements;
 DROP TABLE IF EXISTS anchor_firings;
@@ -122,8 +137,22 @@ export const initSchema = async (client: DbClient): Promise<void> => {
     await client.exec(DROP_SQL);
     await client.exec(SCHEMA_SQL);
     await client.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+    // PR-CC (ADR-0026): schema migration 後にだけ builtin メトリクス種別を seed。
+    // 通常起動では走らないので、 ユーザーが builtin を削除しても次回起動で
+    // 再投入されない (= 削除の意図が保持される)。
+    await client.exec(BUILTIN_METRIC_KINDS_SEED_SQL);
   } else {
     // 既に最新バージョン: 空 DB の保険として CREATE IF NOT EXISTS は通す
     await client.exec(SCHEMA_SQL);
   }
 };
+
+// PR-CC (ADR-0026): builtin メトリクス種別の DB seed SQL。
+// SCHEMA_VERSION bump (drop+recreate) のときだけ走る。 INSERT OR IGNORE で key 衝突回避。
+// key 維持 (weight / exercise_minutes / sleep_hours) で Notion 連携 (PR-Z3b) 互換性確保。
+const BUILTIN_METRIC_KINDS_SEED_SQL = `
+INSERT OR IGNORE INTO metric_kinds (id, key, label, unit, order_index, is_builtin) VALUES
+  ('metric-kind-weight', 'weight', '体重', 'kg', 0, 1),
+  ('metric-kind-exercise-minutes', 'exercise_minutes', '運動', '分', 1, 1),
+  ('metric-kind-sleep-hours', 'sleep_hours', '睡眠', '時間', 2, 1);
+`;

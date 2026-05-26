@@ -1,13 +1,17 @@
 import { fireEvent, render } from '@testing-library/react-native';
 
 import { MetricsSection } from './MetricsSection';
-import { METRIC_KINDS } from './metricKinds';
+import { BUILTIN_METRIC_KINDS } from './metricKinds';
+import type { MetricKind } from './metricKindsRepository';
 import type { MetricSeries } from './useMetricsData';
+
+// PR-CC: テスト fixture は BUILTIN_METRIC_KINDS から MetricKind 形式に変換 (id 含む完全形)。
+const BUILTIN_AS_KINDS: ReadonlyArray<MetricKind> = BUILTIN_METRIC_KINDS;
 
 const buildSeries = (
   overrides: Partial<Record<string, { latest: number | null; count: number }>> = {},
 ): MetricSeries[] =>
-  METRIC_KINDS.map((kind) => {
+  BUILTIN_AS_KINDS.map((kind) => {
     const o = overrides[kind.key];
     return {
       kind,

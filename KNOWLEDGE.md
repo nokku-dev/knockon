@@ -199,6 +199,14 @@
 - **解決**: 受容。コメントで「Phase 2 で i18n や通知文面が必要になったら error code 化 (`{ kind: 'in_use', count: N }`) に refactor」を明示。
 - **教訓**: Phase 1 の prototype フェーズでは「UI 文面を repository に持つ」「error message を i18n キーで返さない」が一時的に許される。Phase 2 で別 UI / 通知 / 自動化が増える前に refactor 判断。本質は「責務分離は Phase 1 では負債を受容、Phase 2 で清算」のパターンとして Phase 2 着手前に再確認する。
 
+## K-028: builtin マスタを DB 化したとき、 外部連携の重複判定は「DB 内 key 集合」ではなく「外部から来うる key 全集合」を基準にする
+
+- **状況**: PR-CC (ADR-0026) でメトリクス種別 (weight / exercise_minutes / sleep_hours) を builtin 定数から DB マスタ化。 ユーザーが種別を削除可能になった。
+- **問題**: Notion 連携 (PR-Z3b) の重複判定で `listMetricKinds(db)` 経由の existing 集合を作っていたら、 ユーザーが builtin (例: weight) を削除した瞬間に「DB 内 key 集合」から weight が消えるが、 Notion から weight pages は依然取り込まれる (= candidate には残る、 mapNotionPagesToMetrics は `BUILTIN_METRIC_KINDS` ベース)。 重複判定の基準が候補集合と乖離 → cold start ごとに同じ pages を毎回 insert する累積バグ。
+- **原因**: 「DB マスタ化 = アプリの真実」と思いがちだが、 外部連携の正規化 (= 取り込み対象とする key 集合) は外部側 (Notion DB の property name) に依存する。 アプリ側で削除しても外部から来うる record は止まらない。
+- **解決**: 重複判定の existing key 集合を、 mapping の入口で使う集合 (= 外部から来うる集合) と同じにする。 本 PR-CC では `BUILTIN_METRIC_KINDS` の key 集合に揃えた。
+- **教訓**: 「マスタ DB 化」+「外部から fresh record が来る連携」がある場合、 重複判定の key 集合は **mapping の入口で使う集合と同じにする**。 「DB 内 = 真実」と取ると、 削除可能性 × 外部 fresh データの組み合わせで累積バグになる。 Phase 2 で Slack / Asana / Notion Tasks 連携を追加するときに同型を踏みやすい。 ルール: 連携の重複判定 existing は **連携層が認識する key 集合**で組む (= mapNotionPagesToMetrics 系の METRIC_KEYS と同じ source)。
+
 ## K-026: `setNotificationHandler` の global 設定は foreground の個別通知 sound を上書きする
 
 - **状況**: PR-BB (ADR-0025) でタイマー完了時に `Notifications.scheduleNotificationAsync({ content: { sound: true } })` で音を鳴らそうとした。

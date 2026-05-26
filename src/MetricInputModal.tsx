@@ -10,8 +10,7 @@ import {
   View,
 } from 'react-native';
 
-import { METRIC_KINDS } from './metricKinds';
-import type { MetricKind } from './metricKinds';
+import type { MetricKind } from './metricKindsRepository';
 import {
   COLOR_BG,
   COLOR_FG,
@@ -34,6 +33,8 @@ import {
 // initialKind で初期選択を指定可能 (= section 側で「体重 +記録」を押したら weight を選択済みで開く)。
 export type MetricInputModalProps = {
   open: boolean;
+  // PR-CC (ADR-0026): kinds は DB の metric_kinds から動的取得 (親 useMetricsData)。
+  kinds: readonly MetricKind[];
   initialKind?: string;
   onCancel: () => void;
   onSubmit: (metricKey: string, value: number) => Promise<void> | void;
@@ -41,13 +42,13 @@ export type MetricInputModalProps = {
 
 export const MetricInputModal = ({
   open,
+  kinds,
   initialKind,
   onCancel,
   onSubmit,
 }: MetricInputModalProps) => {
-  const [kind, setKind] = useState<MetricKind>(
-    () =>
-      METRIC_KINDS.find((k) => k.key === initialKind) ?? METRIC_KINDS[0]!,
+  const [kind, setKind] = useState<MetricKind | null>(
+    () => kinds.find((k) => k.key === initialKind) ?? kinds[0] ?? null,
   );
   const [valueText, setValueText] = useState('');
 
@@ -57,16 +58,16 @@ export const MetricInputModal = ({
   // open 遷移ごとに initialKind に再同期 + 値もクリア (キャンセル時も値が残らない)。
   useEffect(() => {
     if (open) {
-      const next =
-        METRIC_KINDS.find((k) => k.key === initialKind) ?? METRIC_KINDS[0]!;
+      const next = kinds.find((k) => k.key === initialKind) ?? kinds[0] ?? null;
       setKind(next);
       setValueText('');
     }
-  }, [open, initialKind]);
+  }, [open, initialKind, kinds]);
 
   const handleSubmit = async () => {
     const value = parseFloat(valueText);
     if (!isFinite(value) || value < 0) return; // 簡易バリデーション (負の値 / NaN を弾く)
+    if (!kind) return; // 種別が 1 件もない (= ユーザーが全削除した) ケース防御
     await onSubmit(kind.key, value);
     setValueText('');
     onCancel();
@@ -90,43 +91,51 @@ export const MetricInputModal = ({
             accessibilityLabel="メトリクス入力"
           >
             <Text style={styles.title}>メトリクスを記録</Text>
-            <View style={styles.kindRow}>
-              {METRIC_KINDS.map((k) => (
-                <Pressable
-                  key={k.key}
-                  onPress={() => setKind(k)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${k.label} を選択`}
-                  accessibilityState={{ selected: kind.key === k.key }}
-                  style={[
-                    styles.kindTab,
-                    kind.key === k.key && styles.kindTabActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.kindTabText,
-                      kind.key === k.key && styles.kindTabTextActive,
-                    ]}
-                  >
-                    {k.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <View style={styles.inputRow}>
-              <TextInput
-                value={valueText}
-                onChangeText={setValueText}
-                placeholder="0"
-                placeholderTextColor={COLOR_FG_FAINT}
-                keyboardType="numeric"
-                style={styles.input}
-                accessibilityLabel={`${kind.label} の値`}
-                autoFocus
-              />
-              <Text style={styles.unit}>{kind.unit}</Text>
-            </View>
+            {kind == null ? (
+              <Text style={styles.emptyHint}>
+                メトリクス種別がありません。 種別管理から追加してください。
+              </Text>
+            ) : (
+              <>
+                <View style={styles.kindRow}>
+                  {kinds.map((k) => (
+                    <Pressable
+                      key={k.key}
+                      onPress={() => setKind(k)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${k.label} を選択`}
+                      accessibilityState={{ selected: kind.key === k.key }}
+                      style={[
+                        styles.kindTab,
+                        kind.key === k.key && styles.kindTabActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.kindTabText,
+                          kind.key === k.key && styles.kindTabTextActive,
+                        ]}
+                      >
+                        {k.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    value={valueText}
+                    onChangeText={setValueText}
+                    placeholder="0"
+                    placeholderTextColor={COLOR_FG_FAINT}
+                    keyboardType="numeric"
+                    style={styles.input}
+                    accessibilityLabel={`${kind.label} の値`}
+                    autoFocus
+                  />
+                  <Text style={styles.unit}>{kind.unit}</Text>
+                </View>
+              </>
+            )}
             <View style={styles.actions}>
               <Pressable
                 onPress={onCancel}
@@ -172,6 +181,11 @@ const styles = StyleSheet.create({
     color: COLOR_FG,
     fontSize: 16,
     fontWeight: '700',
+  },
+  emptyHint: {
+    color: COLOR_FG_FAINT,
+    fontSize: 13,
+    paddingVertical: 8,
   },
   kindRow: {
     flexDirection: 'row',
