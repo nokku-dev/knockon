@@ -199,6 +199,22 @@
 - **解決**: 受容。コメントで「Phase 2 で i18n や通知文面が必要になったら error code 化 (`{ kind: 'in_use', count: N }`) に refactor」を明示。
 - **教訓**: Phase 1 の prototype フェーズでは「UI 文面を repository に持つ」「error message を i18n キーで返さない」が一時的に許される。Phase 2 で別 UI / 通知 / 自動化が増える前に refactor 判断。本質は「責務分離は Phase 1 では負債を受容、Phase 2 で清算」のパターンとして Phase 2 着手前に再確認する。
 
+## K-026: `setNotificationHandler` の global 設定は foreground の個別通知 sound を上書きする
+
+- **状況**: PR-BB (ADR-0025) でタイマー完了時に `Notifications.scheduleNotificationAsync({ content: { sound: true } })` で音を鳴らそうとした。
+- **問題**: 既存 `app/_layout.tsx` の `setNotificationHandler` が `shouldPlaySound: false` を返す設定 (PR-1.5b-3 で foreground 通知は Toast 一本にした判断)。 foreground 通知では handler の戻り値が個別 `sound: true` を上書きするため、 タイマー完了で音が鳴らない (= ADR-0025 案 P の核心要件が機能しない)。
+- **原因**: Expo の foreground notification handler は global で、 個別の通知 content よりも優先される仕様。 ADR で「個別 sound: true で OK」と書いたが Expo 仕様への理解が浅かった。
+- **解決**: 通知に `data: { kind: 'timer-complete' }` を付与し、 `setNotificationHandler` 内で `kind` 別に分岐して `shouldPlaySound` を動的に返す。 タイマー通知だけ音を鳴らし、 他の通知は従来通り Toast 一本で。
+- **教訓**: 「タイマー / リマインダ / アラート」のように foreground でも音を鳴らしたい通知種別が出てきたら、 `data.kind` で分類して handler を分岐する設計が安全。 「個別の通知 content で sound: true を指定すれば鳴る」という想定は foreground では成立しないことを覚えておく。 Phase 2 で別種の通知 (e.g. ハビット休眠アラート) を追加するときに同じ罠を踏むリスクあり。
+
+## K-027: 「自動達成」を意味する API は `toggle` ではなく明示的な `markAchieved(achieved)` を別に持つ
+
+- **状況**: PR-BB (ADR-0025) でタイマー完了時に「自動達成」を実装するため `onToggleNode(chainId, nodeId)` を呼んだ。
+- **問題**: `handleToggle` (`src/useTodayData.ts`) は `toggleAchievementInMap` で **bool 反転** semantics。 ユーザーが先にノードをタップ→達成済 → タイマー起動して完了 → `onToggleNode` 呼び出しで **未達成に戻る**バグ。 「タイマー集中タイムを再走したい」シナリオで顕在化する。
+- **原因**: トグル意味の関数を「達成にする」用途で使い回した。 副作用 (= bool 反転) を持つ関数の semantics と呼び出し意図 (= force set true) のミスマッチ。
+- **解決**: `markNodeAchieved(chainId, nodeId, achieved: boolean)` を別 API として `useTodayData` に追加 (force set semantics)。 タイマー完了は `markNodeAchieved(..., true)`、 ユーザータップは `handleToggle` のままで分離。
+- **教訓**: トグル系 API (反転) と force set 系 API (絶対値設定) を明確に分ける。 自動化系 (場所発火→達成、 通知タップ→達成、 タイマー→達成 等) を追加するときは必ず force set を使う。 Phase 2 で同型を踏まないため、 ADR-0025 §決定の中で「force set 必須」を明示。 K-010 「楽観更新の判断明示」と同型の運用ルール (= semantics と呼び出し意図の対応を暗黙にしない)。
+
 ## K-025: Expo モジュール追加は `npx expo install` を使う、 `npm install` だと SDK 非互換版が入る
 
 - **状況**: PR-1.5b-2 で `expo-notifications` を追加する際、 `npm install expo-notifications` を実行した。 `package.json` には `^56.0.13` が記録された。

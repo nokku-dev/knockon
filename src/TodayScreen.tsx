@@ -8,6 +8,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ChainCard } from './ChainCard';
 import { ChainDetail } from './ChainDetail';
+import { TimerScreen } from './TimerScreen';
 import {
   COLOR_BG,
   COLOR_FG,
@@ -30,6 +31,9 @@ export type TodayScreenProps = {
   // 親 (app/(tabs)/index.tsx) で router.push('/chain/[chainId]') を呼ぶ。
   // Sheet を閉じてから push したいので、 onEditChain 経由で親に責務委譲。
   onEditChain?: (chainId: string) => void;
+  // PR-BB (ADR-0025): タイマー完了で「必ず達成」(force set)。 onToggleNode の
+  // bool 反転 semantics と区別 (K-027 同型のミスマッチ防止)。
+  onMarkNodeAchieved?: (chainId: string, nodeId: string, achieved: boolean) => void;
 };
 
 export const TodayScreen = ({
@@ -37,9 +41,17 @@ export const TodayScreen = ({
   onToggleNode,
   initialOpenChainId = null,
   onEditChain,
+  onMarkNodeAchieved,
 }: TodayScreenProps) => {
   const [openChainId, setOpenChainId] = useState<string | null>(null);
   const sheetRef = useRef<BottomSheet>(null);
+  // PR-BB (ADR-0025): タイマー Modal の状態。 起動中の chainId / nodeId / 設定時間を保持。
+  const [timerState, setTimerState] = useState<{
+    chainId: string;
+    nodeId: string;
+    durationSeconds: number;
+    actionTitle: string;
+  } | null>(null);
 
   // initialOpenChainId が変化したら該当チェーンの sheet を開く。
   // 通知タップ → URL param 経由で発火する経路 (PR-1.5b-3)。
@@ -162,11 +174,37 @@ export const TodayScreen = ({
                 anchorFiredToday={openChain.anchorFiredToday}
                 nodeIdsEstablished={openChain.nodeIdsEstablished}
                 onToggleNode={(nodeId) => onToggleNode(openChain.chain.id, nodeId)}
+                onStartTimer={(nodeId, durationSeconds, actionTitle) => {
+                  setTimerState({
+                    chainId: openChain.chain.id,
+                    nodeId,
+                    durationSeconds,
+                    actionTitle,
+                  });
+                }}
               />
             </>
           )}
         </BottomSheetScrollView>
       </BottomSheet>
+
+      {/* PR-BB (ADR-0025): タイマー Modal。 timerState=null なら非表示。
+          完了で onToggleNode (= 自動達成、 ADR-0025 案 X) + Modal 閉じる。
+          キャンセル時は達成記録なしで閉じる。 */}
+      <TimerScreen
+        visible={timerState != null}
+        durationSeconds={timerState?.durationSeconds ?? 0}
+        actionTitle={timerState?.actionTitle ?? ''}
+        onCancel={() => setTimerState(null)}
+        onComplete={() => {
+          // 「force set true」で達成記録。 onToggleNode (反転) ではなく
+          // onMarkNodeAchieved を使うのは K-027 同型 (既達成 → 未達成に戻るバグ防止)。
+          if (timerState && onMarkNodeAchieved) {
+            onMarkNodeAchieved(timerState.chainId, timerState.nodeId, true);
+          }
+          setTimerState(null);
+        }}
+      />
     </View>
   );
 };

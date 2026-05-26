@@ -30,9 +30,9 @@ export const buildPersonalChainSeed = (
   };
 
   const actions: Action[] = [
-    { id: 'action-water', title: '水を飲む', variants: null },
-    { id: 'action-stretch', title: 'ストレッチ', variants: null },
-    { id: 'action-desk', title: '机に向かう', variants: null },
+    { id: 'action-water', title: '水を飲む', variants: null, timerSeconds: null },
+    { id: 'action-stretch', title: 'ストレッチ', variants: null, timerSeconds: null },
+    { id: 'action-desk', title: '机に向かう', variants: null, timerSeconds: null },
   ];
 
   const chain: Chain = {

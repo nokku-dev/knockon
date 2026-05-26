@@ -14,10 +14,10 @@ const setup = async (): Promise<DbClient> => {
   const db = createBetterSqliteClient(':memory:');
   await initSchema(db);
   // チェーン作成に必要なアクションを seed
-  await insertAction(db, { id: 'act-water', title: '水を飲む', variants: null });
-  await insertAction(db, { id: 'act-stretch', title: 'ストレッチ', variants: null });
-  await insertAction(db, { id: 'act-desk', title: '机に向かう', variants: null });
-  await insertAction(db, { id: 'act-coffee', title: 'コーヒー', variants: null });
+  await insertAction(db, { id: 'act-water', title: '水を飲む', variants: null, timerSeconds: null });
+  await insertAction(db, { id: 'act-stretch', title: 'ストレッチ', variants: null, timerSeconds: null });
+  await insertAction(db, { id: 'act-desk', title: '机に向かう', variants: null, timerSeconds: null });
+  await insertAction(db, { id: 'act-coffee', title: 'コーヒー', variants: null, timerSeconds: null });
   return db;
 };
 

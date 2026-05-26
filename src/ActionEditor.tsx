@@ -61,15 +61,28 @@ export const ActionEditor = ({
   const [variants, setVariants] = useState<VariantMap>(
     action.variants ?? emptyVariants(),
   );
+  // PR-BB (ADR-0025): タイマー分入力。 内部 state は string、 保存時に整数 (分→秒) 変換。
+  // 空文字 / 0 / 不正値 → timerSeconds=null (タイマーなし) として保存。
+  const [timerMinutesText, setTimerMinutesText] = useState(
+    action.timerSeconds != null
+      ? String(Math.round(action.timerSeconds / 60))
+      : '',
+  );
 
   const canSave = title.trim().length > 0;
 
   const handleSave = () => {
     if (!canSave) return;
+    const parsedMinutes = parseInt(timerMinutesText, 10);
+    const timerSeconds =
+      Number.isFinite(parsedMinutes) && parsedMinutes > 0
+        ? parsedMinutes * 60
+        : null;
     onSave({
       ...action,
       title: title.trim(),
       variants: variantsEnabled ? variants : null,
+      timerSeconds,
     });
   };
 
@@ -105,6 +118,22 @@ export const ActionEditor = ({
             placeholderTextColor={COLOR_FG_FAINT}
             style={styles.titleInput}
             accessibilityLabel="アクションタイトル"
+          />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>タイマー (分)</Text>
+          <Text style={styles.hint}>
+            空欄 = タイマーなし。 設定すると Today で「⏱ N 分」ボタンが出る (ADR-0025)。
+          </Text>
+          <TextInput
+            value={timerMinutesText}
+            onChangeText={setTimerMinutesText}
+            placeholder="例: 30"
+            placeholderTextColor={COLOR_FG_FAINT}
+            keyboardType="numeric"
+            style={styles.titleInput}
+            accessibilityLabel="タイマー分"
           />
         </View>
 

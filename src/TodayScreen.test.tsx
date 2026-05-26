@@ -50,7 +50,7 @@ const buildNode = (id: string, idx: number, actionId: string): Node => ({
 
 const fireNode = (id: string, label: string): TodayNode => ({
   node: buildNode(id, 0, `act-${id}`),
-  action: { id: `act-${id}`, title: label, variants: null },
+  action: { id: `act-${id}`, title: label, variants: null, timerSeconds: null },
   label,
   kind: 'fire',
 });

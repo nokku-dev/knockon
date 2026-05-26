@@ -167,6 +167,14 @@ export type UseTodayDataResult = {
   error: string | null;
   loading: boolean;
   handleToggle: (chainId: string, nodeId: string) => Promise<void>;
+  // PR-BB (ADR-0025): タイマー完了で「必ず達成にする」専用 API。
+  // handleToggle は bool 反転 semantics なので、 タイマー完了で「既達成 → 未達成」に
+  // 戻ってしまう罠を回避する (K-027 同型の semantics ミスマッチ防止)。
+  markNodeAchieved: (
+    chainId: string,
+    nodeId: string,
+    achieved: boolean,
+  ) => Promise<void>;
 };
 
 export const useTodayData = (): UseTodayDataResult => {
@@ -302,5 +310,69 @@ export const useTodayData = (): UseTodayDataResult => {
     [data],
   );
 
-  return { data, error, loading, handleToggle };
+  // PR-BB (ADR-0025): タイマー完了で「必ず達成にする」用。 handleToggle と
+  // 共通ロジックを extract したいところだが、 Phase 1 では明示的に分けて
+  // 「toggle と markAchieved は別 semantics」を呼び出し側で意識させる方が安全。
+  const markNodeAchieved = useCallback(
+    async (chainId: string, nodeId: string, achieved: boolean) => {
+      if (!data) return;
+      const target = data.chains.find((c) => c.chain.id === chainId);
+      if (!target) return;
+      // 既に同じ状態なら何もしない (重複 record 防止 + 不要な setState 抑制)
+      if ((target.achievements[nodeId] ?? false) === achieved) return;
+      const nextAchievements: AchievementMap = {
+        ...target.achievements,
+        [nodeId]: achieved,
+      };
+      const hadTodayRecord = target.recentAchievements.some(
+        (r) => r.nodeId === nodeId && r.date === data.today,
+      );
+      const nextRecent: readonly Achievement[] = hadTodayRecord
+        ? target.recentAchievements.map((r) =>
+            r.nodeId === nodeId && r.date === data.today
+              ? { ...r, achieved }
+              : r,
+          )
+        : [
+            ...target.recentAchievements,
+            { nodeId, date: data.today, achieved },
+          ];
+      const nextEstablished = new Set(target.nodeIdsEstablished);
+      if (isNodeEstablished(nextRecent, nodeId, data.today)) {
+        nextEstablished.add(nodeId);
+      } else {
+        nextEstablished.delete(nodeId);
+      }
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              chains: prev.chains.map((c) =>
+                c.chain.id === chainId
+                  ? {
+                      ...c,
+                      achievements: nextAchievements,
+                      recentAchievements: nextRecent,
+                      nodeIdsEstablished: nextEstablished,
+                    }
+                  : c,
+              ),
+            }
+          : prev,
+      );
+      try {
+        const db = await getExpoSqliteClient();
+        await recordAchievement(db, {
+          nodeId,
+          date: data.today,
+          achieved,
+        });
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [data],
+  );
+
+  return { data, error, loading, handleToggle, markNodeAchieved };
 };
