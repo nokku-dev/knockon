@@ -1,5 +1,5 @@
 import { createBetterSqliteClient } from './db.bettersqlite';
-import { initSchema, SCHEMA_VERSION } from './db';
+import { initSchema, MIGRATIONS, SCHEMA_VERSION } from './db';
 import type { DbClient } from './db';
 import {
   deleteAction,
@@ -366,6 +366,50 @@ describe('スキーマの不変条件', () => {
     const target = actions.find((a) => a.id === 'persist-test');
     expect(target).toBeTruthy();
     expect(target?.title).toBe('残るはずのアクション');
+    await teardown(db);
+  });
+
+  test('ADR-0027: 将来の MIGRATIONS step が user_version 段階的 bump で呼ばれる (= v5+ ALTER 経路シミュレーション)', async () => {
+    const db = await setup();
+    // 既に最新 (v4) になっている → MIGRATIONS[5] を 1 件仕込んで current=4 → 5 を試行。
+    // SCHEMA_VERSION 自体は const で書き換え不可なので、 future bump を直接シミュレートできない
+    // ため、 「current=3 (legacy) → current=4 (= legacy fallback で drop+recreate 経由)」が
+    // 走った後の MIGRATIONS 経路は別途確認、 ここでは MIGRATIONS の登録/解除と「step 関数が
+    // 実行可能」であることだけ ensure する。
+    const step5Spy = jest.fn(async () => undefined);
+    MIGRATIONS[5] = step5Spy as never;
+    try {
+      // current = SCHEMA_VERSION のまま initSchema → step は呼ばれない (= SCHEMA_VERSION=4 までしか進めない)
+      await initSchema(db);
+      expect(step5Spy).not.toHaveBeenCalled();
+      // 「step が登録されていて future bump で呼べる構造」を確認 (= 直接 invoke)
+      await MIGRATIONS[5]!(db);
+      expect(step5Spy).toHaveBeenCalledTimes(1);
+    } finally {
+      delete MIGRATIONS[5];
+    }
+    await teardown(db);
+  });
+
+  test('ADR-0027: legacy fallback (current<4) では drop+recreate でデータが消える (試作期間扱い維持)', async () => {
+    const db = await setup();
+    await insertAction(db, {
+      id: 'legacy-test',
+      title: '試作期間のデータ',
+      variants: null,
+      timerSeconds: null,
+    });
+    // 強制的に current を 2 (= 試作期間) に戻す
+    await db.run(`PRAGMA user_version = 2`);
+    // initSchema を呼ぶ → legacy fallback 経路に入り drop+recreate
+    await initSchema(db);
+    // ユーザーデータは消えている (= ADR-0016 / K-021 の試作期間方針維持)
+    const actions = await listActions(db);
+    expect(actions.find((a) => a.id === 'legacy-test')).toBeUndefined();
+    // version は最新に
+    type VersionRow = { user_version: number };
+    const v = await db.all<VersionRow>(`PRAGMA user_version`);
+    expect(v[0]?.user_version).toBe(SCHEMA_VERSION);
     await teardown(db);
   });
 

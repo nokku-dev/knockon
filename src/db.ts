@@ -140,7 +140,10 @@ DROP TABLE IF EXISTS actions;
 // 作成 → INSERT SELECT → 旧 drop → ALTER RENAME)。 1 トランザクション内に閉じる責務を
 // コメントで明示 (K-022 同型)。
 type Migration = (client: DbClient) => Promise<void>;
-const MIGRATIONS: Record<number, Migration> = {
+// export しているのはテスト経由で MIGRATIONS step の発火を検証するため。
+// production code から直接書き換える用途ではない (= 将来 SCHEMA_VERSION bump 時に
+// 本ファイル内で step を追加するのが正規ルート)。
+export const MIGRATIONS: Record<number, Migration> = {
   // 将来の SCHEMA_VERSION bump 時にここに追加
 };
 
@@ -172,7 +175,13 @@ export const initSchema = async (client: DbClient): Promise<void> => {
   }
 
   // v4 以降 (= 検証期間以降): ALTER ベース migration でデータ保全 (ADR-0027)。
-  // current = LEGACY_FALLBACK_VERSION の場合は MIGRATIONS が空ならループも回らず、 何もしない。
+  // current = LEGACY_FALLBACK_VERSION の場合は MIGRATIONS が空ならループも回らず、
+  // **完全に noop** (= データ保全の保証)。
+  //
+  // safety net としての SCHEMA_SQL 実行は意図的に**入れない**: K-021 の罠
+  // (= CREATE TABLE IF NOT EXISTS で新 schema が反映されない) を再導入する素地になる。
+  // テーブル欠損は MIGRATIONS step で明示的に書く責務 (= 「SCHEMA_SQL と MIGRATIONS の
+  // 二重 truth source」を作らない)。
   for (let v = current + 1; v <= SCHEMA_VERSION; v++) {
     const migration = MIGRATIONS[v];
     if (migration) {
@@ -180,8 +189,6 @@ export const initSchema = async (client: DbClient): Promise<void> => {
     }
     await client.exec(`PRAGMA user_version = ${v};`);
   }
-  // 念のため、 何らかの理由でテーブルが欠けている場合の safety net (= 空 DB だけ作る)
-  await client.exec(SCHEMA_SQL);
 };
 
 // PR-CC (ADR-0026): builtin メトリクス種別の DB seed SQL。

@@ -29,6 +29,8 @@ PR-1.8a で `ON DELETE CASCADE` 句を schema (`src/db.ts`) に追加した際�
 
 **案 B** (`PRAGMA user_version` + 全 DROP + CREATE) を採用 (PR-1.8a / `5ea790c`)。`SCHEMA_VERSION = 1` で導入。
 
+> **追記 (ADR-0027 反映)**: 本判断は **v4 (= PR-CC マージ後) までの試作期間** に限定。 [ADR-0022](./0022-phase-1-completion-and-verification-operation.md) で検証期間に入りユーザーが運用データを蓄積し始めたため、 [ADR-0027](./0027-non-destructive-migration.md) で **v4 以降は ALTER ベース migration** に切替。 既存挙動 (drop+recreate) は v1-v3 範囲の legacy fallback として `initSchema` 内に残るが、 通常の bump 経路は ALTER に。 K-005 双方向リンク。
+
 ```typescript
 export const initSchema = async (client: DbClient): Promise<void> => {
   const rows = await client.all<{ user_version: number }>(`PRAGMA user_version`);
