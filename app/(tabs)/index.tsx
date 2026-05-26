@@ -65,6 +65,7 @@ export default function TodayTab() {
           chains={data.chains}
           onToggleNode={handleToggle}
           initialOpenChainId={initialOpen}
+          onEditChain={(chainId) => router.push(`/chain/${chainId}`)}
         />
       )}
     </SafeAreaView>
