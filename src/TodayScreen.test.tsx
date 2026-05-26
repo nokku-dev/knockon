@@ -1,12 +1,16 @@
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 
 // @gorhom/bottom-sheet は reanimated worklet を要求するため jest 環境では mock 化。
-// Bottom Sheet 自体は実機検証で確認、 ここでは ChainCard 一覧表示部分のみテスト。
+// PR-AA: BottomSheet を「children 透過」モックに変更し、 Sheet 内コンテンツ
+// (= 編集ボタン / ChainDetail) を test で検証可能に。 既存テストは Sheet を
+// 開かない (= openChain=null で内部 ternary が null) ので影響なし。
 jest.mock('@gorhom/bottom-sheet', () => {
   const React = require('react');
   return {
     __esModule: true,
-    default: React.forwardRef(() => null),
+    default: React.forwardRef(
+      ({ children }: { children?: React.ReactNode }) => children ?? null,
+    ),
     BottomSheetBackdrop: () => null,
     BottomSheetScrollView: ({ children }: { children?: React.ReactNode }) =>
       children ?? null,
@@ -87,6 +91,37 @@ describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {
     );
     expect(getByText('朝のルーティン')).toBeTruthy();
     expect(getByText('就寝前')).toBeTruthy();
+  });
+
+  test('PR-AA: チェーンカードタップ → Sheet ヘッダーに「編集」ボタン → タップで onEditChain が呼ばれる', () => {
+    const onEditChain = jest.fn();
+    const chains: TodayChainData[] = [
+      buildChainData('c1', '朝のルーティン', [fireNode('n1', '水を飲む')]),
+    ];
+    const { getByLabelText } = render(
+      <TodayScreen
+        chains={chains}
+        onToggleNode={() => {}}
+        onEditChain={onEditChain}
+      />,
+    );
+    // ChainCard をタップして Sheet を開く
+    fireEvent.press(getByLabelText(/朝のルーティン を開く/));
+    // 編集ボタンが表示される
+    const editBtn = getByLabelText('このチェーンを編集');
+    fireEvent.press(editBtn);
+    expect(onEditChain).toHaveBeenCalledWith('c1');
+  });
+
+  test('PR-AA: onEditChain 未指定なら編集ボタンは表示されない (発見性 = 親が動線を持っている時のみ)', () => {
+    const chains: TodayChainData[] = [
+      buildChainData('c1', '朝のルーティン', [fireNode('n1', '水を飲む')]),
+    ];
+    const { getByLabelText, queryByLabelText } = render(
+      <TodayScreen chains={chains} onToggleNode={() => {}} />,
+    );
+    fireEvent.press(getByLabelText(/朝のルーティン を開く/));
+    expect(queryByLabelText('このチェーンを編集')).toBeNull();
   });
 
   test('進捗 0/N と N/N の表示が区別される', () => {
