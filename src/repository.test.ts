@@ -349,6 +349,26 @@ describe('スキーマの不変条件', () => {
     await teardown(db);
   });
 
+  test('ADR-0027: current=4 (= 最新) で initSchema を呼んでも既存データが保たれる (非破壊 migration)', async () => {
+    // 1 度目の initSchema: 初回起動 (current=0) → schema 構築 + version=4
+    const db = await setup();
+    // Action を 1 個 insert (= ユーザーが運用中のデータの代理)
+    await insertAction(db, {
+      id: 'persist-test',
+      title: '残るはずのアクション',
+      variants: null,
+      timerSeconds: null,
+    });
+    // 2 度目の initSchema (= アプリ再起動 / preview build 更新 シミュレーション)
+    await initSchema(db);
+    // ユーザーデータが保たれているか確認
+    const actions = await listActions(db);
+    const target = actions.find((a) => a.id === 'persist-test');
+    expect(target).toBeTruthy();
+    expect(target?.title).toBe('残るはずのアクション');
+    await teardown(db);
+  });
+
   test('PRAGMA user_version が SCHEMA_VERSION と一致 (PR-1.8a migration)', async () => {
     const db = await setup();
     type VersionRow = { user_version: number };
