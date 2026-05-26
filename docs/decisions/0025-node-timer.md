@@ -12,7 +12,7 @@ superseded-by: []
 
 ## 文脈
 
-[ADR-0022](0022-phase-1-completion-and-verification-operation.md) 検証期間中、 ユーザーが「**ルーティンの中にタイマー機能を仕込みたい**」と判断 (不便驅動シグナル)。 具体例:
+[ADR-0022](0022-phase-1-completion-and-verification-operation.md) 検証期間中、 ユーザーが「**ルーティンの中にタイマー機能を仕込みたい**」と判断 (不便駆動シグナル)。 具体例:
 - 「読書を 30 分」のような時間ベースのアクション
 - Today でタイマーボタンを押 → 控えめな音でアラーム
 - タイマー画面は全面に出る
@@ -79,10 +79,12 @@ superseded-by: []
   - 残り時間カウントダウン (大きい数字、 tabular-nums)
   - 「一時停止 / 再開 / キャンセル」ボタン
   - 完了時:
-    1. `expo-notifications.scheduleNotificationAsync({ trigger: null })` で即時通知 → OS 控えめ音
-    2. `Vibration.vibrate([100, 50, 100])` で短い振動パターン (React Native 標準 API)
-    3. `onToggleNode(nodeId)` で達成記録 (= 自動達成 = 案 X)
-    4. Modal を閉じる
+    1. `expo-notifications.scheduleNotificationAsync({ trigger: null, content: { data: { kind: 'timer-complete' } } })` で即時通知 → OS 控えめ音
+    2. `app/_layout.tsx` の `setNotificationHandler` は `data.kind === 'timer-complete'` のときだけ `shouldPlaySound: true` を返す ([K-026](../../KNOWLEDGE.md) 候補: global handler が個別 sound を上書きする仕様の回避)
+    3. `Vibration.vibrate([100, 50, 100])` で短い振動パターン (React Native 標準 API)
+    4. `onMarkNodeAchieved(chainId, nodeId, true)` で達成記録 = **force set** (= 案 X 自動達成)
+       - **重要**: `onToggleNode` (bool 反転) ではなく `onMarkNodeAchieved` を使う ([K-027](../../KNOWLEDGE.md) 候補: 既達成ノードでタイマー完了して「未達成に戻る」バグの回避)
+    5. Modal を閉じる
   - キャンセル時: 達成記録なし、 Modal 閉じる
 
 ### 既存判断との関係

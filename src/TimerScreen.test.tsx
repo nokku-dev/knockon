@@ -75,9 +75,33 @@ describe('TimerScreen (ADR-0025 PR-BB)', () => {
       />,
     );
     act(() => {
-      jest.advanceTimersByTime(2000);
+      // 余裕を持って 3 秒進める (1 個 interval reuse なので 2 秒で 0 到達後 effect 発火)
+      jest.advanceTimersByTime(3000);
     });
     expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  test('PR-BB レビュー Critical 2: 完了通知に data.kind === "timer-complete" が付与される (K-026 回避)', () => {
+    const Notifications = require('expo-notifications');
+    render(
+      <TimerScreen
+        visible={true}
+        durationSeconds={1}
+        actionTitle="読書"
+        onCancel={() => {}}
+        onComplete={() => {}}
+      />,
+    );
+    act(() => {
+      jest.advanceTimersByTime(2000);
+    });
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          data: { kind: 'timer-complete' },
+        }),
+      }),
+    );
   });
 
   test('一時停止 → 時間が進まない、 再開 → 進む', () => {

@@ -54,28 +54,34 @@ export const TimerScreen = ({
   }, [visible, durationSeconds]);
 
   // カウントダウン (1 秒間隔)。 paused or 非表示なら interval を回さない。
+  // dep を [visible, paused] のみに絞り、 1 個の interval を再利用 (= clearInterval/
+  // setInterval の毎秒再生成によるドリフト回避)。 setRemaining は functional update。
   useEffect(() => {
     if (!visible || paused) return;
-    if (remaining <= 0) return;
     const id = setInterval(() => {
-      setRemaining((r) => r - 1);
+      setRemaining((r) => (r > 0 ? r - 1 : r));
     }, 1000);
     return () => clearInterval(id);
-  }, [visible, paused, remaining]);
+  }, [visible, paused]);
 
   // 完了通知 + 振動 + onComplete 呼び出し。 remaining が 0 になった瞬間 1 回だけ発火。
-  // 受容判断 (K-010 同型): JS timer は backgrounding で不正確になるが Phase 1 N=1 前提
-  // (= タイマー使用中は前面表示) を受容。 実機検証で問題出たら BackgroundTask 検討。
+  // 受容判断 (K-010 同型):
+  // - JS timer は backgrounding で不正確になるが Phase 1 N=1 前提 (= タイマー使用中は前面表示) を受容
+  // - dep に onComplete / actionTitle を含めない (= 親の inline closure で毎レンダ新参照で
+  //   ループするため)。 結果として stale closure になりうるが、 「タイマー 1 回中に
+  //   onComplete / actionTitle が変わるシナリオはない」前提で受容
   useEffect(() => {
     if (!visible) return;
     if (remaining > 0) return;
-    // 即時通知 (banner なし、 音と振動のみ)。 設定は app/_layout.tsx の
-    // setNotificationHandler が共通管理 (shouldPlaySound: true, shouldShowBanner: false)。
+    // 即時通知 (banner なし、 音のみ)。 app/_layout.tsx の setNotificationHandler は
+    // data.kind === 'timer-complete' のときだけ shouldPlaySound: true を返す
+    // (K-026 回避: 個別 sound: true は foreground では global handler に上書きされる)。
     Notifications.scheduleNotificationAsync({
       content: {
         title: 'タイマー完了',
         body: actionTitle,
         sound: true,
+        data: { kind: 'timer-complete' },
       },
       trigger: null,
     }).catch(() => {

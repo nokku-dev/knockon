@@ -234,7 +234,9 @@ export const ChainDetail = ({
               onPress={() => onToggleNode(node.id)}
               timerSeconds={action.timerSeconds}
               onStartTimer={
-                onStartTimer && action.timerSeconds
+                onStartTimer &&
+                action.timerSeconds != null &&
+                action.timerSeconds > 0
                   ? () =>
                       onStartTimer(node.id, action.timerSeconds!, label)
                   : undefined

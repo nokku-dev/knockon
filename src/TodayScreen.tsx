@@ -31,6 +31,9 @@ export type TodayScreenProps = {
   // 親 (app/(tabs)/index.tsx) で router.push('/chain/[chainId]') を呼ぶ。
   // Sheet を閉じてから push したいので、 onEditChain 経由で親に責務委譲。
   onEditChain?: (chainId: string) => void;
+  // PR-BB (ADR-0025): タイマー完了で「必ず達成」(force set)。 onToggleNode の
+  // bool 反転 semantics と区別 (K-027 同型のミスマッチ防止)。
+  onMarkNodeAchieved?: (chainId: string, nodeId: string, achieved: boolean) => void;
 };
 
 export const TodayScreen = ({
@@ -38,6 +41,7 @@ export const TodayScreen = ({
   onToggleNode,
   initialOpenChainId = null,
   onEditChain,
+  onMarkNodeAchieved,
 }: TodayScreenProps) => {
   const [openChainId, setOpenChainId] = useState<string | null>(null);
   const sheetRef = useRef<BottomSheet>(null);
@@ -193,8 +197,10 @@ export const TodayScreen = ({
         actionTitle={timerState?.actionTitle ?? ''}
         onCancel={() => setTimerState(null)}
         onComplete={() => {
-          if (timerState) {
-            onToggleNode(timerState.chainId, timerState.nodeId);
+          // 「force set true」で達成記録。 onToggleNode (反転) ではなく
+          // onMarkNodeAchieved を使うのは K-027 同型 (既達成 → 未達成に戻るバグ防止)。
+          if (timerState && onMarkNodeAchieved) {
+            onMarkNodeAchieved(timerState.chainId, timerState.nodeId, true);
           }
           setTimerState(null);
         }}
