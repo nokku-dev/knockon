@@ -4,11 +4,18 @@ import BottomSheet, {
 } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ChainCard } from './ChainCard';
 import { ChainDetail } from './ChainDetail';
-import { COLOR_BG, COLOR_FG, COLOR_FG_FAINT, COLOR_LINE_BG, COLOR_SURFACE } from './tokens';
+import {
+  COLOR_BG,
+  COLOR_FG,
+  COLOR_FG_FAINT,
+  COLOR_FG_SOFT,
+  COLOR_LINE_BG,
+  COLOR_SURFACE,
+} from './tokens';
 import type { TodayChainData } from './useTodayData';
 
 // PR-X (ADR-0021): Today はチェーンカード一覧 (折りたたみ) + Bottom Sheet (個別展開)。
@@ -19,12 +26,17 @@ export type TodayScreenProps = {
   // PR-1.5b-3: 通知タップから遷移してきたとき、 自動で開きたい chainId。
   // 変化のたびに対応するチェーンの Bottom Sheet を expand する。
   initialOpenChainId?: string | null;
+  // PR-AA: 「編集」ボタンタップ → チェーン編集画面へ遷移。
+  // 親 (app/(tabs)/index.tsx) で router.push('/chain/[chainId]') を呼ぶ。
+  // Sheet を閉じてから push したいので、 onEditChain 経由で親に責務委譲。
+  onEditChain?: (chainId: string) => void;
 };
 
 export const TodayScreen = ({
   chains,
   onToggleNode,
   initialOpenChainId = null,
+  onEditChain,
 }: TodayScreenProps) => {
   const [openChainId, setOpenChainId] = useState<string | null>(null);
   const sheetRef = useRef<BottomSheet>(null);
@@ -123,15 +135,35 @@ export const TodayScreen = ({
       >
         <BottomSheetScrollView contentContainerStyle={styles.sheetContent}>
           {openChain && (
-            <ChainDetail
-              chain={openChain.chain}
-              anchor={openChain.anchor}
-              nodes={openChain.nodes}
-              achievements={openChain.achievements}
-              anchorFiredToday={openChain.anchorFiredToday}
-              nodeIdsEstablished={openChain.nodeIdsEstablished}
-              onToggleNode={(nodeId) => onToggleNode(openChain.chain.id, nodeId)}
-            />
+            <>
+              {onEditChain && (
+                <View style={styles.sheetHeader}>
+                  <View style={styles.sheetHeaderSpacer} />
+                  <Pressable
+                    onPress={() => {
+                      const id = openChain.chain.id;
+                      // Sheet を閉じてから push (アニメ衝突回避、 K-013 同型の race 防止)
+                      sheetRef.current?.close();
+                      onEditChain(id);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="このチェーンを編集"
+                    style={styles.editBtn}
+                  >
+                    <Text style={styles.editBtnText}>編集</Text>
+                  </Pressable>
+                </View>
+              )}
+              <ChainDetail
+                chain={openChain.chain}
+                anchor={openChain.anchor}
+                nodes={openChain.nodes}
+                achievements={openChain.achievements}
+                anchorFiredToday={openChain.anchorFiredToday}
+                nodeIdsEstablished={openChain.nodeIdsEstablished}
+                onToggleNode={(nodeId) => onToggleNode(openChain.chain.id, nodeId)}
+              />
+            </>
           )}
         </BottomSheetScrollView>
       </BottomSheet>
@@ -157,4 +189,23 @@ const styles = StyleSheet.create({
   sheetBg: { backgroundColor: COLOR_SURFACE },
   sheetHandle: { backgroundColor: COLOR_LINE_BG, width: 40 },
   sheetContent: { paddingBottom: 32 },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 24,
+    paddingTop: 4,
+  },
+  sheetHeaderSpacer: { flex: 1 },
+  editBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: COLOR_LINE_BG,
+  },
+  editBtnText: {
+    color: COLOR_FG_SOFT,
+    fontSize: 13,
+    fontWeight: '600',
+  },
 });
