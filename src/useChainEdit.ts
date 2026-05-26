@@ -314,6 +314,7 @@ export const useChainEdit = (
           id: newActionId(),
           title: trimmed,
           variants: null,
+          timerSeconds: null,
         };
         await insertAction(db, action);
         if (!mountedRef.current) return;
@@ -353,6 +354,7 @@ export const useChainEdit = (
             id: newActionId(),
             title: trimmed,
             variants: null,
+            timerSeconds: null,
           };
           await insertAction(db, action);
           newActions.push(action);

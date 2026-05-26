@@ -8,6 +8,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ChainCard } from './ChainCard';
 import { ChainDetail } from './ChainDetail';
+import { TimerScreen } from './TimerScreen';
 import {
   COLOR_BG,
   COLOR_FG,
@@ -40,6 +41,13 @@ export const TodayScreen = ({
 }: TodayScreenProps) => {
   const [openChainId, setOpenChainId] = useState<string | null>(null);
   const sheetRef = useRef<BottomSheet>(null);
+  // PR-BB (ADR-0025): タイマー Modal の状態。 起動中の chainId / nodeId / 設定時間を保持。
+  const [timerState, setTimerState] = useState<{
+    chainId: string;
+    nodeId: string;
+    durationSeconds: number;
+    actionTitle: string;
+  } | null>(null);
 
   // initialOpenChainId が変化したら該当チェーンの sheet を開く。
   // 通知タップ → URL param 経由で発火する経路 (PR-1.5b-3)。
@@ -162,11 +170,35 @@ export const TodayScreen = ({
                 anchorFiredToday={openChain.anchorFiredToday}
                 nodeIdsEstablished={openChain.nodeIdsEstablished}
                 onToggleNode={(nodeId) => onToggleNode(openChain.chain.id, nodeId)}
+                onStartTimer={(nodeId, durationSeconds, actionTitle) => {
+                  setTimerState({
+                    chainId: openChain.chain.id,
+                    nodeId,
+                    durationSeconds,
+                    actionTitle,
+                  });
+                }}
               />
             </>
           )}
         </BottomSheetScrollView>
       </BottomSheet>
+
+      {/* PR-BB (ADR-0025): タイマー Modal。 timerState=null なら非表示。
+          完了で onToggleNode (= 自動達成、 ADR-0025 案 X) + Modal 閉じる。
+          キャンセル時は達成記録なしで閉じる。 */}
+      <TimerScreen
+        visible={timerState != null}
+        durationSeconds={timerState?.durationSeconds ?? 0}
+        actionTitle={timerState?.actionTitle ?? ''}
+        onCancel={() => setTimerState(null)}
+        onComplete={() => {
+          if (timerState) {
+            onToggleNode(timerState.chainId, timerState.nodeId);
+          }
+          setTimerState(null);
+        }}
+      />
     </View>
   );
 };

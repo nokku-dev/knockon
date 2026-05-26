@@ -40,6 +40,7 @@ const buildAction = (id: string, title: string): Action => ({
   id,
   title,
   variants: null,
+  timerSeconds: null,
 });
 
 const todayNodes: readonly TodayNode[] = [

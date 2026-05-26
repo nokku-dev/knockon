@@ -263,7 +263,7 @@ describe('ChainEditScreen', () => {
   test('既存アクションリストから選択で onAddExistingAction', () => {
     const onAddExistingAction = jest.fn();
     const existingActions: Action[] = [
-      { id: 'act1', title: '水を飲む', variants: null },
+      { id: 'act1', title: '水を飲む', variants: null, timerSeconds: null },
     ];
     const { getByLabelText } = render(
       <ChainEditScreen
@@ -280,7 +280,7 @@ describe('ChainEditScreen', () => {
 
   test('onDeleteAction 未指定 (新規モード) では既存チップに × が表示されない', () => {
     const existingActions: Action[] = [
-      { id: 'act1', title: '水を飲む', variants: null },
+      { id: 'act1', title: '水を飲む', variants: null, timerSeconds: null },
     ];
     const { getByLabelText, queryByLabelText } = render(
       <ChainEditScreen
@@ -296,7 +296,7 @@ describe('ChainEditScreen', () => {
   test('onDeleteAction 指定で既存チップに × ボタンが出る + 押下で onDeleteAction 呼び出し', () => {
     const onDeleteAction = jest.fn();
     const existingActions: Action[] = [
-      { id: 'act1', title: '水を飲む', variants: null },
+      { id: 'act1', title: '水を飲む', variants: null, timerSeconds: null },
     ];
     const { getByLabelText } = render(
       <ChainEditScreen
@@ -313,7 +313,7 @@ describe('ChainEditScreen', () => {
 
   test('onSaveAction 未指定では既存チップに鉛筆ボタンが表示されない (Phase 2 variant)', () => {
     const existingActions: Action[] = [
-      { id: 'act1', title: '水を飲む', variants: null },
+      { id: 'act1', title: '水を飲む', variants: null, timerSeconds: null },
     ];
     const { getByLabelText, queryByLabelText } = render(
       <ChainEditScreen
@@ -328,7 +328,7 @@ describe('ChainEditScreen', () => {
 
   test('onSaveAction 指定で鉛筆ボタンが出る + 押下で ActionEditor モーダルが開く', () => {
     const existingActions: Action[] = [
-      { id: 'act1', title: '水を飲む', variants: null },
+      { id: 'act1', title: '水を飲む', variants: null, timerSeconds: null },
     ];
     const { getByLabelText } = render(
       <ChainEditScreen
@@ -358,6 +358,7 @@ describe('ChainEditScreen', () => {
           sat: null,
           sun: null,
         },
+        timerSeconds: null,
       },
     ];
     const { getByLabelText, getByText } = render(
@@ -374,7 +375,7 @@ describe('ChainEditScreen', () => {
 
   test('variants=null のアクションには曜日バッジ (variant: ...) が表示されない', () => {
     const existingActions: Action[] = [
-      { id: 'act1', title: '水を飲む', variants: null },
+      { id: 'act1', title: '水を飲む', variants: null, timerSeconds: null },
     ];
     const { getByLabelText, queryByLabelText } = render(
       <ChainEditScreen

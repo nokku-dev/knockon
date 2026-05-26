@@ -56,6 +56,9 @@ export type ChainDetailProps = {
   onToggleNode: (nodeId: string) => void;
   anchorFiredToday?: boolean;
   nodeIdsEstablished?: ReadonlySet<string>;
+  // PR-BB (ADR-0025): タイマー設定済みノードでタップされたとき呼ぶ。
+  // 親 (TodayScreen) が TimerScreen Modal を制御する責務。 onStartTimer 未指定 → ボタン非表示。
+  onStartTimer?: (nodeId: string, durationSeconds: number, actionTitle: string) => void;
 };
 
 const SPINE_X = 9;
@@ -111,6 +114,7 @@ export const ChainDetail = ({
   onToggleNode,
   anchorFiredToday = false,
   nodeIdsEstablished,
+  onStartTimer,
 }: ChainDetailProps) => {
   const domainNodes = nodes.map((n) => n.node);
   const lastAchievedIdx = lastAchievedNodeIndex(domainNodes, achievements);
@@ -219,7 +223,7 @@ export const ChainDetail = ({
         >
           <Text style={styles.anchorRowLabel}>起点アンカー</Text>
         </View>
-        {nodes.map(({ node, label, kind }) =>
+        {nodes.map(({ node, action, label, kind }) =>
           kind === 'skip' ? (
             <SkipNodeRow key={node.id} actionTitle={label} />
           ) : (
@@ -228,6 +232,13 @@ export const ChainDetail = ({
               actionTitle={label}
               achieved={achievements[node.id] ?? false}
               onPress={() => onToggleNode(node.id)}
+              timerSeconds={action.timerSeconds}
+              onStartTimer={
+                onStartTimer && action.timerSeconds
+                  ? () =>
+                      onStartTimer(node.id, action.timerSeconds!, label)
+                  : undefined
+              }
             />
           ),
         )}
@@ -314,10 +325,14 @@ const NodeRow = ({
   actionTitle,
   achieved,
   onPress,
+  timerSeconds,
+  onStartTimer,
 }: {
   actionTitle: string;
   achieved: boolean;
   onPress: () => void;
+  timerSeconds: number | null;
+  onStartTimer?: () => void;
 }) => {
   const scale = useSharedValue(1);
   const prevAchievedRef = useRef(achieved);
@@ -342,18 +357,32 @@ const NodeRow = ({
     transform: [{ scale: scale.value }],
   }));
 
+  const minutes = timerSeconds != null ? Math.round(timerSeconds / 60) : null;
+
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: achieved }}
-      accessibilityLabel={actionTitle}
-      style={[styles.contentRow, { height: NODE_ROW_HEIGHT }]}
-    >
-      <Animated.View style={[styles.nodeTextWrap, animatedStyle]}>
-        <Text style={styles.nodeText}>{actionTitle}</Text>
-      </Animated.View>
-    </Pressable>
+    <View style={[styles.contentRow, styles.nodeRowContainer, { height: NODE_ROW_HEIGHT }]}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: achieved }}
+        accessibilityLabel={actionTitle}
+        style={styles.nodePressArea}
+      >
+        <Animated.View style={[styles.nodeTextWrap, animatedStyle]}>
+          <Text style={styles.nodeText}>{actionTitle}</Text>
+        </Animated.View>
+      </Pressable>
+      {onStartTimer && minutes != null && (
+        <Pressable
+          onPress={onStartTimer}
+          accessibilityRole="button"
+          accessibilityLabel={`${actionTitle} ${minutes} 分のタイマー開始`}
+          style={styles.timerBtn}
+        >
+          <Text style={styles.timerBtnText}>⏱ {minutes} 分</Text>
+        </Pressable>
+      )}
+    </View>
   );
 };
 
@@ -401,8 +430,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   anchorRowLabel: { color: COLOR_FG_FAINT, fontSize: 12 },
+  nodeRowContainer: { flexDirection: 'row', alignItems: 'center' },
+  nodePressArea: { flex: 1, justifyContent: 'center' },
   nodeTextWrap: { alignSelf: 'flex-start' },
   nodeText: { color: COLOR_FG, fontSize: 16 },
+  timerBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLOR_GROW,
+    marginRight: 8,
+  },
+  timerBtnText: {
+    color: COLOR_GROW,
+    fontSize: 12,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
   skipMark: {
     position: 'absolute',
     left: 0,
