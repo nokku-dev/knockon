@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
 import {
+  effectiveTodayIsoDate,
   isAnchorFiringToday,
   isNodeEstablished,
   isPlaceAnchorFiringNow,
@@ -11,7 +12,6 @@ import {
   resolveActionForDate,
   sortChainsForDisplay,
   toAchievementMap,
-  todayIsoDate,
   toggleAchievementInMap,
 } from './domain';
 import type {
@@ -35,6 +35,7 @@ import {
   recordAchievement,
   recordAnchorFiring,
 } from './repository';
+import { getAppSettings } from './settingsRepository';
 import type { TodayNode } from './ChainDetail';
 
 // 1 つの active チェーン分の Today データ。
@@ -148,7 +149,9 @@ const loadToday = async (): Promise<TodayData> => {
   const db = await getExpoSqliteClient();
   const chains = await listChains(db, 'active');
   const now = new Date();
-  const today = todayIsoDate(now);
+  // ADR-0028: リセット時刻 (設定可) を考慮した「今日」。 デフォルト '00:00' で既存挙動互換。
+  const settings = await getAppSettings(db);
+  const today = effectiveTodayIsoDate(now, settings.resetTime);
   // ADR-0020: 全 active チェーンを並べる (旧コードの chains[0] バグを修正)。
   const loaded = await Promise.all(
     chains.map((c) => loadChainForToday(c, today, now)),
