@@ -101,9 +101,11 @@ CREATE TABLE IF NOT EXISTS metric_kinds (
 -- ADR-0028: アプリ全体の設定 (singleton 行)。 ユーザーが「正準データ軸」とは
 -- 別の「app 動作設定軸」を保持する場所。 id = 'singleton' で 1 行固定。
 -- 将来の設定追加は ALTER TABLE app_settings ADD COLUMN ... で対応 (ADR-0027)。
+-- ADR-0029 (Issue #53): theme_mode 追加。 'auto' (OS の colorScheme に追従) / 'light' / 'dark' の 3 値。
 CREATE TABLE IF NOT EXISTS app_settings (
   id TEXT PRIMARY KEY,
-  reset_time TEXT NOT NULL DEFAULT '00:00'
+  reset_time TEXT NOT NULL DEFAULT '00:00',
+  theme_mode TEXT NOT NULL DEFAULT 'auto' CHECK(theme_mode IN ('auto', 'light', 'dark'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_nodes_chain_order ON nodes(chain_id, order_index);
@@ -123,7 +125,7 @@ CREATE INDEX IF NOT EXISTS idx_metric_kinds_order ON metric_kinds(order_index);
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 const DROP_SQL = `
 DROP TABLE IF EXISTS app_settings;
@@ -165,6 +167,16 @@ export const MIGRATIONS: Record<number, Migration> = {
       );
     `);
     await client.exec(APP_SETTINGS_SEED_SQL);
+  },
+  // ADR-0029 (Issue #53): app_settings に theme_mode 列を追加。 既存 row は
+  // DEFAULT 'auto' が ALTER TABLE で適用される (= 既存ユーザーは Auto に初期化)。
+  // CHECK 制約は ALTER TABLE ADD COLUMN では SQLite の制約上後付け不可なため
+  // 列宣言に含める。 SCHEMA_SQL 側も同じ CHECK を持つので、 新規ユーザー / 既存
+  // ユーザーで列定義が一致する (= 二重 truth source は値で一致を担保)。
+  6: async (client) => {
+    await client.exec(
+      `ALTER TABLE app_settings ADD COLUMN theme_mode TEXT NOT NULL DEFAULT 'auto' CHECK(theme_mode IN ('auto', 'light', 'dark'));`,
+    );
   },
 };
 
