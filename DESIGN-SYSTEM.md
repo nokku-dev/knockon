@@ -18,6 +18,8 @@
 
 ## 1. カラートークン
 
+> ADR-0029 (Issue #53): Light / Dark / Auto (OS 追従) 切替を v1 で採用 (= 旧「Light テーマ / 動的テーマ切替は v1 非スコープ」方針を覆し)。 デフォルト Auto。 設定 → テーマカラーで選択。 パレット定義は `src/theme.ts` の `DARK_PALETTE` / `LIGHT_PALETTE` が正本。 個別コンポーネントは段階移行で `useTheme()` 経由化する (= 本 ADR §非スコープ、 follow-up PR 列)。
+
 | トークン | 役割 | Dark（既定） | Light |
 |---|---|---|---|
 | `--bg` | 背景 | `#16161A` | `#F6F6F4` |

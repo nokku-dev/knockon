@@ -90,7 +90,9 @@ Phase 3 まででプロダクトとして自分の運用が閉じる。以降は
 
 ## 出荷後レイヤー（Phase 1 実使用の後に要否判断）
 
-サブチェーン参照＋白抜き星 / ウィンドウ 7/31 切替 / サブスク / 広告 / 同期 / テーマ / ソーシャル。いずれもデータ正準が `(ノード,日付,bool)` + `(anchor_id,日付)` + `(metric_key,value,recorded_at)` のみのため移行なしで追加可能。
+サブチェーン参照＋白抜き星 / ウィンドウ 7/31 切替 / サブスク / 広告 / 同期 / ソーシャル。いずれもデータ正準が `(ノード,日付,bool)` + `(anchor_id,日付)` + `(metric_key,value,recorded_at)` のみのため移行なしで追加可能。
+
+> テーマ (Light / Dark / Auto 切替) は元々出荷後レイヤーだったが、 [ADR-0029](./docs/decisions/0029-theme-mode-light-dark-auto.md) で v1 に取り込み (= app_settings 軸 + ALTER 経路の枠組みが ADR-0028 で揃った時点で取り込みコストが極小化)。 個別コンポーネント refactor は follow-up PR で段階移行。
 
 ## 設計意図
 

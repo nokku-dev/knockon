@@ -8,6 +8,7 @@ import { ChainListScreen } from '../../src/ChainListScreen';
 import { SettingsModal } from '../../src/SettingsModal';
 import type { ChainStatus } from '../../src/domain';
 import { DEFAULT_RESET_TIME } from '../../src/settingsRepository';
+import { useTheme } from '../../src/themeContext';
 import {
   COLOR_ACCENT,
   COLOR_BG,
@@ -24,6 +25,7 @@ export default function ChainsTab() {
   const { items, activeCount, stockedCount, error, loading } =
     useChainListData(status);
   const settings = useSettings();
+  const theme = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const router = useRouter();
 
@@ -107,8 +109,15 @@ export default function ChainsTab() {
       <SettingsModal
         open={settingsOpen}
         resetTime={settings.settings?.resetTime ?? DEFAULT_RESET_TIME}
+        themeMode={theme.themeMode}
         onClose={() => setSettingsOpen(false)}
-        onSave={settings.updateResetTime}
+        onSave={async ({ resetTime, themeMode }) => {
+          // ADR-0029: resetTime は useSettings 経由、 themeMode は ThemeProvider 経由で
+          // 書き込む (= 各々が単一 source of truth)。 両者ともシングルトン行 UPDATE で
+          // 同 row への 2 回 UPSERT になるが、 シングルトン行のため orphan / FK 影響は無し。
+          await settings.updateResetTime(resetTime);
+          await theme.setThemeMode(themeMode);
+        }}
       />
     </SafeAreaView>
   );
