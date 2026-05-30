@@ -1,10 +1,13 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChainListScreen } from '../../src/ChainListScreen';
+import { SettingsModal } from '../../src/SettingsModal';
 import type { ChainStatus } from '../../src/domain';
+import { DEFAULT_RESET_TIME } from '../../src/settingsRepository';
 import {
   COLOR_ACCENT,
   COLOR_BG,
@@ -14,11 +17,14 @@ import {
   COLOR_LINE_BG,
 } from '../../src/tokens';
 import { useChainListData } from '../../src/useChainListData';
+import { useSettings } from '../../src/useSettings';
 
 export default function ChainsTab() {
   const [status, setStatus] = useState<ChainStatus>('active');
   const { items, activeCount, stockedCount, error, loading } =
     useChainListData(status);
+  const settings = useSettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const router = useRouter();
 
   // チェーンカードタップ → 編集画面 (`/chain/[chainId]`)。
@@ -67,6 +73,15 @@ export default function ChainsTab() {
             休止中 ({stockedCount})
           </Text>
         </Pressable>
+        <View style={styles.statusTabsSpacer} />
+        <Pressable
+          onPress={() => setSettingsOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="設定を開く"
+          style={styles.settingsBtn}
+        >
+          <Ionicons name="settings-outline" size={20} color={COLOR_FG} />
+        </Pressable>
       </View>
       {loading ? (
         <View style={styles.center}>
@@ -89,6 +104,12 @@ export default function ChainsTab() {
           )}
         </View>
       )}
+      <SettingsModal
+        open={settingsOpen}
+        resetTime={settings.settings?.resetTime ?? DEFAULT_RESET_TIME}
+        onClose={() => setSettingsOpen(false)}
+        onSave={settings.updateResetTime}
+      />
     </SafeAreaView>
   );
 }
@@ -126,10 +147,20 @@ const styles = StyleSheet.create({
   },
   statusTabs: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
     paddingHorizontal: 24,
     paddingTop: 16,
     paddingBottom: 4,
+  },
+  statusTabsSpacer: { flex: 1 },
+  settingsBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: COLOR_LINE_BG,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statusTab: {
     paddingVertical: 6,

@@ -117,6 +117,42 @@ export const todayIsoDate = (now: Date): IsoDate => {
   return `${y}-${m}-${d}`;
 };
 
+// ADR-0028: ユーザー設定のリセット時刻 (HH:MM) を考慮した「今日の日付」。
+// now の時刻 (hour*60+min) が resetTime 未満なら 1 日前を返す。 = 「夜型ユーザーが
+// 自分の感覚で『まだ昨日』と思っている時間帯の操作を、 当日記録に振り分ける」。
+//
+// 不正な resetTime 文字列はデフォルト '00:00' 扱い (= 既存挙動)。 N=1 で UI 側
+// バリデーションが正常系を保証する前提だが、 DB から壊れた値が来ても落ちないよう
+// silent fallback (K-024 同型受容)。
+export const effectiveTodayIsoDate = (
+  now: Date,
+  resetTime: string,
+): IsoDate => {
+  const parts = resetTime.split(':');
+  let resetMinutes = 0;
+  if (parts.length === 2) {
+    const hh = parseInt(parts[0]!, 10);
+    const mm = parseInt(parts[1]!, 10);
+    if (
+      !Number.isNaN(hh) &&
+      !Number.isNaN(mm) &&
+      hh >= 0 &&
+      hh <= 23 &&
+      mm >= 0 &&
+      mm <= 59
+    ) {
+      resetMinutes = hh * 60 + mm;
+    }
+  }
+  if (resetMinutes === 0) return todayIsoDate(now);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  if (nowMinutes >= resetMinutes) return todayIsoDate(now);
+  // 前日扱い。 月またぎ / 年またぎは Date オブジェクトに委ねる。
+  const shifted = new Date(now);
+  shifted.setDate(shifted.getDate() - 1);
+  return todayIsoDate(shifted);
+};
+
 // 線（スパイン）の --grow 範囲を派生する関数。
 // 「達成済みノード範囲モデル」(ADR-0010) — アンカーから最後に達成済みのノードまで
 // を --grow で繋ぐ。途中に未達ノードがあっても両端が達成済みなら線は繋がる扱い。

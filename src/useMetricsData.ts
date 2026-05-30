@@ -2,7 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
-import { recentDateRange, todayIsoDate } from './domain';
+import { effectiveTodayIsoDate, recentDateRange } from './domain';
 import type { IsoDate } from './domain';
 import { newMetricId, newMetricKindId } from './ids';
 import { BUILTIN_METRIC_KINDS } from './metricKinds';
@@ -26,6 +26,7 @@ import {
   filterNewNotionMetrics,
   mapNotionPagesToMetrics,
 } from './notionMetricsSync';
+import { getAppSettings } from './settingsRepository';
 
 // PR-Z3a (ADR-0024 §3c): メトリクス手入力 + 14D 系列の取得 hook。
 // 全 METRIC_KINDS に対して、 最新値 + 14D 範囲記録をまとめて返す。
@@ -110,7 +111,8 @@ const syncNotionMetricsInBackground = async (
 
 const loadMetrics = async (): Promise<MetricsData> => {
   const db = await getExpoSqliteClient();
-  const today = todayIsoDate(new Date());
+  const settings = await getAppSettings(db);
+  const today = effectiveTodayIsoDate(new Date(), settings.resetTime);
   const window = recentDateRange(today, ANALYTICS_WINDOW_DAYS);
   const windowStart = window[0] ?? today;
   // PR-CC (ADR-0026): DB の metric_kinds テーブルから動的取得 (= ユーザー編集反映)。
