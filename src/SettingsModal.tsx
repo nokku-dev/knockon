@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { ThemeMode } from './settingsRepository';
 import {
@@ -86,6 +87,10 @@ export const SettingsModal = ({
   const [minute, setMinute] = useState(init.minute);
   const [theme, setTheme] = useState<ThemeMode>(themeMode);
   const [saving, setSaving] = useState(false);
+  // Issue #57: Android edge-to-edge + Modal presentationStyle="pageSheet" は
+  // status bar 透過のまま content が描かれ、 topbar が status bar に被る。
+  // 親 SafeAreaProvider (app/_layout.tsx) の top inset を topbar に反映する。
+  const insets = useSafeAreaInsets();
 
   // モーダルを open し直したとき / 外部から prop が変わったとき、 ローカル状態も同期。
   useEffect(() => {
@@ -124,7 +129,10 @@ export const SettingsModal = ({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.root}
       >
-        <View style={styles.topbar}>
+        <View
+          testID="settings-modal-topbar"
+          style={[styles.topbar, { paddingTop: insets.top + 12 }]}
+        >
           <Pressable
             onPress={onClose}
             accessibilityRole="button"
@@ -230,7 +238,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    // paddingTop は status bar inset 込みで inline 指定 (Issue #57)。
+    paddingBottom: 12,
     paddingHorizontal: 16,
   },
   cancel: { color: COLOR_FG_SOFT, fontSize: 14 },

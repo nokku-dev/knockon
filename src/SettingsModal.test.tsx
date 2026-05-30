@@ -1,6 +1,26 @@
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { SettingsModal } from './SettingsModal';
+
+// Modal の content は React Tree 内で安全に inset を受け取れるよう、 親に
+// SafeAreaProvider を要求する (`useSafeAreaInsets` は provider 不在で throw する)。
+// 初期 metrics を渡せるので、 status bar 高さを simulate できる。
+const renderWithInsets = (
+  ui: React.ReactElement,
+  top = 0,
+): ReturnType<typeof render> =>
+  render(
+    <SafeAreaProvider
+      initialMetrics={{
+        insets: { top, right: 0, bottom: 0, left: 0 },
+        frame: { x: 0, y: 0, width: 320, height: 640 },
+      }}
+    >
+      {ui}
+    </SafeAreaProvider>,
+  );
 
 const noopProps = {
   onClose: () => {},
@@ -9,7 +29,7 @@ const noopProps = {
 
 describe('SettingsModal (ADR-0028 PR-DD)', () => {
   test('open=false なら何もレンダリングしない', () => {
-    const { queryByText } = render(
+    const { queryByText } = renderWithInsets(
       <SettingsModal
         open={false}
         resetTime="00:00"
@@ -21,7 +41,7 @@ describe('SettingsModal (ADR-0028 PR-DD)', () => {
   });
 
   test('open=true で既存の resetTime が time input に反映される', () => {
-    const { getByLabelText } = render(
+    const { getByLabelText } = renderWithInsets(
       <SettingsModal
         open={true}
         resetTime="03:30"
@@ -36,7 +56,7 @@ describe('SettingsModal (ADR-0028 PR-DD)', () => {
   test('時刻を編集 → 「保存」で onSave に { resetTime, themeMode } が渡る + onClose が呼ばれる', async () => {
     const onSave = jest.fn().mockResolvedValue(undefined);
     const onClose = jest.fn();
-    const { getByLabelText } = render(
+    const { getByLabelText } = renderWithInsets(
       <SettingsModal
         open={true}
         resetTime="00:00"
@@ -59,7 +79,7 @@ describe('SettingsModal (ADR-0028 PR-DD)', () => {
 
   test('範囲外 (時=25) は保存時に clamp (23) される', async () => {
     const onSave = jest.fn().mockResolvedValue(undefined);
-    const { getByLabelText } = render(
+    const { getByLabelText } = renderWithInsets(
       <SettingsModal
         open={true}
         resetTime="00:00"
@@ -82,7 +102,7 @@ describe('SettingsModal (ADR-0028 PR-DD)', () => {
   test('「閉じる」で onClose のみ呼び出し (onSave は呼ばれない)', () => {
     const onClose = jest.fn();
     const onSave = jest.fn();
-    const { getByLabelText } = render(
+    const { getByLabelText } = renderWithInsets(
       <SettingsModal
         open={true}
         resetTime="00:00"
@@ -100,7 +120,7 @@ describe('SettingsModal (ADR-0028 PR-DD)', () => {
 // ADR-0029 (Issue #53): テーマカラー picker。
 describe('SettingsModal — テーマカラー picker (ADR-0029)', () => {
   test('open=true で themeMode=auto なら Auto ボタンが selected', () => {
-    const { getByLabelText } = render(
+    const { getByLabelText } = renderWithInsets(
       <SettingsModal
         open={true}
         resetTime="00:00"
@@ -121,7 +141,7 @@ describe('SettingsModal — テーマカラー picker (ADR-0029)', () => {
   });
 
   test('Auto / Light / Dark の 3 ボタンが radiogroup で表示される', () => {
-    const { getByLabelText } = render(
+    const { getByLabelText } = renderWithInsets(
       <SettingsModal
         open={true}
         resetTime="00:00"
@@ -142,7 +162,7 @@ describe('SettingsModal — テーマカラー picker (ADR-0029)', () => {
 
   test('Light ボタンをタップ → 「保存」で onSave に themeMode=light が渡る', async () => {
     const onSave = jest.fn().mockResolvedValue(undefined);
-    const { getByLabelText } = render(
+    const { getByLabelText } = renderWithInsets(
       <SettingsModal
         open={true}
         resetTime="00:00"
@@ -164,7 +184,7 @@ describe('SettingsModal — テーマカラー picker (ADR-0029)', () => {
   test('Dark を選んでも「閉じる」で保存されない (= ローカル選択は破棄)', () => {
     const onSave = jest.fn();
     const onClose = jest.fn();
-    const { getByLabelText } = render(
+    const { getByLabelText } = renderWithInsets(
       <SettingsModal
         open={true}
         resetTime="00:00"
@@ -180,7 +200,7 @@ describe('SettingsModal — テーマカラー picker (ADR-0029)', () => {
   });
 
   test('外部から themeMode prop が変わると picker の selected も追従する (再 open シミュレーション)', () => {
-    const { getByLabelText, rerender } = render(
+    const { getByLabelText, rerender } = renderWithInsets(
       <SettingsModal
         open={true}
         resetTime="00:00"
@@ -193,16 +213,59 @@ describe('SettingsModal — テーマカラー picker (ADR-0029)', () => {
       getByLabelText('テーマカラー Auto').props.accessibilityState.selected,
     ).toBe(true);
     rerender(
-      <SettingsModal
-        open={true}
-        resetTime="00:00"
-        themeMode="light"
-        onSave={jest.fn()}
-        onClose={() => {}}
-      />,
+      <SafeAreaProvider
+        initialMetrics={{
+          insets: { top: 0, right: 0, bottom: 0, left: 0 },
+          frame: { x: 0, y: 0, width: 320, height: 640 },
+        }}
+      >
+        <SettingsModal
+          open={true}
+          resetTime="00:00"
+          themeMode="light"
+          onSave={jest.fn()}
+          onClose={() => {}}
+        />
+      </SafeAreaProvider>,
     );
     expect(
       getByLabelText('テーマカラー Light').props.accessibilityState.selected,
     ).toBe(true);
+  });
+});
+
+// Issue #57: 設定画面の最上部 (閉じる / 設定 / 保存 行) が Android のステータスバーに
+// 被って操作できないバグ。 修正方針: useSafeAreaInsets で topbar に paddingTop を確保。
+describe('SettingsModal — topbar safe area inset (Issue #57)', () => {
+  test('top inset > 0 のとき topbar の paddingTop が inset 分だけ広がる', () => {
+    const { getByTestId } = renderWithInsets(
+      <SettingsModal
+        open={true}
+        resetTime="00:00"
+        themeMode="auto"
+        onSave={jest.fn()}
+        onClose={() => {}}
+      />,
+      47,
+    );
+    const topbar = getByTestId('settings-modal-topbar');
+    const flat = StyleSheet.flatten(topbar.props.style);
+    expect(flat.paddingTop).toBeGreaterThanOrEqual(47);
+  });
+
+  test('top inset = 0 でも topbar は最低限の paddingTop を保つ (既存挙動の互換)', () => {
+    const { getByTestId } = renderWithInsets(
+      <SettingsModal
+        open={true}
+        resetTime="00:00"
+        themeMode="auto"
+        onSave={jest.fn()}
+        onClose={() => {}}
+      />,
+      0,
+    );
+    const topbar = getByTestId('settings-modal-topbar');
+    const flat = StyleSheet.flatten(topbar.props.style);
+    expect(flat.paddingTop).toBeGreaterThanOrEqual(12);
   });
 });
