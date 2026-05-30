@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnalyticsScreen } from '../../src/AnalyticsScreen';
 import { MetricKindsEditor } from '../../src/MetricKindsEditor';
+import { SettingsLauncher } from '../../src/SettingsLauncher';
 import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../../src/tokens';
 import { useAnalyticsData } from '../../src/useAnalyticsData';
 import { useMetricsData } from '../../src/useMetricsData';
@@ -25,6 +26,10 @@ export default function AnalyticsTab() {
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
+      {/* Issue #58: 各画面に設定への入口を置く (chains tab と同じ位置感)。 */}
+      <View style={styles.topbar}>
+        <SettingsLauncher />
+      </View>
       {isLoading ? (
         <View style={styles.center}>
           <ActivityIndicator color={COLOR_FG} />
@@ -54,6 +59,14 @@ export default function AnalyticsTab() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLOR_BG },
+  topbar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   error: { color: COLOR_ACCENT, padding: 24 },
 });

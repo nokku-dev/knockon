@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SettingsLauncher } from '../../src/SettingsLauncher';
 import { TodayScreen } from '../../src/TodayScreen';
 import {
   COLOR_ACCENT,
@@ -39,6 +40,11 @@ export default function TodayTab() {
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
+      {/* Issue #58: 各画面に設定への入口を置く。 Today にはタブ独自の header が
+          無いので、 右上に最小限の topbar を追加して SettingsLauncher を載せる。 */}
+      <View style={styles.topbar}>
+        <SettingsLauncher />
+      </View>
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={COLOR_FG} />
@@ -77,6 +83,14 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: COLOR_BG,
+  },
+  topbar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 4,
   },
   center: {
     flex: 1,
