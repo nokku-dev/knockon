@@ -261,20 +261,25 @@ describe('スキーマの不変条件', () => {
     await teardown(db);
   });
 
-  test('app_settings テーブル (ADR-0028): カラムは id / reset_time のみ', async () => {
+  // ADR-0028 + ADR-0029 (Issue #53): app_settings カラム = id / reset_time / theme_mode。
+  test('app_settings テーブル: カラムは id / reset_time / theme_mode', async () => {
     const db = await setup();
     type ColumnRow = { name: string };
     const cols = await db.all<ColumnRow>(`PRAGMA table_info(app_settings)`);
     const colNames = cols.map((c) => c.name).sort();
-    expect(colNames).toEqual(['id', 'reset_time']);
+    expect(colNames).toEqual(['id', 'reset_time', 'theme_mode']);
     await teardown(db);
   });
 
-  test('app_settings テーブル: 初回起動で 1 行 (singleton) が seed されている', async () => {
+  test('app_settings テーブル: 初回起動で 1 行 (singleton) が seed されている (reset_time, theme_mode default)', async () => {
     const db = await setup();
-    type Row = { id: string; reset_time: string };
-    const rows = await db.all<Row>(`SELECT id, reset_time FROM app_settings`);
-    expect(rows).toEqual([{ id: 'singleton', reset_time: '00:00' }]);
+    type Row = { id: string; reset_time: string; theme_mode: string };
+    const rows = await db.all<Row>(
+      `SELECT id, reset_time, theme_mode FROM app_settings`,
+    );
+    expect(rows).toEqual([
+      { id: 'singleton', reset_time: '00:00', theme_mode: 'auto' },
+    ]);
     await teardown(db);
   });
 
@@ -428,6 +433,40 @@ describe('スキーマの不変条件', () => {
     type VersionRow = { user_version: number };
     const v = await db.all<VersionRow>(`PRAGMA user_version`);
     expect(v[0]?.user_version).toBe(SCHEMA_VERSION);
+    await teardown(db);
+  });
+
+  test('ADR-0029 (Issue #53): MIGRATIONS[6] が v5 schema に theme_mode 列を追加する (= 既存ユーザー保全)', async () => {
+    // v5 schema (ADR-0028 PR-DD 時点) を直接構築 → MIGRATIONS[6] を呼ぶ → 新列が追加される。
+    const db = createBetterSqliteClient(':memory:');
+    await db.exec(`
+      CREATE TABLE app_settings (
+        id TEXT PRIMARY KEY,
+        reset_time TEXT NOT NULL DEFAULT '00:00'
+      );
+    `);
+    // 既存ユーザーの代理 row (= reset_time だけ設定済み)
+    await db.run(
+      `INSERT INTO app_settings (id, reset_time) VALUES ('singleton', '03:00')`,
+    );
+    // ALTER 経路: MIGRATIONS[6] を直接実行 (= initSchema 経由でも同じ結果)
+    await MIGRATIONS[6]!(db);
+    // 列が追加されている
+    type ColumnRow = { name: string };
+    const cols = await db.all<ColumnRow>(`PRAGMA table_info(app_settings)`);
+    expect(cols.map((c) => c.name).sort()).toEqual([
+      'id',
+      'reset_time',
+      'theme_mode',
+    ]);
+    // 既存 row の reset_time は保たれている + theme_mode は default 'auto'
+    type Row = { id: string; reset_time: string; theme_mode: string };
+    const rows = await db.all<Row>(
+      `SELECT id, reset_time, theme_mode FROM app_settings`,
+    );
+    expect(rows).toEqual([
+      { id: 'singleton', reset_time: '03:00', theme_mode: 'auto' },
+    ]);
     await teardown(db);
   });
 

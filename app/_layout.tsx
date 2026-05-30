@@ -2,8 +2,14 @@ import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  useColorScheme,
+  View,
+} from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -12,10 +18,21 @@ import { getExpoSqliteClient } from '../src/db.expo';
 import { InAppNotificationToast } from '../src/InAppNotificationToast';
 import { syncAllNotifications } from '../src/notifications';
 import { extractChainIdFromResponse } from '../src/notificationsDeeplink';
+import {
+  DEFAULT_THEME_MODE,
+  getAppSettings,
+  ThemeMode,
+  updateAppSettings,
+} from '../src/settingsRepository';
+import { paletteFor, resolveColorScheme } from '../src/theme';
+import { ThemeProvider } from '../src/themeContext';
 import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../src/tokens';
 
 type ToastState = { chainId: string; title: string; body: string };
 
+// ADR-0029 (Issue #53): 起動初期 (= settings DB 読み込み前) の native root bg は
+// 既存挙動の COLOR_BG (dark) で塗る。 読み込み完了後に themeMode に応じた色で
+// 上書きする (= useEffect 経由)。
 void SystemUI.setBackgroundColorAsync(COLOR_BG);
 
 // foreground 中の通知は OS バナーも通知センターも出さず、 アプリ内 Toast 一本に
@@ -43,9 +60,15 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [themeMode, setThemeModeState] =
+    useState<ThemeMode>(DEFAULT_THEME_MODE);
   const router = useRouter();
   // cold start で通知タップから起動された場合、 最後の response が取れる。
   const lastResponse = Notifications.useLastNotificationResponse();
+  // ADR-0029 (Issue #53): OS の colorScheme を購読 (reactive)。 themeMode='auto' のとき
+  // OS 設定変更時にリアルタイムで再描画する。 RN の useColorScheme は内部で Appearance
+  // change を listen する。
+  const osScheme = useColorScheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +79,14 @@ export default function RootLayout() {
         // → 「+ 新規作成」誘導で開始する。
         const db = await getExpoSqliteClient();
         await initSchema(db);
+        // ADR-0029: themeMode を初回読み込み。 既存ユーザーは MIGRATIONS[6] で
+        // default 'auto' になっている。 失敗しても起動は止めない (= silent fallback)。
+        const settings = await getAppSettings(db).catch(
+          (): { themeMode: ThemeMode } => ({ themeMode: DEFAULT_THEME_MODE }),
+        );
+        if (!cancelled) {
+          setThemeModeState(settings.themeMode);
+        }
         // 起動時に通知を全 active チェーンと整合させる (drift 解消の safety net、 PR-1.5b-2)。
         // 通知関係のエラーは起動を止めない (権限拒否や Expo SDK 制限の影響を分離)。
         await syncAllNotifications().catch(() => undefined);
@@ -69,6 +100,22 @@ export default function RootLayout() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // ADR-0029: themeMode + OS scheme から palette を派生 → native root bg を反映。
+  // [themeMode, osScheme] が変わるたびに再評価 (= setThemeMode 直後 / OS 設定変更時)。
+  const resolvedScheme = resolveColorScheme(themeMode, osScheme);
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(paletteFor(resolvedScheme).bg);
+  }, [resolvedScheme]);
+
+  // ADR-0029: themeMode を更新 (DB 書き込み + ローカル state). 楽観更新ではなく
+  // DB 完了後に state を更新する (= UI 上の picker 選択は SettingsModal 側のローカル
+  // state で即時 feedback されるため、 ここの順序ずれは UX 影響が小さい)。
+  const handleSetThemeMode = useCallback(async (next: ThemeMode) => {
+    const db = await getExpoSqliteClient();
+    await updateAppSettings(db, { themeMode: next });
+    setThemeModeState(next);
   }, []);
 
   // PR-1.5b-3 通知タップ → Today ディープリンク。
@@ -125,11 +172,17 @@ export default function RootLayout() {
     return () => subscription.remove();
   }, [ready]);
 
+  // ADR-0029: StatusBar の文字色は resolved scheme に追従 ('light' bg → 'dark' icons)。
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider style={styles.root}>
-        <StatusBar style="light" />
-        {error ? (
+    <ThemeProvider
+      themeMode={themeMode}
+      osScheme={osScheme}
+      setThemeMode={handleSetThemeMode}
+    >
+      <GestureHandlerRootView style={styles.root}>
+        <SafeAreaProvider style={styles.root}>
+          <StatusBar style={resolvedScheme === 'light' ? 'dark' : 'light'} />
+          {error ? (
           <View style={styles.center}>
             <Text style={styles.error}>{error}</Text>
           </View>
@@ -173,8 +226,9 @@ export default function RootLayout() {
             )}
           </>
         )}
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ThemeProvider>
   );
 }
 

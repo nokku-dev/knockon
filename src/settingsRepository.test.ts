@@ -3,6 +3,7 @@ import { initSchema } from './db';
 import type { DbClient } from './db';
 import {
   DEFAULT_RESET_TIME,
+  DEFAULT_THEME_MODE,
   getAppSettings,
   updateAppSettings,
 } from './settingsRepository';
@@ -49,6 +50,42 @@ describe('settingsRepository', () => {
     expect(rows[0]?.count).toBe(1);
     const settings = await getAppSettings(db);
     expect(settings.resetTime).toBe('06:00');
+    await teardown(db);
+  });
+
+  // ADR-0029 (Issue #53): theme_mode のラウンドトリップ。
+  test('初回起動: getAppSettings は DEFAULT_THEME_MODE を返す (= auto)', async () => {
+    const db = await setup();
+    const settings = await getAppSettings(db);
+    expect(settings.themeMode).toBe(DEFAULT_THEME_MODE);
+    expect(settings.themeMode).toBe('auto');
+    await teardown(db);
+  });
+
+  test('updateAppSettings で themeMode を light に変更 → 読み出せる', async () => {
+    const db = await setup();
+    await updateAppSettings(db, { themeMode: 'light' });
+    const settings = await getAppSettings(db);
+    expect(settings.themeMode).toBe('light');
+    // resetTime は変わらない (= 部分更新)
+    expect(settings.resetTime).toBe('00:00');
+    await teardown(db);
+  });
+
+  test('updateAppSettings で themeMode を dark に変更 → 読み出せる', async () => {
+    const db = await setup();
+    await updateAppSettings(db, { themeMode: 'dark' });
+    const settings = await getAppSettings(db);
+    expect(settings.themeMode).toBe('dark');
+    await teardown(db);
+  });
+
+  test('resetTime と themeMode を同時更新 → 両方反映される', async () => {
+    const db = await setup();
+    await updateAppSettings(db, { resetTime: '03:00', themeMode: 'dark' });
+    const settings = await getAppSettings(db);
+    expect(settings.resetTime).toBe('03:00');
+    expect(settings.themeMode).toBe('dark');
     await teardown(db);
   });
 });
