@@ -10,6 +10,7 @@ import {
   countAchievedDaysInWindow,
   countAchievedNodesOn,
   distanceMeters,
+  effectiveTodayIsoDate,
   getWeekdayKey,
   groupAchievementsByDate,
   isAnchorFiringToday,
@@ -142,6 +143,60 @@ describe('todayIsoDate (Date → YYYY-MM-DD; ローカルタイムゾーンで�
 
   test('境界の月末', () => {
     expect(todayIsoDate(new Date(2026, 11, 31, 23, 59, 59))).toBe('2026-12-31');
+  });
+});
+
+describe('effectiveTodayIsoDate (ADR-0028: リセット時刻ベースの今日日付)', () => {
+  test('resetTime=00:00 はデフォルト挙動 (todayIsoDate と一致)', () => {
+    const now = new Date(2026, 4, 30, 0, 0, 0); // 5/30 00:00
+    expect(effectiveTodayIsoDate(now, '00:00')).toBe('2026-05-30');
+  });
+
+  test('resetTime=00:00 で深夜 12 時直前 → 当日', () => {
+    const now = new Date(2026, 4, 30, 23, 59, 59); // 5/30 23:59:59
+    expect(effectiveTodayIsoDate(now, '00:00')).toBe('2026-05-30');
+  });
+
+  test('resetTime=03:00 で 02:59 → 前日扱い (= 「夜型ユーザーが寝る前の操作」を当日記録に)', () => {
+    const now = new Date(2026, 4, 30, 2, 59, 0); // 5/30 02:59
+    expect(effectiveTodayIsoDate(now, '03:00')).toBe('2026-05-29');
+  });
+
+  test('resetTime=03:00 で 03:00 ぴったり → 当日に切り替わる (= 境界包含)', () => {
+    const now = new Date(2026, 4, 30, 3, 0, 0); // 5/30 03:00:00
+    expect(effectiveTodayIsoDate(now, '03:00')).toBe('2026-05-30');
+  });
+
+  test('resetTime=03:00 で 03:00 の 1 秒前 → 前日扱い', () => {
+    const now = new Date(2026, 4, 30, 2, 59, 59);
+    expect(effectiveTodayIsoDate(now, '03:00')).toBe('2026-05-29');
+  });
+
+  test('resetTime=12:00 で 11:59 → 前日扱い (= 昼を境界にする運用)', () => {
+    const now = new Date(2026, 4, 30, 11, 59, 0);
+    expect(effectiveTodayIsoDate(now, '12:00')).toBe('2026-05-29');
+  });
+
+  test('resetTime=12:00 で 12:00 → 当日扱い', () => {
+    const now = new Date(2026, 4, 30, 12, 0, 0);
+    expect(effectiveTodayIsoDate(now, '12:00')).toBe('2026-05-30');
+  });
+
+  test('月またぎ: 6/1 02:00 / resetTime=03:00 → 5/31 (前月)', () => {
+    const now = new Date(2026, 5, 1, 2, 0, 0); // 6/1 02:00
+    expect(effectiveTodayIsoDate(now, '03:00')).toBe('2026-05-31');
+  });
+
+  test('年またぎ: 1/1 02:00 / resetTime=04:00 → 前年 12/31', () => {
+    const now = new Date(2027, 0, 1, 2, 0, 0); // 2027/1/1 02:00
+    expect(effectiveTodayIsoDate(now, '04:00')).toBe('2026-12-31');
+  });
+
+  test('不正な resetTime 文字列はデフォルト (00:00) として扱う (= 当日)', () => {
+    const now = new Date(2026, 4, 30, 5, 0, 0);
+    expect(effectiveTodayIsoDate(now, 'garbage')).toBe('2026-05-30');
+    expect(effectiveTodayIsoDate(now, '25:00')).toBe('2026-05-30');
+    expect(effectiveTodayIsoDate(now, '')).toBe('2026-05-30');
   });
 });
 

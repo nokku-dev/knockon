@@ -7,7 +7,11 @@ import {
 } from './analyticsDerivation';
 import type { ChainStats, DailyChainPoint } from './analyticsDerivation';
 import { getExpoSqliteClient } from './db.expo';
-import { recentDateRange, sortChainsForDisplay, todayIsoDate } from './domain';
+import {
+  effectiveTodayIsoDate,
+  recentDateRange,
+  sortChainsForDisplay,
+} from './domain';
 import type { Action, Anchor, Chain, IsoDate } from './domain';
 import {
   getAction,
@@ -16,6 +20,7 @@ import {
   listChains,
   listNodes,
 } from './repository';
+import { getAppSettings } from './settingsRepository';
 
 // PR-Z2 (ADR-0024 §3b): 達成率ダッシュボード用のデータ集約。
 // active な全チェーンの 14D 達成率 + 日別系列 + ノード数 をまとめて返す。
@@ -39,7 +44,8 @@ export type AnalyticsData = {
 
 const loadAnalytics = async (): Promise<AnalyticsData> => {
   const db = await getExpoSqliteClient();
-  const today = todayIsoDate(new Date());
+  const settings = await getAppSettings(db);
+  const today = effectiveTodayIsoDate(new Date(), settings.resetTime);
   const window = recentDateRange(today, ANALYTICS_WINDOW_DAYS);
   const windowStart = window[0] ?? today;
 

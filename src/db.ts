@@ -98,6 +98,14 @@ CREATE TABLE IF NOT EXISTS metric_kinds (
   is_builtin INTEGER NOT NULL CHECK(is_builtin IN (0, 1))
 );
 
+-- ADR-0028: アプリ全体の設定 (singleton 行)。 ユーザーが「正準データ軸」とは
+-- 別の「app 動作設定軸」を保持する場所。 id = 'singleton' で 1 行固定。
+-- 将来の設定追加は ALTER TABLE app_settings ADD COLUMN ... で対応 (ADR-0027)。
+CREATE TABLE IF NOT EXISTS app_settings (
+  id TEXT PRIMARY KEY,
+  reset_time TEXT NOT NULL DEFAULT '00:00'
+);
+
 CREATE INDEX IF NOT EXISTS idx_nodes_chain_order ON nodes(chain_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_achievements_date ON achievements(date);
 CREATE INDEX IF NOT EXISTS idx_anchor_firings_date ON anchor_firings(date);
@@ -115,9 +123,10 @@ CREATE INDEX IF NOT EXISTS idx_metric_kinds_order ON metric_kinds(order_index);
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 const DROP_SQL = `
+DROP TABLE IF EXISTS app_settings;
 DROP TABLE IF EXISTS metric_kinds;
 DROP TABLE IF EXISTS metrics;
 DROP TABLE IF EXISTS achievements;
@@ -144,7 +153,19 @@ type Migration = (client: DbClient) => Promise<void>;
 // production code から直接書き換える用途ではない (= 将来 SCHEMA_VERSION bump 時に
 // 本ファイル内で step を追加するのが正規ルート)。
 export const MIGRATIONS: Record<number, Migration> = {
-  // 将来の SCHEMA_VERSION bump 時にここに追加
+  // ADR-0028 (PR-DD): app_settings テーブル追加 + singleton 行 seed。
+  // v4 (PR-CC) からのアップグレードユーザー向け。 新規ユーザーは SCHEMA_SQL +
+  // APP_SETTINGS_SEED_SQL で同じ状態が初回起動で作られる (= 二重 truth source 回避は
+  // INSERT OR IGNORE で吸収)。
+  5: async (client) => {
+    await client.exec(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        id TEXT PRIMARY KEY,
+        reset_time TEXT NOT NULL DEFAULT '00:00'
+      );
+    `);
+    await client.exec(APP_SETTINGS_SEED_SQL);
+  },
 };
 
 // schema 構築済み状態 (= ADR-0026 PR-CC で確定した v4) の番号。
@@ -159,6 +180,7 @@ export const initSchema = async (client: DbClient): Promise<void> => {
     // 初回起動: 最新 schema を構築 + builtin seed
     await client.exec(SCHEMA_SQL);
     await client.exec(BUILTIN_METRIC_KINDS_SEED_SQL);
+    await client.exec(APP_SETTINGS_SEED_SQL);
     await client.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
     return;
   }
@@ -170,6 +192,7 @@ export const initSchema = async (client: DbClient): Promise<void> => {
     await client.exec(DROP_SQL);
     await client.exec(SCHEMA_SQL);
     await client.exec(BUILTIN_METRIC_KINDS_SEED_SQL);
+    await client.exec(APP_SETTINGS_SEED_SQL);
     await client.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
     return;
   }
@@ -199,4 +222,11 @@ INSERT OR IGNORE INTO metric_kinds (id, key, label, unit, order_index, is_builti
   ('metric-kind-weight', 'weight', '体重', 'kg', 0, 1),
   ('metric-kind-exercise-minutes', 'exercise_minutes', '運動', '分', 1, 1),
   ('metric-kind-sleep-hours', 'sleep_hours', '睡眠', '時間', 2, 1);
+`;
+
+// ADR-0028 (PR-DD): app_settings singleton 行の seed SQL。
+// 初回起動 + legacy fallback drop+recreate + MIGRATIONS[5] のいずれの経路でも、
+// INSERT OR IGNORE で 'singleton' 行が存在することを保証する (= 二重実行安全)。
+const APP_SETTINGS_SEED_SQL = `
+INSERT OR IGNORE INTO app_settings (id, reset_time) VALUES ('singleton', '00:00');
 `;

@@ -251,12 +251,30 @@ describe('スキーマの不変条件', () => {
         'actions',
         'anchor_firings',
         'anchors',
+        'app_settings',
         'chains',
         'metric_kinds',
         'metrics',
         'nodes',
       ].sort(),
     );
+    await teardown(db);
+  });
+
+  test('app_settings テーブル (ADR-0028): カラムは id / reset_time のみ', async () => {
+    const db = await setup();
+    type ColumnRow = { name: string };
+    const cols = await db.all<ColumnRow>(`PRAGMA table_info(app_settings)`);
+    const colNames = cols.map((c) => c.name).sort();
+    expect(colNames).toEqual(['id', 'reset_time']);
+    await teardown(db);
+  });
+
+  test('app_settings テーブル: 初回起動で 1 行 (singleton) が seed されている', async () => {
+    const db = await setup();
+    type Row = { id: string; reset_time: string };
+    const rows = await db.all<Row>(`SELECT id, reset_time FROM app_settings`);
+    expect(rows).toEqual([{ id: 'singleton', reset_time: '00:00' }]);
     await teardown(db);
   });
 
