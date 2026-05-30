@@ -1,14 +1,11 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChainListScreen } from '../../src/ChainListScreen';
-import { SettingsModal } from '../../src/SettingsModal';
+import { SettingsLauncher } from '../../src/SettingsLauncher';
 import type { ChainStatus } from '../../src/domain';
-import { DEFAULT_RESET_TIME } from '../../src/settingsRepository';
-import { useTheme } from '../../src/themeContext';
 import {
   COLOR_ACCENT,
   COLOR_BG,
@@ -18,15 +15,11 @@ import {
   COLOR_LINE_BG,
 } from '../../src/tokens';
 import { useChainListData } from '../../src/useChainListData';
-import { useSettings } from '../../src/useSettings';
 
 export default function ChainsTab() {
   const [status, setStatus] = useState<ChainStatus>('active');
   const { items, activeCount, stockedCount, error, loading } =
     useChainListData(status);
-  const settings = useSettings();
-  const theme = useTheme();
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const router = useRouter();
 
   // チェーンカードタップ → 編集画面 (`/chain/[chainId]`)。
@@ -76,14 +69,7 @@ export default function ChainsTab() {
           </Text>
         </Pressable>
         <View style={styles.statusTabsSpacer} />
-        <Pressable
-          onPress={() => setSettingsOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="設定を開く"
-          style={styles.settingsBtn}
-        >
-          <Ionicons name="settings-outline" size={20} color={COLOR_FG} />
-        </Pressable>
+        <SettingsLauncher />
       </View>
       {loading ? (
         <View style={styles.center}>
@@ -106,19 +92,6 @@ export default function ChainsTab() {
           )}
         </View>
       )}
-      <SettingsModal
-        open={settingsOpen}
-        resetTime={settings.settings?.resetTime ?? DEFAULT_RESET_TIME}
-        themeMode={theme.themeMode}
-        onClose={() => setSettingsOpen(false)}
-        onSave={async ({ resetTime, themeMode }) => {
-          // ADR-0029: resetTime は useSettings 経由、 themeMode は ThemeProvider 経由で
-          // 書き込む (= 各々が単一 source of truth)。 両者ともシングルトン行 UPDATE で
-          // 同 row への 2 回 UPSERT になるが、 シングルトン行のため orphan / FK 影響は無し。
-          await settings.updateResetTime(resetTime);
-          await theme.setThemeMode(themeMode);
-        }}
-      />
     </SafeAreaView>
   );
 }
@@ -163,14 +136,6 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   statusTabsSpacer: { flex: 1 },
-  settingsBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 999,
-    backgroundColor: COLOR_LINE_BG,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   statusTab: {
     paddingVertical: 6,
     paddingHorizontal: 14,
