@@ -1,22 +1,20 @@
 import type { DbClient } from './db';
 import type { ChainDraft } from './domain';
-import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
 import { insertAction, insertAnchor, insertChain, insertNode } from './repository';
 
 // 採用時の ID 生成戦略 (型単位)。テストで決定的 ID に差し替えられるよう注入可能にする
 // (CLAUDE.md「時刻取得や乱数も呼び出し側で生成して渡す」)。
+//
+// idGen は必須引数 = 呼び出し側 (PR-70b の UI/hook 層) が ids.ts (expo-crypto) から
+// 注入する。bundleAdoption は domain テスト (ts-jest, node env) で走るため、
+// ここで ids.ts を static import すると expo-crypto (ESM) を引き込んで
+// `Cannot use import statement outside a module` で落ちる (K-007 / HANDOFF)。
+// よって ids.ts への依存を持たず、生成戦略の注入だけを受ける。
 export type IdGen = {
   anchor: () => string;
   chain: () => string;
   action: () => string;
   node: () => string;
-};
-
-const defaultIdGen: IdGen = {
-  anchor: newAnchorId,
-  chain: newChainId,
-  action: newActionId,
-  node: newNodeId,
 };
 
 // #70 (ADR-0030): 束採用の永続化。buildChainDraftFromBundle が作った ChainDraft を
@@ -33,7 +31,7 @@ export const adoptChainDraft = async (
   db: DbClient,
   draft: ChainDraft,
   now: string,
-  idGen: IdGen = defaultIdGen,
+  idGen: IdGen,
 ): Promise<string> => {
   const anchorId = idGen.anchor();
   const chainId = idGen.chain();
