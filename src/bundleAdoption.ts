@@ -1,14 +1,29 @@
 import type { DbClient } from './db';
 import type { ChainDraft } from './domain';
-import { generateId } from './ids';
+import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
 import { insertAction, insertAnchor, insertChain, insertNode } from './repository';
+
+// 採用時の ID 生成戦略 (型単位)。テストで決定的 ID に差し替えられるよう注入可能にする
+// (CLAUDE.md「時刻取得や乱数も呼び出し側で生成して渡す」)。
+export type IdGen = {
+  anchor: () => string;
+  chain: () => string;
+  action: () => string;
+  node: () => string;
+};
+
+const defaultIdGen: IdGen = {
+  anchor: newAnchorId,
+  chain: newChainId,
+  action: newActionId,
+  node: newNodeId,
+};
 
 // #70 (ADR-0030): 束採用の永続化。buildChainDraftFromBundle が作った ChainDraft を
 // live (anchor + chain + actions + nodes) として書き込む。
 //
 // 純粋部分 (採用集合の決定) は domain.buildChainDraftFromBundle に分離済み (K-007)。
-// 本関数は副作用 (DB 書き込み) を持つが、now / genId を注入してテスト容易性を確保する
-// (CLAUDE.md「時刻取得や乱数も呼び出し側で生成して渡す」)。
+// 本関数は副作用 (DB 書き込み) を持つが、now / idGen を注入してテスト容易性を確保する。
 //
 // 既存 createFromTemplate (ADR-0023 builtin チェーン取り込み) と同型だが、
 // 採用ノードに module_id を付与する点が異なる (= catalog 由来の所属を live に持ち込む)。
@@ -18,10 +33,10 @@ export const adoptChainDraft = async (
   db: DbClient,
   draft: ChainDraft,
   now: string,
-  genId: (prefix: string) => string = generateId,
+  idGen: IdGen = defaultIdGen,
 ): Promise<string> => {
-  const anchorId = genId('anchor');
-  const chainId = genId('chain');
+  const anchorId = idGen.anchor();
+  const chainId = idGen.chain();
 
   await insertAnchor(db, {
     id: anchorId,
@@ -43,7 +58,7 @@ export const adoptChainDraft = async (
 
   let orderIndex = 0;
   for (const node of draft.nodes) {
-    const actionId = genId('action');
+    const actionId = idGen.action();
     await insertAction(db, {
       id: actionId,
       title: node.actionTitle,
@@ -51,7 +66,7 @@ export const adoptChainDraft = async (
       timerSeconds: node.timerSeconds,
     });
     await insertNode(db, {
-      id: genId('node'),
+      id: idGen.node(),
       chainId,
       orderIndex,
       kind: 'action',
