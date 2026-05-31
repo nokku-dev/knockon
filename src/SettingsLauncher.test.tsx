@@ -1,4 +1,5 @@
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Share } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Issue #58: 各画面に設定画面へのナビゲーションボタンを追加。
@@ -34,6 +35,49 @@ jest.mock('./themeContext', () => ({
     palette: {},
     setThemeMode: jest.fn(() => Promise.resolve()),
   }),
+}));
+
+// Issue #66: チェーンエクスポートは DB (db.expo) + Share.share を統合する。
+// テストでは DB クライアントを mock し、 「export ボタン押下で Share.share に
+// シリアライズ済み JSON が渡る」ところまで検証する。
+jest.mock('./db.expo', () => ({
+  getExpoSqliteClient: jest.fn(async () => ({
+    run: jest.fn(),
+    all: jest.fn(),
+  })),
+}));
+
+jest.mock('./repository', () => ({
+  listChains: jest.fn(async () => [
+    {
+      id: 'chain-morning',
+      title: '朝のルーティン',
+      anchorId: 'anchor-wake',
+      status: 'active',
+      createdAt: '2026-04-01T00:00:00.000Z',
+    },
+  ]),
+  listActions: jest.fn(async () => [
+    { id: 'action-water', title: '水を飲む', variants: null, timerSeconds: null },
+  ]),
+  getAnchor: jest.fn(async () => ({
+    id: 'anchor-wake',
+    title: '起床',
+    kind: 'time',
+    time: '07:00',
+    latitude: null,
+    longitude: null,
+    radiusMeters: null,
+  })),
+  listNodes: jest.fn(async () => [
+    {
+      id: 'node-m0',
+      chainId: 'chain-morning',
+      orderIndex: 0,
+      kind: 'action',
+      actionId: 'action-water',
+    },
+  ]),
 }));
 
 import { SettingsLauncher } from './SettingsLauncher';
@@ -75,5 +119,27 @@ describe('SettingsLauncher (Issue #58)', () => {
     expect(queryByText('設定')).toBeTruthy();
     fireEvent.press(getByLabelText('設定を閉じる'));
     expect(queryByText('設定')).toBeNull();
+  });
+});
+
+describe('SettingsLauncher — チェーンエクスポート (Issue #66)', () => {
+  test('export ボタンタップで Share.share に JSON 文字列が渡される', async () => {
+    const shareSpy = jest
+      .spyOn(Share, 'share')
+      .mockResolvedValue({ action: Share.dismissedAction });
+    const { getByLabelText } = renderWithInsets(<SettingsLauncher />);
+    fireEvent.press(getByLabelText('設定を開く'));
+    fireEvent.press(getByLabelText('チェーンをエクスポート'));
+    await waitFor(() => expect(shareSpy).toHaveBeenCalled());
+    const callArg = shareSpy.mock.calls[0]![0] as { message: string };
+    expect(typeof callArg.message).toBe('string');
+    const parsed = JSON.parse(callArg.message);
+    expect(parsed.version).toBe(1);
+    expect(parsed.chains).toHaveLength(1);
+    expect(parsed.chains[0].title).toBe('朝のルーティン');
+    expect(parsed.chains[0].actions).toEqual([
+      { title: '水を飲む', variants: null, timerSeconds: null },
+    ]);
+    shareSpy.mockRestore();
   });
 });

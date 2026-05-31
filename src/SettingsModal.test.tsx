@@ -234,6 +234,55 @@ describe('SettingsModal — テーマカラー picker (ADR-0029)', () => {
   });
 });
 
+// Issue #66: チェーンエクスポートボタン。 タップで親から渡された onExportChains を
+// 発火するだけの presentational 責務。 DB / Share API は親 (SettingsLauncher) 側。
+describe('SettingsModal — チェーンエクスポート (Issue #66)', () => {
+  test('onExportChains 未指定なら export ボタンは表示されない', () => {
+    const { queryByLabelText } = renderWithInsets(
+      <SettingsModal
+        open={true}
+        resetTime="00:00"
+        themeMode="auto"
+        onSave={jest.fn()}
+        onClose={() => {}}
+      />,
+    );
+    expect(queryByLabelText('チェーンをエクスポート')).toBeNull();
+  });
+
+  test('onExportChains 指定時に export ボタンが表示される', () => {
+    const { getByLabelText } = renderWithInsets(
+      <SettingsModal
+        open={true}
+        resetTime="00:00"
+        themeMode="auto"
+        onSave={jest.fn()}
+        onClose={() => {}}
+        onExportChains={jest.fn()}
+      />,
+    );
+    expect(getByLabelText('チェーンをエクスポート')).toBeTruthy();
+  });
+
+  test('export ボタンタップで onExportChains が呼ばれ、 onClose は呼ばれない', async () => {
+    const onExportChains = jest.fn().mockResolvedValue(undefined);
+    const onClose = jest.fn();
+    const { getByLabelText } = renderWithInsets(
+      <SettingsModal
+        open={true}
+        resetTime="00:00"
+        themeMode="auto"
+        onSave={jest.fn()}
+        onClose={onClose}
+        onExportChains={onExportChains}
+      />,
+    );
+    fireEvent.press(getByLabelText('チェーンをエクスポート'));
+    await waitFor(() => expect(onExportChains).toHaveBeenCalled());
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
 // Issue #57: 設定画面の最上部 (閉じる / 設定 / 保存 行) が Android のステータスバーに
 // 被って操作できないバグ。 修正方針: useSafeAreaInsets で topbar に paddingTop を確保。
 describe('SettingsModal — topbar safe area inset (Issue #57)', () => {
