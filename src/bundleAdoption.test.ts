@@ -4,7 +4,7 @@ import { buildV0Catalog } from './catalogSeed';
 import { buildChainDraftFromBundle } from './domain';
 import { adoptChainDraft } from './bundleAdoption';
 import type { IdGen } from './bundleAdoption';
-import { listChains, listNodes, getAction, getAnchor } from './repository';
+import { listChains, listNodes, getAction, getAnchor, insertModule } from './repository';
 import type { DbClient } from './db';
 import type { Link, Module } from './domain';
 
@@ -99,6 +99,13 @@ describe('adoptChainDraft — ドラフトの live 永続化 (#70)', () => {
   const setup = async (): Promise<DbClient> => {
     const db = createBetterSqliteClient(':memory:');
     await initSchema(db);
+    // nodes.module_id は modules(id) への FK (ADR-0030 / #68)。
+    // production では catalog が seedCatalog (initSchema 内) で必ず DB に入っているため、
+    // 採用ノードの module_id は常に実在する。テストも testModules を DB に入れて
+    // その不変条件を再現する (= FK 違反させない)。t- プレフィックスで seed と非衝突 (K-033)。
+    for (const m of testModules) {
+      await insertModule(db, m);
+    }
     return db;
   };
 
