@@ -33,6 +33,10 @@ export type SettingsModalProps = {
   themeMode: ThemeMode;
   onClose: () => void;
   onSave: (next: { resetTime: string; themeMode: ThemeMode }) => Promise<void> | void;
+  // Issue #66: チェーンエクスポート。 押下で親 (SettingsLauncher) が DB から
+  // チェーンを集めて JSON シリアライズ + Share Sheet を起動する。 UI 層は callback
+  // を発火するだけで DB / Share API を直接知らない (= テスト時は jest.fn で済む)。
+  onExportChains?: () => Promise<void> | void;
 };
 
 // 3 ボタン segmented picker の選択肢順序。 UI 上は左から Auto / Light / Dark。
@@ -81,12 +85,14 @@ export const SettingsModal = ({
   themeMode,
   onClose,
   onSave,
+  onExportChains,
 }: SettingsModalProps) => {
   const init = initialParts(resetTime);
   const [hour, setHour] = useState(init.hour);
   const [minute, setMinute] = useState(init.minute);
   const [theme, setTheme] = useState<ThemeMode>(themeMode);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   // Issue #57: Android edge-to-edge + Modal presentationStyle="pageSheet" は
   // status bar 透過のまま content が描かれ、 topbar が status bar に被る。
   // 親 SafeAreaProvider (app/_layout.tsx) の top inset を topbar に反映する。
@@ -102,6 +108,16 @@ export const SettingsModal = ({
 
   const handleHourBlur = () => setHour(clampToHour(hour));
   const handleMinuteBlur = () => setMinute(clampToMinute(minute));
+
+  const handleExport = async () => {
+    if (!onExportChains || exporting) return;
+    setExporting(true);
+    try {
+      await onExportChains();
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleSave = async () => {
     const h = clampToHour(hour);
@@ -226,6 +242,29 @@ export const SettingsModal = ({
               Light / Dark: 配色を固定。
             </Text>
           </View>
+
+          {onExportChains ? (
+            <View style={styles.card}>
+              <Text style={styles.fieldLabel}>チェーンをエクスポート</Text>
+              <Pressable
+                onPress={handleExport}
+                accessibilityRole="button"
+                accessibilityLabel="チェーンをエクスポート"
+                accessibilityState={{ disabled: exporting }}
+                disabled={exporting}
+                style={styles.exportBtn}
+              >
+                <Text style={styles.exportBtnText}>
+                  {exporting ? '出力中…' : 'JSON で共有'}
+                </Text>
+              </Pressable>
+              <Text style={styles.fieldHint}>
+                現在登録されている全チェーン (active / stocked) を JSON にして
+                OS の共有シートに渡します。{'\n'}
+                テンプレ案の参考用途で、 再 import は想定していません (ID 等の DB 固有値は含めず)。
+              </Text>
+            </View>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
@@ -316,5 +355,20 @@ const styles = StyleSheet.create({
   },
   themeBtnTextSelected: {
     color: COLOR_BG,
+  },
+  // Issue #66: エクスポートボタン。 セーブボタンと差別化するため非 destructive な
+  // ピル形状 (背景: LINE_BG、 文字: FG) で「いつでも押せるが目立ちすぎない」階層に
+  // 抑える (= デザイン §5 「accent / star の用途を増やさない」原則と整合)。
+  exportBtn: {
+    alignSelf: 'stretch',
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: COLOR_LINE_BG,
+    alignItems: 'center',
+  },
+  exportBtnText: {
+    color: COLOR_FG,
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
