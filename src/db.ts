@@ -1,3 +1,8 @@
+// #69 (ADR-0030): v0 catalog の seed。initSchema 末尾で毎起動投入 (INSERT OR IGNORE で冪等)。
+// catalogSeed → repository → (db の型のみ) なので実行時循環なし (型 import は erase される)。
+// initSchema が全 seed (metric_kinds / app_settings / catalog) を担う一貫性を保つ。
+import { seedCatalog } from './catalogSeed';
+
 export interface DbClient {
   exec(sql: string): Promise<void>;
   run(sql: string, params?: readonly unknown[]): Promise<void>;
@@ -277,10 +282,7 @@ export const initSchema = async (client: DbClient): Promise<void> => {
     await client.exec(BUILTIN_METRIC_KINDS_SEED_SQL);
     await client.exec(APP_SETTINGS_SEED_SQL);
     await client.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
-    return;
-  }
-
-  if (current < LEGACY_FALLBACK_VERSION) {
+  } else if (current < LEGACY_FALLBACK_VERSION) {
     // legacy 試作期間 (v1-v3): drop+recreate でデータ消失受容 (ADR-0016 / K-021)。
     // この経路は「PR-CC マージ前から起動していたユーザー」のみ通過、
     // 通過後は v4 = ALTER ベース migration の対象になる。
@@ -289,24 +291,29 @@ export const initSchema = async (client: DbClient): Promise<void> => {
     await client.exec(BUILTIN_METRIC_KINDS_SEED_SQL);
     await client.exec(APP_SETTINGS_SEED_SQL);
     await client.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
-    return;
+  } else {
+    // v4 以降 (= 検証期間以降): ALTER ベース migration でデータ保全 (ADR-0027)。
+    // current = LEGACY_FALLBACK_VERSION の場合は MIGRATIONS が空ならループも回らず、
+    // **完全に noop** (= データ保全の保証)。
+    //
+    // safety net としての SCHEMA_SQL 実行は意図的に**入れない**: K-021 の罠
+    // (= CREATE TABLE IF NOT EXISTS で新 schema が反映されない) を再導入する素地になる。
+    // テーブル欠損は MIGRATIONS step で明示的に書く責務 (= 「SCHEMA_SQL と MIGRATIONS の
+    // 二重 truth source」を作らない)。
+    for (let v = current + 1; v <= SCHEMA_VERSION; v++) {
+      const migration = MIGRATIONS[v];
+      if (migration) {
+        await migration(client);
+      }
+      await client.exec(`PRAGMA user_version = ${v};`);
+    }
   }
 
-  // v4 以降 (= 検証期間以降): ALTER ベース migration でデータ保全 (ADR-0027)。
-  // current = LEGACY_FALLBACK_VERSION の場合は MIGRATIONS が空ならループも回らず、
-  // **完全に noop** (= データ保全の保証)。
-  //
-  // safety net としての SCHEMA_SQL 実行は意図的に**入れない**: K-021 の罠
-  // (= CREATE TABLE IF NOT EXISTS で新 schema が反映されない) を再導入する素地になる。
-  // テーブル欠損は MIGRATIONS step で明示的に書く責務 (= 「SCHEMA_SQL と MIGRATIONS の
-  // 二重 truth source」を作らない)。
-  for (let v = current + 1; v <= SCHEMA_VERSION; v++) {
-    const migration = MIGRATIONS[v];
-    if (migration) {
-      await migration(client);
-    }
-    await client.exec(`PRAGMA user_version = ${v};`);
-  }
+  // #69 (ADR-0030): v0 catalog の seed を全経路の最後で投入。
+  // INSERT OR IGNORE で冪等なので毎起動・全経路 (初回 / legacy fallback / ALTER) で安全。
+  // この時点で modules/links テーブルは全経路で存在する (初回・legacy は SCHEMA_SQL、
+  // ALTER 経路は MIGRATIONS[7] が作成済み)。official カタログの更新も次回起動で反映される。
+  await seedCatalog(client);
 };
 
 // PR-CC (ADR-0026): builtin メトリクス種別の DB seed SQL。
