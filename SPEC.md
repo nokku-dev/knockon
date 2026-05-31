@@ -3,6 +3,7 @@
 > リポジトリ / プロダクト名: `knockon`（nokku 配下）
 > ステータス: 設計改訂 v0.4（独立レビュー反映）/ 実装前
 > prime objective: 収益最大化ではなく **「自分が毎日使う1本を最短で完成・出荷する」**。
+> 関連: テンプレート / モジュール設計は [docs/template-modules-spec.md](docs/template-modules-spec.md)（Issue #62、 出荷後レイヤーの discovery / onboarding / 編集 UI）。
 
 ## 0. 完成判定（レビュー反映で変更）
 
