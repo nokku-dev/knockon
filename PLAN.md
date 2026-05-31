@@ -6,6 +6,8 @@
 
 **Phase 1 が実機で動き、自分が実際に数日使うまで、サブチェーン・目標ビュー・ウィンドウ切替・有料・同期などの追加設計を一切進めない。** 設計の精密化は前進ではなく消耗（K-001/K-003）。このゲートを PLAN の他のどの判断より優先する。
 
+> **着手ゲート判定（Issue #75 / 2026-05-31）**: Phase 1 早期検証ゲートは [ADR-0022](./docs/decisions/0022-phase-1-completion-and-verification-operation.md) で **クリア済み**（Today が実機で数日回り、検証運用フェーズに移行。 [K-021 追記](KNOWLEDGE.md) が裏付け）。 よってテンプレート / モジュール作業（Issue #62、 #68-#74、 [docs/template-modules-spec.md](./docs/template-modules-spec.md)）の着手は **解禁**。 ゲート未了による保留は不要。
+
 ## Phase 0 — データ層（最小・1 回で固める）
 
 - **チェーン**（status: active/stocked、起点アンカー＋ノード順序列）
