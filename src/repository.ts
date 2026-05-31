@@ -373,6 +373,44 @@ export const insertLink = (db: DbClient, link: Link): Promise<void> =>
     ],
   );
 
+// #69: catalog seed 用の冪等版 (INSERT OR IGNORE)。固定 ID + 毎起動投入で、
+// 2 回目以降は PK 衝突を握り潰す (= builtin metric kinds の seed と同じ精神)。
+// 注意: official リンクをユーザーが削除しても次回起動で「復活」しうる
+// (固定 ID なので新規 INSERT は走らないが、ユーザーが消した行は OR IGNORE では
+// 戻らない — 復活するのは「削除後に同 ID が無い場合」)。削除トラッキングは
+// 編集 UI #73 で再考する Phase 1 受容判断 (K-024 / K-028 と同型)。
+export const seedModule = (db: DbClient, module: Module): Promise<void> =>
+  db.run(
+    `INSERT OR IGNORE INTO modules (id, name, color, moment_json, goal_json, source, kind, order_index)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      module.id,
+      module.name,
+      module.color,
+      JSON.stringify(module.moment),
+      JSON.stringify(module.goal),
+      module.source,
+      module.kind,
+      module.orderIndex,
+    ],
+  );
+
+export const seedLink = (db: DbClient, link: Link): Promise<void> =>
+  db.run(
+    `INSERT OR IGNORE INTO links (id, title, module_id, default_on, position, source, timer_seconds, starter)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      link.id,
+      link.title,
+      link.moduleId,
+      link.defaultOn ? 1 : 0,
+      link.position,
+      link.source,
+      link.timerSeconds,
+      link.starter ? 1 : 0,
+    ],
+  );
+
 export const listModules = async (db: DbClient): Promise<Module[]> => {
   const rows = await db.all<ModuleRow>(`SELECT * FROM modules ORDER BY order_index`);
   return rows.map(rowToModule);
