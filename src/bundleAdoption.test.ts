@@ -3,6 +3,7 @@ import { initSchema } from './db';
 import { buildV0Catalog } from './catalogSeed';
 import { buildChainDraftFromBundle } from './domain';
 import { adoptChainDraft } from './bundleAdoption';
+import type { IdGen } from './bundleAdoption';
 import { listChains, listNodes, getAction, getAnchor } from './repository';
 import type { DbClient } from './db';
 import type { Link, Module } from './domain';
@@ -41,7 +42,9 @@ const testModules: Module[] = [
   },
 ];
 
-const mkLink = (over: Partial<Link> & Pick<Link, 'id' | 'moduleId' | 'position'>): Link => ({
+const mkLink = (
+  over: Partial<Link> & Pick<Link, 'id' | 'moduleId' | 'position'>,
+): Link => ({
   title: over.id,
   defaultOn: true,
   source: 'official',
@@ -99,16 +102,25 @@ describe('adoptChainDraft — ドラフトの live 永続化 (#70)', () => {
     return db;
   };
 
-  // genId を決定的にするカウンタ (テスト用)。
-  const seqId = () => {
-    let n = 0;
-    return (prefix: string) => `${prefix}-${(n += 1)}`;
+  // 決定的な ID 生成 (型ごとにカウンタ)。テストで採用結果を安定検証するため。
+  const seqIdGen = (): IdGen => {
+    const counters: Record<string, number> = {};
+    const next = (prefix: string) => {
+      counters[prefix] = (counters[prefix] ?? 0) + 1;
+      return `${prefix}-${counters[prefix]}`;
+    };
+    return {
+      anchor: () => next('anchor'),
+      chain: () => next('chain'),
+      action: () => next('action'),
+      node: () => next('node'),
+    };
   };
 
   test('ドラフトから chain + anchor + nodes + actions が生成される', async () => {
     const db = await setup();
     const draft = buildChainDraftFromBundle(testModules, testLinks, 'morning', '朝の束');
-    const chainId = await adoptChainDraft(db, draft, '2026-05-31T00:00:00Z', seqId());
+    const chainId = await adoptChainDraft(db, draft, '2026-05-31T00:00:00Z', seqIdGen());
 
     const chains = await listChains(db, 'active');
     const created = chains.find((c) => c.id === chainId)!;
@@ -126,7 +138,7 @@ describe('adoptChainDraft — ドラフトの live 永続化 (#70)', () => {
   test('採用ノードは module_id を保持して永続化される (catalog 由来の所属が live に残る)', async () => {
     const db = await setup();
     const draft = buildChainDraftFromBundle(testModules, testLinks, 'morning', '朝の束');
-    const chainId = await adoptChainDraft(db, draft, '2026-05-31T00:00:00Z', seqId());
+    const chainId = await adoptChainDraft(db, draft, '2026-05-31T00:00:00Z', seqIdGen());
 
     const nodes = await listNodes(db, chainId);
     expect(nodes.map((n) => n.moduleId)).toEqual(['t-mod-a', 't-mod-b', 't-mod-a']);
@@ -154,7 +166,7 @@ describe('adoptChainDraft — ドラフトの live 永続化 (#70)', () => {
     );
     expect(draft.nodes.every((n) => starterMorningModuleIds.has(n.moduleId))).toBe(true);
 
-    const chainId = await adoptChainDraft(db, draft, '2026-05-31T00:00:00Z', seqId());
+    const chainId = await adoptChainDraft(db, draft, '2026-05-31T00:00:00Z', seqIdGen());
     const nodes = await listNodes(db, chainId);
     expect(nodes).toHaveLength(draft.nodes.length);
     await db.close?.();
