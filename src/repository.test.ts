@@ -1075,34 +1075,36 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
 
   test('ADR-0030 (#68): module / link のラウンドトリップ — 所属と位置が独立に動く', async () => {
     const db = await setup();
-    // 2 モジュール (朝の健康 / 朝食) を seed
+    // 注: initSchema は #69 で v0 catalog を seed する。本テストは catalog の存在に
+    // 依存せず検証するため、テスト専用 ID (t- プレフィックス) を使い、全件一致では
+    // なく「テスト専用 ID でフィルタ」してアサートする。
     await insertModule(db, {
-      id: 'mod-health',
+      id: 't-mod-health',
       name: '目覚め・水分',
       color: '#4FB0AE',
       moment: ['morning'],
       goal: ['health'],
       source: 'official',
       kind: 'normal',
-      orderIndex: 0,
+      orderIndex: 1000,
     });
     await insertModule(db, {
-      id: 'mod-meal',
+      id: 't-mod-meal',
       name: '朝食',
       color: '#E0A24C',
       moment: ['morning'],
       goal: ['meal'],
       source: 'official',
       kind: 'normal',
-      orderIndex: 1,
+      orderIndex: 1001,
     });
     // 所属 (moduleId) と位置 (position) を独立に設定:
     // health のリンクが position 0 と 2、meal のリンクが position 1 に挟まる
     // (= 同一モジュールのリンクがチェーン上で非連続でよい / ADR-0030 不変条件)。
     await insertLink(db, {
-      id: 'lnk-brush',
+      id: 't-lnk-brush',
       title: '歯磨き',
-      moduleId: 'mod-health',
+      moduleId: 't-mod-health',
       defaultOn: true,
       position: 0,
       source: 'official',
@@ -1110,9 +1112,9 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
       starter: true,
     });
     await insertLink(db, {
-      id: 'lnk-breakfast',
+      id: 't-lnk-breakfast',
       title: '朝食',
-      moduleId: 'mod-meal',
+      moduleId: 't-mod-meal',
       defaultOn: true,
       position: 1,
       source: 'official',
@@ -1120,9 +1122,9 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
       starter: true,
     });
     await insertLink(db, {
-      id: 'lnk-water',
+      id: 't-lnk-water',
       title: '白湯',
-      moduleId: 'mod-health',
+      moduleId: 't-mod-health',
       defaultOn: true,
       position: 2,
       source: 'official',
@@ -1130,22 +1132,31 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
       starter: true,
     });
 
-    // modules は order_index 順、moment/goal の JSON 往復が成立する
+    // moment/goal の JSON 往復が成立する (テスト専用モジュールを取得)
     const modules = await listModules(db);
-    expect(modules.map((m) => m.id)).toEqual(['mod-health', 'mod-meal']);
-    expect(modules[0]?.moment).toEqual(['morning']);
-    expect(modules[0]?.goal).toEqual(['health']);
-
-    // listLinks は position 順 (物理順) — 所属モジュールに関係なく並ぶ
-    const links = await listLinks(db);
-    expect(links.map((l) => l.id)).toEqual(['lnk-brush', 'lnk-breakfast', 'lnk-water']);
+    const tModules = modules.filter((m) => m.id.startsWith('t-mod-'));
+    expect(tModules.map((m) => m.id)).toEqual(['t-mod-health', 't-mod-meal']);
+    const health = tModules.find((m) => m.id === 't-mod-health')!;
+    expect(health.moment).toEqual(['morning']);
+    expect(health.goal).toEqual(['health']);
 
     // listLinksForModule は所属 (論理クラスタ) で絞る — position が非連続でも両方取れる
-    const healthLinks = await listLinksForModule(db, 'mod-health');
-    expect(healthLinks.map((l) => l.id)).toEqual(['lnk-brush', 'lnk-water']);
+    // (catalog の他モジュールに影響されない = ID 指定取得なので安定)。
+    const healthLinks = await listLinksForModule(db, 't-mod-health');
+    expect(healthLinks.map((l) => l.id)).toEqual(['t-lnk-brush', 't-lnk-water']);
     expect(healthLinks.map((l) => l.position)).toEqual([0, 2]); // 非連続
     expect(healthLinks[0]?.defaultOn).toBe(true);
     expect(healthLinks[0]?.starter).toBe(true);
+
+    // listLinks (全件 position 順) でも、テスト専用リンクが所属に関係なく
+    // position 順に並ぶことを確認 (catalog 由来を除外してアサート)。
+    const links = await listLinks(db);
+    const tLinks = links.filter((l) => l.id.startsWith('t-lnk-'));
+    expect(tLinks.map((l) => l.id)).toEqual([
+      't-lnk-brush',
+      't-lnk-breakfast',
+      't-lnk-water',
+    ]);
     await teardown(db);
   });
 
