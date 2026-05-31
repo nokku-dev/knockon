@@ -45,6 +45,10 @@ export type Node = {
   orderIndex: number;
   kind: NodeKind;
   actionId: string;
+  // ADR-0030 (#68/#70): テンプレ採用元モジュール参照 (NULL/undefined = 手作り / テンプレ未経由)。
+  // 編集 UI (#73) のチップ表示用。optional は既存 Node リテラルの非破壊追加のため
+  // (Phase 1 受容: 厳密な必須化は call site 整理コストが見合うまで保留)。
+  moduleId?: string | null;
 };
 
 export type Chain = {
@@ -101,6 +105,47 @@ export type Link = {
   source: CatalogSource;
   timerSeconds: number | null;
   starter: boolean;
+};
+
+// #70 (ADR-0030): 束採用ドラフト。catalog (modules/links) → live (chain/nodes) 変換の中間表現。
+// 純粋関数で生成し (DB/UI 非依存、K-007)、永続化は bundleAdoption.adoptChainDraft が担う。
+export type ChainDraftNode = {
+  actionTitle: string;
+  timerSeconds: number | null;
+  moduleId: string; // 採用元モジュール (live の nodes.module_id に入る)
+};
+
+export type ChainDraft = {
+  title: string;
+  nodes: ChainDraftNode[];
+};
+
+// 束 = ある moment (朝/昼/夜) に属するモジュール群。
+// 採用で live に入るのは「starter かつ defaultOn」のリンクのみ (SPEC §4 束プレビュー)。
+// link.position 昇順 (物理順) に整列して ChainDraft を返す。所属モジュールが非連続でも
+// position 順に一列のチェーンになる (ADR-0030 の所属/位置独立モデル)。
+// 完成形プレビュー (全モジュール表示) は UI (#70b) の責務で、ここでは採用集合のみ扱う。
+export const buildChainDraftFromBundle = (
+  modules: readonly Module[],
+  links: readonly Link[],
+  moment: string,
+  title: string,
+): ChainDraft => {
+  const momentModuleIds = new Set(
+    modules.filter((m) => m.moment.includes(moment)).map((m) => m.id),
+  );
+  const adopted = links
+    .filter((l) => momentModuleIds.has(l.moduleId) && l.starter && l.defaultOn)
+    .slice()
+    .sort((a, b) => a.position - b.position);
+  return {
+    title,
+    nodes: adopted.map((l) => ({
+      actionTitle: l.title,
+      timerSeconds: l.timerSeconds,
+      moduleId: l.moduleId,
+    })),
+  };
 };
 
 export const isNodeAchievedOn = (

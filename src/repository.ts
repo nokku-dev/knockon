@@ -45,6 +45,7 @@ type NodeRow = {
   order_index: number;
   kind: 'action';
   action_id: string;
+  module_id: string | null;
 };
 
 type AchievementRow = {
@@ -91,6 +92,7 @@ const rowToNode = (r: NodeRow): Node => ({
   orderIndex: r.order_index,
   kind: r.kind,
   actionId: r.action_id,
+  moduleId: r.module_id,
 });
 
 const rowToAchievement = (r: AchievementRow): Achievement => ({
@@ -236,9 +238,17 @@ export const deleteChain = async (
 
 export const insertNode = (db: DbClient, node: Node): Promise<void> =>
   db.run(
-    `INSERT INTO nodes (id, chain_id, order_index, kind, action_id)
-     VALUES (?, ?, ?, ?, ?)`,
-    [node.id, node.chainId, node.orderIndex, node.kind, node.actionId],
+    `INSERT INTO nodes (id, chain_id, order_index, kind, action_id, module_id)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    // moduleId は optional (#70): テンプレ採用ノードのみ値を持ち、手作りは null。
+    [
+      node.id,
+      node.chainId,
+      node.orderIndex,
+      node.kind,
+      node.actionId,
+      node.moduleId ?? null,
+    ],
   );
 
 // ノード 1 つを物理削除。 関連 achievements は schema の ON DELETE CASCADE で
