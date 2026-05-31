@@ -255,3 +255,27 @@
 - **原因**: survivorship (生き残った完成形) を初期値と取り違えた。 完成形は到達点であって出発点ではない。
 - **解決**: 完成形は「プレビュー」でゴール提示に使い、 採用で入るのは最小核 (スターターモジュール × デフォルト ON リンク) だけにした。
 - **教訓**: 成熟した自分の運用をテンプレ / 初期値にするときは、 最小核まで削る。 完成形はゴール提示 (プレビュー) に回す。 [K-003](#k-003) (UI はモデル検証の道具として安く回す) / Augmentation 原則 (初日に折れさせない) と同じ精神。 Phase 2 以降で onboarding / discovery を実装するとき (#70-#72) に再確認する。
+
+## K-032: PR マージ前は CI が green (mergeStateStatus = CLEAN) であることを必ず確認する — レビュー観点の確認と CI 確認は別物
+
+- **状況**: PR #79 (#69 v0 catalog seed) で、 ローカルのレビュー観点 (K-007 ドメイン純粋性の import チェック) だけ確認してマージした。
+- **問題**: CI (Type-check + Jest) が `fail` / `mergeStateStatus = UNSTABLE` のままマージしてしまい、 main が壊れた (テスト 1 件失敗状態)。 hotfix PR #80 で回復したが、 1 往復分の手戻りが発生。
+- **原因**: 「コードのレビュー観点を確認した」ことと「CI が通っている」ことを混同した。 `gh pr merge` を CI 結果の確認なしに実行できてしまう。 ローカルで部分的なテストしか流していなかった (= 全テストでの最終確認を省いた)。
+- **解決**: マージ直前に必ず `gh pr view <N> --json mergeStateStatus` で `CLEAN` を確認する。 `UNSTABLE` (CI 進行中 / fail) ではマージしない。 ローカルでも `npx jest` 全件 + `npm run type-check` を最終確認してから push する。
+- **教訓**: マージのゲートは 2 つ独立にある — (1) コードレビュー観点 (CLAUDE.md §レビューロール)、 (2) CI green。 どちらか一方の確認で他方を満たした気にならない。 `mergeStateStatus = CLEAN` をマージの機械的前提条件として固定する (TDD ルール「テストが通ることを確認してから」の運用レベル具体化)。 CLAUDE.md §開発フローのマージ手順に組み込む候補。
+
+## K-033: initSchema に seed を足すと「空テーブル / 全件一致」前提のテストが壊れる — 固定データ依存テストは seed 非依存で書く
+
+- **状況**: #69 で `initSchema` 末尾に `seedCatalog` (v0 catalog 14 モジュール / 50 リンク) を組み込んだ。 #68 で書いた repository.test の module/link round-trip テストは「initSchema 直後は catalog テーブルが空」前提だった。
+- **問題**: (1) テストが使う link ID (`lnk-breakfast`) が catalog の同名 ID と **UNIQUE 衝突**、 (2) `expect(listModules()).toEqual([...])` の全件一致アサーションが catalog 由来行で壊れた。 #68 時点では通っていたテストが #69 のマージで赤転した (= 時間差で壊れる)。
+- **原因**: 「initSchema 後の DB は (自分が入れたもの以外) 空」という暗黙の前提でテストを書いた。 seed 対象が増えるとこの前提が崩れる。 builtin metric_kinds は既存だったが、 catalog は件数が多く ID 名も自然語ベースで衝突しやすい。
+- **解決**: 固定データに依存するテストは **seed 非依存** で書く: (a) テスト専用 ID プレフィックス (`t-` 等) で seed と衝突させない、 (b) 全件一致 `toEqual` ではなく「テスト専用 ID でフィルタしてアサート」、 (c) ID 指定取得 (`listLinksForModule(id)`) は seed の有無に非依存なので活用する。
+- **教訓**: 「`initSchema` 直後 = クリーン DB」を前提にしない。 seed (builtin マスタ / catalog) が今後も増える前提で、 DB 全体の件数・全件順序に依存するアサーションを避ける。 自分が入れたデータだけをフィルタで取り出して検証する。 [K-028](#k-028) (seed と外部データの key 集合) と同じ「seed があると DB 全体 ≠ 自分のデータ」の系。 Phase 2 で別の seed (#70 採用フロー等) を足すときも同型に注意。
+
+## K-034: SQLite の `ALTER TABLE ADD COLUMN ... REFERENCES` は明示的な `DEFAULT NULL` が必須
+
+- **状況**: #68 の MIGRATIONS[7] で既存 `nodes` に `module_id TEXT REFERENCES modules(id)` を追加しようとした。
+- **問題**: `ALTER TABLE nodes ADD COLUMN module_id TEXT REFERENCES modules(id);` (DEFAULT 句なし) は SQLite が「Cannot add a REFERENCES column with non-NULL default value」相当で reject する。
+- **原因**: SQLite の制約で、 ALTER ADD COLUMN で外部キー (REFERENCES) 付きカラムを足す場合、 デフォルト値が NULL であることを明示しないと追加できない。 CREATE TABLE 時の列定義 (= 新規ユーザーの SCHEMA_SQL 側) ではこの制約は出ない。
+- **解決**: `ALTER TABLE nodes ADD COLUMN module_id TEXT REFERENCES modules(id) DEFAULT NULL;` と明示的に `DEFAULT NULL` を付ける。 SCHEMA_SQL 側 (CREATE 時) は DEFAULT 不要。
+- **教訓**: migration で REFERENCES 付きカラムを ALTER ADD する場合は `DEFAULT NULL` を明示する。 「SCHEMA_SQL (CREATE) では動くのに MIGRATIONS (ALTER) で reject される」という test/新規ユーザーでは出ない prod-既存ユーザー固有のエラーになりうる ([K-018](#k-018) / [K-021](#k-021) と同型の test/prod・新規/既存差)。 Phase 2 以降で FK 付きカラムを既存テーブルに足すときに再度踏みやすい。
