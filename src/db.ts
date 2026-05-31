@@ -52,6 +52,10 @@ CREATE TABLE IF NOT EXISTS nodes (
   order_index INTEGER NOT NULL,
   kind TEXT NOT NULL CHECK(kind IN ('action')),
   action_id TEXT NOT NULL REFERENCES actions(id),
+  -- ADR-0030 (#68): テンプレ採用で生成されたノードの「所属モジュール」参照。
+  -- NULL = テンプレ未経由 (手作り / 既存チェーン)。編集 UI のチップ表示用。
+  -- catalog (modules/links) と live (nodes) はライフサイクル分離 (採用 = 一方向変換)。
+  module_id TEXT REFERENCES modules(id),
   UNIQUE(chain_id, order_index)
 );
 
@@ -60,6 +64,43 @@ CREATE TABLE IF NOT EXISTS achievements (
   date TEXT NOT NULL,
   achieved INTEGER NOT NULL CHECK(achieved IN (0, 1)),
   PRIMARY KEY (node_id, date)
+);
+
+-- ADR-0030 (#68): テンプレートカタログ (modules / links)。採用前のテンプレ定義専用。
+-- live (chains/nodes/actions) とは分離し、採用は「links を読んで nodes/actions を
+-- 生成する一方向変換」(採用後は catalog を参照しない)。default_on / starter /
+-- moment / goal といった「採用前の選択メタ」は catalog だけが持ち、live に混入させない
+-- (ADR-0001 正準データ不変条件の保持 / K-002 / K-030)。
+-- moment_json / goal_json: JSON 配列文字列 (actions.variants_json と同型)。
+--   フィルタは読み出し後に domain 層の純粋関数で行う (カタログ規模が小さく中間テーブル過剰)。
+-- source: 'official' (seed) / 'user' (ユーザー作成・カスタム昇格)。
+-- kind: 'normal' (通常モジュール) / 'custom' (単一の中立インボックス、振り分け先)。
+CREATE TABLE IF NOT EXISTS modules (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL,
+  moment_json TEXT NOT NULL,
+  goal_json TEXT NOT NULL,
+  source TEXT NOT NULL CHECK(source IN ('official', 'user')),
+  kind TEXT NOT NULL CHECK(kind IN ('normal', 'custom')),
+  order_index INTEGER NOT NULL
+);
+
+-- ADR-0030 (#68): カタログのリンク (テンプレ内の1アクション定義)。
+-- module_id NOT NULL + FK→modules: 全リンクは必ず1モジュールに属す (orphan 物理禁止)。
+-- default_on: 採用時に既定 ON か (●=1 / ○=0)。starter: スターターモジュール所属リンクか。
+--   採用で live に入るのは「starter=1 かつ default_on=1」のリンクのみ (束プレビュー、#70 で使用)。
+-- position: チェーン上の物理順 (所属モジュールとは独立、同一モジュールが非連続でよい)。
+-- timer_seconds: NULL = タイマーなし (actions.timer_seconds と同型)。
+CREATE TABLE IF NOT EXISTS links (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  module_id TEXT NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+  default_on INTEGER NOT NULL CHECK(default_on IN (0, 1)),
+  position INTEGER NOT NULL,
+  source TEXT NOT NULL CHECK(source IN ('official', 'user')),
+  timer_seconds INTEGER,
+  starter INTEGER NOT NULL CHECK(starter IN (0, 1))
 );
 
 -- ADR-0012: アンカー発火イベント。1 日 1 回の不可逆事実。
@@ -113,6 +154,8 @@ CREATE INDEX IF NOT EXISTS idx_achievements_date ON achievements(date);
 CREATE INDEX IF NOT EXISTS idx_anchor_firings_date ON anchor_firings(date);
 CREATE INDEX IF NOT EXISTS idx_metrics_key_date ON metrics(metric_key, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_metric_kinds_order ON metric_kinds(order_index);
+CREATE INDEX IF NOT EXISTS idx_links_module ON links(module_id, position);
+CREATE INDEX IF NOT EXISTS idx_modules_order ON modules(order_index);
 `;
 
 // スキーマバージョン管理。PR-1.8a で導入。
@@ -125,7 +168,7 @@ CREATE INDEX IF NOT EXISTS idx_metric_kinds_order ON metric_kinds(order_index);
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 const DROP_SQL = `
 DROP TABLE IF EXISTS app_settings;
@@ -133,10 +176,12 @@ DROP TABLE IF EXISTS metric_kinds;
 DROP TABLE IF EXISTS metrics;
 DROP TABLE IF EXISTS achievements;
 DROP TABLE IF EXISTS anchor_firings;
+DROP TABLE IF EXISTS links;
 DROP TABLE IF EXISTS nodes;
 DROP TABLE IF EXISTS chains;
 DROP TABLE IF EXISTS anchors;
 DROP TABLE IF EXISTS actions;
+DROP TABLE IF EXISTS modules;
 `;
 
 // ADR-0027: schema migration を ALTER ベースに切替 (v4 → 以降)。
@@ -176,6 +221,44 @@ export const MIGRATIONS: Record<number, Migration> = {
   6: async (client) => {
     await client.exec(
       `ALTER TABLE app_settings ADD COLUMN theme_mode TEXT NOT NULL DEFAULT 'auto' CHECK(theme_mode IN ('auto', 'light', 'dark'));`,
+    );
+  },
+  // ADR-0030 (#68): テンプレ catalog (modules / links) 新設 + nodes.module_id 追加。
+  // 既存ユーザー (v6) のチェーン / ノードは ALTER ADD COLUMN で保全され、
+  // 既存ノードは module_id=NULL (テンプレ未経由) になる。
+  // SCHEMA_SQL 側にも同じ定義を持たせ、新規ユーザー / 既存ユーザーで列定義を一致させる
+  // (= MIGRATIONS[5]/[6] と同じ二重 truth source は値で一致を担保するパターン)。
+  // catalog の v0 seed 投入は #69 の責務 (本 step ではテーブル作成のみ)。
+  7: async (client) => {
+    await client.exec(`
+      CREATE TABLE IF NOT EXISTS modules (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        color TEXT NOT NULL,
+        moment_json TEXT NOT NULL,
+        goal_json TEXT NOT NULL,
+        source TEXT NOT NULL CHECK(source IN ('official', 'user')),
+        kind TEXT NOT NULL CHECK(kind IN ('normal', 'custom')),
+        order_index INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS links (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        module_id TEXT NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+        default_on INTEGER NOT NULL CHECK(default_on IN (0, 1)),
+        position INTEGER NOT NULL,
+        source TEXT NOT NULL CHECK(source IN ('official', 'user')),
+        timer_seconds INTEGER,
+        starter INTEGER NOT NULL CHECK(starter IN (0, 1))
+      );
+      CREATE INDEX IF NOT EXISTS idx_links_module ON links(module_id, position);
+      CREATE INDEX IF NOT EXISTS idx_modules_order ON modules(order_index);
+    `);
+    // SQLite 制約: ALTER ADD COLUMN で REFERENCES 付きカラムを足すには明示的な
+    // DEFAULT NULL が必要 (省略すると「non-NULL default の REFERENCES 列は追加不可」で
+    // reject される)。SCHEMA_SQL 側 (新規ユーザー) は CREATE 時定義なので DEFAULT 不要。
+    await client.exec(
+      `ALTER TABLE nodes ADD COLUMN module_id TEXT REFERENCES modules(id) DEFAULT NULL;`,
     );
   },
 };

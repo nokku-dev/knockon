@@ -4,8 +4,12 @@ import type {
   Action,
   Anchor,
   AnchorFiring,
+  CatalogSource,
   Chain,
   IsoDate,
+  Link,
+  Module,
+  ModuleKind,
   Node,
   VariantMap,
 } from './domain';
@@ -287,6 +291,108 @@ export const reorderNodes = async (
 export const listActions = async (db: DbClient): Promise<Action[]> => {
   const rows = await db.all<ActionRow>(`SELECT * FROM actions ORDER BY title`);
   return rows.map(rowToAction);
+};
+
+// ADR-0030 (#68): テンプレートカタログ (modules / links) の読み書き。
+// catalog は採用前のテンプレ定義専用。採用フロー (links → nodes/actions 変換) は #70。
+// v0 カタログ seed 投入は #69。ここでは基本の insert / list のみ (update/delete は編集 UI #73)。
+
+type ModuleRow = {
+  id: string;
+  name: string;
+  color: string;
+  moment_json: string;
+  goal_json: string;
+  source: CatalogSource;
+  kind: ModuleKind;
+  order_index: number;
+};
+
+type LinkRow = {
+  id: string;
+  title: string;
+  module_id: string;
+  default_on: number;
+  position: number;
+  source: CatalogSource;
+  timer_seconds: number | null;
+  starter: number;
+};
+
+const rowToModule = (r: ModuleRow): Module => ({
+  id: r.id,
+  name: r.name,
+  color: r.color,
+  moment: JSON.parse(r.moment_json) as string[],
+  goal: JSON.parse(r.goal_json) as string[],
+  source: r.source,
+  kind: r.kind,
+  orderIndex: r.order_index,
+});
+
+const rowToLink = (r: LinkRow): Link => ({
+  id: r.id,
+  title: r.title,
+  moduleId: r.module_id,
+  defaultOn: r.default_on === 1,
+  position: r.position,
+  source: r.source,
+  timerSeconds: r.timer_seconds,
+  starter: r.starter === 1,
+});
+
+export const insertModule = (db: DbClient, module: Module): Promise<void> =>
+  db.run(
+    `INSERT INTO modules (id, name, color, moment_json, goal_json, source, kind, order_index)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      module.id,
+      module.name,
+      module.color,
+      JSON.stringify(module.moment),
+      JSON.stringify(module.goal),
+      module.source,
+      module.kind,
+      module.orderIndex,
+    ],
+  );
+
+export const insertLink = (db: DbClient, link: Link): Promise<void> =>
+  db.run(
+    `INSERT INTO links (id, title, module_id, default_on, position, source, timer_seconds, starter)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      link.id,
+      link.title,
+      link.moduleId,
+      link.defaultOn ? 1 : 0,
+      link.position,
+      link.source,
+      link.timerSeconds,
+      link.starter ? 1 : 0,
+    ],
+  );
+
+export const listModules = async (db: DbClient): Promise<Module[]> => {
+  const rows = await db.all<ModuleRow>(`SELECT * FROM modules ORDER BY order_index`);
+  return rows.map(rowToModule);
+};
+
+// position 昇順で全リンクを返す (所属モジュールとは独立した物理順)。
+export const listLinks = async (db: DbClient): Promise<Link[]> => {
+  const rows = await db.all<LinkRow>(`SELECT * FROM links ORDER BY position`);
+  return rows.map(rowToLink);
+};
+
+export const listLinksForModule = async (
+  db: DbClient,
+  moduleId: string,
+): Promise<Link[]> => {
+  const rows = await db.all<LinkRow>(
+    `SELECT * FROM links WHERE module_id = ? ORDER BY position`,
+    [moduleId],
+  );
+  return rows.map(rowToLink);
 };
 
 export const recordAchievement = (
