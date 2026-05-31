@@ -68,6 +68,41 @@ export type AnchorFiring = {
   date: IsoDate;
 };
 
+// ADR-0030 (#68): テンプレートカタログ。採用前のテンプレ定義専用 (live と分離)。
+// source: 'official' = seed 由来 / 'user' = ユーザー作成・カスタム昇格。
+export type CatalogSource = 'official' | 'user';
+// kind: 'normal' = 通常モジュール / 'custom' = 単一の中立インボックス (振り分け先)。
+export type ModuleKind = 'normal' | 'custom';
+
+// moment / goal は語彙が #69 (v0 カタログ) で確定するため、ここでは string[] に留める
+// (朝/昼/夜 等の moment、運動/スキンケア 等の goal を JSON 配列で保持)。
+export type Module = {
+  id: string;
+  name: string;
+  color: string;
+  moment: string[];
+  goal: string[];
+  source: CatalogSource;
+  kind: ModuleKind;
+  orderIndex: number;
+};
+
+// リンク = テンプレ内の1アクション定義。
+// moduleId: 所属モジュール (論理クラスタ、必ず1つに属す)。
+// position: チェーン上の物理順 (所属とは独立 / 同一モジュールが非連続でよい)。
+// defaultOn: 採用時の既定 ON (●) / starter: スターターモジュール所属リンクか。
+//   採用で live に入るのは starter かつ defaultOn のリンクのみ (#70 束プレビュー)。
+export type Link = {
+  id: string;
+  title: string;
+  moduleId: string;
+  defaultOn: boolean;
+  position: number;
+  source: CatalogSource;
+  timerSeconds: number | null;
+  starter: boolean;
+};
+
 export const isNodeAchievedOn = (
   achievements: readonly Achievement[],
   nodeId: string,
