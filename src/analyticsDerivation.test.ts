@@ -2,8 +2,12 @@ import type { Achievement, Action, Node } from './domain';
 import {
   chainAchievementStats,
   dailyChainAchievementSeries,
+  dayNodeStatuses,
+  metricsOnDate,
   nodeAchievementStats,
 } from './analyticsDerivation';
+import type { Metric } from './metricsRepository';
+import type { MetricKind } from './metricKindsRepository';
 
 const buildNode = (id: string, actionId: string): Node => ({
   id,
@@ -231,5 +235,99 @@ describe('dailyChainAchievementSeries (PR-Z2 / 日別折れ線グラフ用の達
       { date: '2026-05-18', achievedNodes: 0, applicableNodes: 0 },
       { date: '2026-05-19', achievedNodes: 0, applicableNodes: 0 },
     ]);
+  });
+});
+
+describe('dayNodeStatuses — 選んだ日のノード状態 (#63)', () => {
+  // 2026-05-18 は月曜日 (variant テスト用)。
+  const monday = '2026-05-18';
+
+  test('達成記録ありは achieved=true、無しは false', () => {
+    const nodes = [buildNode('n1', 'a1'), buildNode('n2', 'a2')];
+    const actionsById = { a1: buildAction('a1', '歯磨き'), a2: buildAction('a2', '白湯') };
+    const achievements: Achievement[] = [
+      { nodeId: 'n1', date: monday, achieved: true },
+    ];
+    const result = dayNodeStatuses(monday, nodes, actionsById, achievements);
+    expect(result).toEqual([
+      { nodeId: 'n1', label: '歯磨き', achieved: true, skipped: false },
+      { nodeId: 'n2', label: '白湯', achieved: false, skipped: false },
+    ]);
+  });
+
+  test('variant null の曜日は skipped=true (休む日)', () => {
+    // 月のみ fire、それ以外 null。日曜 (2026-05-17) は skip。
+    const variantAction = buildVariantAction('a1', {
+      mon: '筋トレ',
+      tue: null,
+      wed: null,
+      thu: null,
+      fri: null,
+      sat: null,
+      sun: null,
+    });
+    const nodes = [buildNode('n1', 'a1')];
+    const actionsById = { a1: variantAction };
+    const sunday = '2026-05-17';
+    // skip 日は親 title (= action.title、テストでは 'a1') を label に使う。
+    expect(dayNodeStatuses(sunday, nodes, actionsById, [])[0]).toEqual({
+      nodeId: 'n1',
+      label: 'a1',
+      achieved: false,
+      skipped: true,
+    });
+    // 月曜は fire (variant ラベル)
+    expect(dayNodeStatuses(monday, nodes, actionsById, [])[0]).toMatchObject({
+      label: '筋トレ',
+      skipped: false,
+    });
+  });
+
+  test('別日の達成記録は当日の achieved に影響しない', () => {
+    const nodes = [buildNode('n1', 'a1')];
+    const actionsById = { a1: buildAction('a1') };
+    const achievements: Achievement[] = [
+      { nodeId: 'n1', date: '2026-05-17', achieved: true },
+    ];
+    expect(dayNodeStatuses(monday, nodes, actionsById, achievements)[0].achieved).toBe(
+      false,
+    );
+  });
+});
+
+describe('metricsOnDate — 選んだ日のメトリクス (#63)', () => {
+  const kinds: MetricKind[] = [
+    { id: 'k1', key: 'weight', label: '体重', unit: 'kg', orderIndex: 0, isBuiltin: true },
+    { id: 'k2', key: 'sleep_hours', label: '睡眠', unit: '時間', orderIndex: 1, isBuiltin: true },
+  ];
+  const mk = (key: string, value: number, recordedAt: string): Metric => ({
+    id: `${key}-${recordedAt}`,
+    metricKey: key,
+    value,
+    recordedAt,
+    source: 'manual',
+  });
+
+  test('当日に記録された分だけラベル/単位付きで返す', () => {
+    const metrics = [
+      mk('weight', 62.5, '2026-05-18T07:00:00'),
+      mk('sleep_hours', 7, '2026-05-18T23:30:00'),
+      mk('weight', 63, '2026-05-17T07:00:00'), // 別日 → 除外
+    ];
+    expect(metricsOnDate(metrics, kinds, '2026-05-18')).toEqual([
+      { key: 'weight', label: '体重', unit: 'kg', value: 62.5 },
+      { key: 'sleep_hours', label: '睡眠', unit: '時間', value: 7 },
+    ]);
+  });
+
+  test('kind 未登録の key は key 名をそのままラベルに使う', () => {
+    const metrics = [mk('mood', 4, '2026-05-18T09:00:00')];
+    expect(metricsOnDate(metrics, kinds, '2026-05-18')).toEqual([
+      { key: 'mood', label: 'mood', unit: '', value: 4 },
+    ]);
+  });
+
+  test('該当日に記録なしは空配列', () => {
+    expect(metricsOnDate([], kinds, '2026-05-18')).toEqual([]);
   });
 });

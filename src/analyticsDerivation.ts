@@ -1,5 +1,11 @@
 import type { Achievement, Action, IsoDate, Node } from './domain';
-import { recentDateRange, resolveActionForDate } from './domain';
+import {
+  isNodeAchievedOn,
+  recentDateRange,
+  resolveActionForDate,
+} from './domain';
+import type { Metric } from './metricsRepository';
+import type { MetricKind } from './metricKindsRepository';
 
 // PR-Z2 (ADR-0024 §3b) 達成率ダッシュボード用の派生集計関数群。
 //
@@ -114,4 +120,67 @@ export const dailyChainAchievementSeries = (
     }
     return { date, achievedNodes, applicableNodes };
   });
+};
+
+// ── #63: 日々の詳細ビュー (選んだ 1 日のスナップショット) ──
+// 集計 (達成率) ではなく「その日に何が起きたか」を表示時派生で組み立てる。
+// streak は出さない / マイナスは赤くしない (反 streak / Celebrate 主、 DESIGN-SYSTEM §0)。
+
+// 選んだ日における 1 ノードの状態。
+// - skipped: その日は variant null で「休む日」(達成対象外)
+// - achieved: 達成記録が true (skipped のときは無視して表示側で「—」)
+export type DayNodeStatus = {
+  nodeId: string;
+  label: string; // その日の variant 解決後ラベル
+  achieved: boolean;
+  skipped: boolean;
+};
+
+// チェーンのノード列を、選んだ日のステータス列に変換する (純粋)。
+export const dayNodeStatuses = (
+  date: IsoDate,
+  nodes: readonly Pick<Node, 'id' | 'actionId'>[],
+  actionsById: Readonly<Record<string, Action>>,
+  achievements: readonly Achievement[],
+): DayNodeStatus[] =>
+  nodes.map((node) => {
+    const action = actionsById[node.actionId];
+    if (!action) {
+      return { nodeId: node.id, label: '', achieved: false, skipped: false };
+    }
+    const resolved = resolveActionForDate(action, date);
+    return {
+      nodeId: node.id,
+      label: resolved.label,
+      achieved: isNodeAchievedOn(achievements, node.id, date),
+      skipped: resolved.kind === 'skip',
+    };
+  });
+
+// 選んだ日に記録されたメトリクス (key ごとにラベル/単位を付与)。
+// recorded_at は 'YYYY-MM-DDTHH:MM:SS' 前提で日付プレフィックス一致で抽出。
+export type DayMetricEntry = {
+  key: string;
+  label: string;
+  unit: string;
+  value: number;
+};
+
+export const metricsOnDate = (
+  metrics: readonly Metric[],
+  kinds: readonly MetricKind[],
+  date: IsoDate,
+): DayMetricEntry[] => {
+  const kindByKey = new Map(kinds.map((k) => [k.key, k]));
+  return metrics
+    .filter((m) => m.recordedAt.slice(0, 10) === date)
+    .map((m) => {
+      const kind = kindByKey.get(m.metricKey);
+      return {
+        key: m.metricKey,
+        label: kind?.label ?? m.metricKey,
+        unit: kind?.unit ?? '',
+        value: m.value,
+      };
+    });
 };
