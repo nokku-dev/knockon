@@ -33,6 +33,11 @@ export default function ChainsTab() {
     router.push('/chain/new');
   };
 
+  // #70b: テンプレ束から始める discovery フローへ (起点導線)。
+  const handleDiscover = () => {
+    router.push('/discover');
+  };
+
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
       <View style={styles.statusTabs}>
@@ -81,14 +86,24 @@ export default function ChainsTab() {
         <View style={styles.body}>
           <ChainListScreen items={items} onSelectChain={handleSelectChain} />
           {status === 'active' && (
-            <Pressable
-              onPress={handleCreateNew}
-              accessibilityRole="button"
-              accessibilityLabel="チェーンを新規作成"
-              style={styles.fab}
-            >
-              <Text style={styles.fabText}>+ 新規作成</Text>
-            </Pressable>
+            <>
+              <Pressable
+                onPress={handleDiscover}
+                accessibilityRole="button"
+                accessibilityLabel="テンプレートから始める"
+                style={styles.discoverFab}
+              >
+                <Text style={styles.discoverFabText}>テンプレから</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleCreateNew}
+                accessibilityRole="button"
+                accessibilityLabel="チェーンを新規作成"
+                style={styles.fab}
+              >
+                <Text style={styles.fabText}>+ 新規作成</Text>
+              </Pressable>
+            </>
           )}
         </View>
       )}
@@ -124,6 +139,20 @@ const styles = StyleSheet.create({
   },
   fabText: {
     color: COLOR_BG,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  discoverFab: {
+    position: 'absolute',
+    right: 24,
+    bottom: 76,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    backgroundColor: COLOR_LINE_BG,
+  },
+  discoverFabText: {
+    color: COLOR_FG,
     fontSize: 14,
     fontWeight: '700',
   },
