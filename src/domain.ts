@@ -49,6 +49,9 @@ export type Node = {
   // 編集 UI (#73) のチップ表示用。optional は既存 Node リテラルの非破壊追加のため
   // (Phase 1 受容: 厳密な必須化は call site 整理コストが見合うまで保留)。
   moduleId?: string | null;
+  // #73 (SPEC §6): ON/OFF = 一時停止。true/undefined = 通常 (Today に出る) /
+  // false = 停止 (チェーンから外すが残す)。optional は既存 Node リテラルの非破壊追加。
+  active?: boolean;
 };
 
 export type Chain = {

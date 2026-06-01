@@ -1,7 +1,7 @@
 import { fireEvent, render } from '@testing-library/react-native';
 
 import { ChainEditScreen } from './ChainEditScreen';
-import type { Action } from './domain';
+import type { Action, Module } from './domain';
 import type { ChainEditDraft } from './useChainEdit';
 
 const baseDraft = (): ChainEditDraft => ({
@@ -26,14 +26,15 @@ const draftWithNodes = (): ChainEditDraft => ({
   isNew: false,
   title: '朝のルーティン',
   nodes: [
-    { id: 'n1', isNew: false, actionId: 'act1', actionTitle: '水を飲む', actionVariants: null },
-    { id: 'n2', isNew: false, actionId: 'act2', actionTitle: 'ストレッチ', actionVariants: null },
-    { id: 'n3', isNew: false, actionId: 'act3', actionTitle: '机に向かう', actionVariants: null },
+    { id: 'n1', isNew: false, actionId: 'act1', actionTitle: '水を飲む', actionVariants: null, moduleId: null, active: true },
+    { id: 'n2', isNew: false, actionId: 'act2', actionTitle: 'ストレッチ', actionVariants: null, moduleId: null, active: true },
+    { id: 'n3', isNew: false, actionId: 'act3', actionTitle: '机に向かう', actionVariants: null, moduleId: null, active: true },
   ],
 });
 
 const noopProps = {
   availableActions: [] as Action[],
+  modules: [] as Module[],
   saving: false,
   locationPermission: 'undetermined' as const,
   locating: false,
@@ -47,6 +48,7 @@ const noopProps = {
   onAddExistingAction: () => {},
   onAddNewAction: () => {},
   onRemoveNode: () => {},
+  onToggleNodeActive: () => {},
   onReorderNodes: () => {},
   onCancel: () => {},
   onSave: () => {},
@@ -386,5 +388,81 @@ describe('ChainEditScreen', () => {
     );
     fireEvent.press(getByLabelText('ノードを追加'));
     expect(queryByLabelText(/^variant: /)).toBeNull();
+  });
+});
+
+// #73 (SPEC §6): チップあり2層 + ON/OFF + source 別削除。
+const modules: Module[] = [
+  { id: 'mod-meal', name: '朝食', color: '#E0A24C', moment: ['morning'], goal: ['meal'], source: 'official', kind: 'normal', orderIndex: 0 },
+  { id: 'mod-custom-inbox', name: 'カスタム', color: '#8B9EB0', moment: [], goal: [], source: 'user', kind: 'custom', orderIndex: 9999 },
+];
+
+const moduleDraft = (): ChainEditDraft => ({
+  ...draftWithNodes(),
+  nodes: [
+    { id: 'n1', isNew: false, actionId: 'a1', actionTitle: '朝食準備', actionVariants: null, moduleId: 'mod-meal', active: true },
+    { id: 'n2', isNew: false, actionId: 'a2', actionTitle: '朝ごはんを食べる', actionVariants: null, moduleId: 'mod-meal', active: true },
+    { id: 'n3', isNew: false, actionId: 'a3', actionTitle: '自作メモ', actionVariants: null, moduleId: 'mod-custom-inbox', active: false },
+  ],
+});
+
+describe('ChainEditScreen #73 — チップ層 / ON-OFF / source 別削除', () => {
+  test('チップ層に採用中モジュールが count 付きで並ぶ', () => {
+    const { getByLabelText } = render(
+      <ChainEditScreen draft={moduleDraft()} {...noopProps} modules={modules} />,
+    );
+    expect(getByLabelText('モジュール 朝食 (2)')).toBeTruthy();
+    expect(getByLabelText('モジュール カスタム (1)')).toBeTruthy();
+  });
+
+  test('C 案ラベル: run 先頭ノードだけモジュール名を出す (自己修復)', () => {
+    const { getAllByText, getByText } = render(
+      <ChainEditScreen draft={moduleDraft()} {...noopProps} modules={modules} />,
+    );
+    // 朝食 run は n1/n2 連続 → 先頭 n1 だけ「朝食」ラベル。
+    // ※チップ層にも各モジュール名が 1 つ出るため、run 先頭ラベル + チップ = 計 2 箇所。
+    expect(getAllByText('朝食').length).toBe(2); // チップ + n1 (run 先頭)
+    expect(getAllByText('カスタム').length).toBe(2); // チップ + n3 (run 先頭)
+    // n2 は run 途中なのでモジュール名ラベルは出ない (アクション名のみ)
+    expect(getByText('朝ごはんを食べる')).toBeTruthy();
+  });
+
+  test('ON/OFF トグル押下で onToggleNodeActive が該当 nodeId で呼ばれる', () => {
+    const onToggleNodeActive = jest.fn();
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={moduleDraft()}
+        {...noopProps}
+        modules={modules}
+        onToggleNodeActive={onToggleNodeActive}
+      />,
+    );
+    // n1 は active=true → 「一時停止」アクション
+    fireEvent.press(getByLabelText('朝食準備 を一時停止'));
+    expect(onToggleNodeActive).toHaveBeenCalledWith('n1');
+    // n3 は active=false → 「再開」アクション
+    fireEvent.press(getByLabelText('自作メモ を再開'));
+    expect(onToggleNodeActive).toHaveBeenCalledWith('n3');
+  });
+
+  test('official モジュール由来ノードは削除ラベルが「チェーンから外す」(非破壊)', () => {
+    const { getByLabelText } = render(
+      <ChainEditScreen draft={moduleDraft()} {...noopProps} modules={modules} />,
+    );
+    expect(getByLabelText('朝食準備 をチェーンから外す')).toBeTruthy();
+  });
+
+  test('user (custom) モジュール由来ノードは削除ラベルが「削除」(破壊的)', () => {
+    const onRemoveNode = jest.fn();
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={moduleDraft()}
+        {...noopProps}
+        modules={modules}
+        onRemoveNode={onRemoveNode}
+      />,
+    );
+    fireEvent.press(getByLabelText('自作メモ を削除'));
+    expect(onRemoveNode).toHaveBeenCalledWith('n3');
   });
 });

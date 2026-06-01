@@ -61,6 +61,9 @@ CREATE TABLE IF NOT EXISTS nodes (
   -- NULL = テンプレ未経由 (手作り / 既存チェーン)。編集 UI のチップ表示用。
   -- catalog (modules/links) と live (nodes) はライフサイクル分離 (採用 = 一方向変換)。
   module_id TEXT REFERENCES modules(id),
+  -- #73 (SPEC §6): ON/OFF = 一時停止。1 = 通常 (Today に出る) / 0 = 停止 (チェーンから
+  -- 外すが残す)。「停止」と「削除/外す」を 2 系統に分ける (= 停止は非破壊・可逆)。
+  active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0, 1)),
   UNIQUE(chain_id, order_index)
 );
 
@@ -177,7 +180,7 @@ CREATE INDEX IF NOT EXISTS idx_modules_order ON modules(order_index);
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 const DROP_SQL = `
 DROP TABLE IF EXISTS app_settings;
@@ -280,6 +283,14 @@ export const MIGRATIONS: Record<number, Migration> = {
       `ALTER TABLE app_settings ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0 CHECK(onboarding_completed IN (0, 1));`,
     );
     await client.exec(`UPDATE app_settings SET onboarding_completed = 1;`);
+  },
+  // #73 (SPEC §6): nodes に active 列 (ON/OFF = 一時停止) を追加。
+  // 既存ノードは DEFAULT 1 (= 通常表示) で保全される。CHECK は ALTER で後付け不可なため
+  // 列宣言に含める (MIGRATIONS[6]/[8] と同型)。
+  9: async (client) => {
+    await client.exec(
+      `ALTER TABLE nodes ADD COLUMN active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0, 1));`,
+    );
   },
 };
 

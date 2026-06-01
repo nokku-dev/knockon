@@ -92,7 +92,8 @@ const loadChainForToday = async (
   const anchor = await getAnchor(db, chain.anchorId);
   if (!anchor) return null;
 
-  const nodes = await listNodes(db, chain.id);
+  // #73 (SPEC §6): 一時停止 (active=false) のノードは Today に出さない (= 外すが残す)。
+  const nodes = (await listNodes(db, chain.id)).filter((n) => n.active !== false);
   // Phase 2 variant: 各アクションを resolveActionForDate で今日の発火可否 + ラベルに解決。
   // kind='skip' のノードも除外せず TodayNode として残す (グレー表示用、 ユーザー
   // フィードバック「設定したのに表示されないと勘違いする」への対応)。
