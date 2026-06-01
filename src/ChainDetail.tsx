@@ -175,6 +175,14 @@ export const ChainDetail = ({
       </View>
       <Text style={styles.chainTitle}>{chain.title}</Text>
 
+      {/* #74 (SPEC §8): 全ノード一時停止 (= active な node が 0) の空状態。
+          active チェーンは必ず 1 ノード以上保存されているため、表示 0 = 全休止。
+          マイナスを指差さず穏やかに再開を促す (Augmentation 原則)。 */}
+      {nodes.length === 0 ? (
+        <Text style={styles.allPausedHint} accessibilityLabel="すべて一時停止中">
+          すべて一時停止中 · 編集で再開できます
+        </Text>
+      ) : (
       <View style={[styles.spineContainer, { height: svgHeight }]}>
         <Svg
           width={SPINE_COLUMN_WIDTH}
@@ -245,6 +253,7 @@ export const ChainDetail = ({
           ),
         )}
       </View>
+      )}
     </View>
   );
 };
@@ -424,6 +433,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     marginBottom: 12,
+  },
+  allPausedHint: {
+    color: COLOR_FG_FAINT,
+    fontSize: 13,
+    paddingVertical: 8,
   },
   spineContainer: { position: 'relative' },
   svg: { position: 'absolute', top: 0, left: 0 },

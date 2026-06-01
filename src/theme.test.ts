@@ -67,3 +67,39 @@ describe('palette 構造', () => {
     expect(LIGHT_PALETTE.star).toBe('#C9941F');
   });
 });
+
+// #74 (SPEC §7): faint テキストの WCAG AA (4.5:1) を機械検証する (K-006 spirit)。
+// 旧 faint (#5A5A60 / rgba 0.26) は未達だった。bg / surface 双方で AA を割らないことを固定。
+describe('faint テキストの WCAG AA コントラスト (#74)', () => {
+  const srgbToLinear = (c: number): number => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = (hex: string): number => {
+    const n = parseInt(hex.replace('#', ''), 16);
+    const r = (n >> 16) & 0xff;
+    const g = (n >> 8) & 0xff;
+    const b = n & 0xff;
+    return (
+      0.2126 * srgbToLinear(r) +
+      0.7152 * srgbToLinear(g) +
+      0.0722 * srgbToLinear(b)
+    );
+  };
+  const contrast = (a: string, b: string): number => {
+    const la = luminance(a);
+    const lb = luminance(b);
+    const [hi, lo] = la > lb ? [la, lb] : [lb, la];
+    return (hi + 0.05) / (lo + 0.05);
+  };
+
+  test('DARK fgFaint は bg / surface 双方で AA (>= 4.5) を満たす', () => {
+    expect(contrast(DARK_PALETTE.fgFaint, DARK_PALETTE.bg)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(DARK_PALETTE.fgFaint, DARK_PALETTE.surface)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test('LIGHT fgFaint は bg / surface 双方で AA (>= 4.5) を満たす', () => {
+    expect(contrast(LIGHT_PALETTE.fgFaint, LIGHT_PALETTE.bg)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(LIGHT_PALETTE.fgFaint, LIGHT_PALETTE.surface)).toBeGreaterThanOrEqual(4.5);
+  });
+});

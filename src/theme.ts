@@ -33,7 +33,8 @@ export const DARK_PALETTE: ThemePalette = {
   lineBg: '#2A2A32',
   fg: '#F4F4F2',
   fgSoft: 'rgba(244, 244, 242, 0.52)',
-  fgFaint: '#5A5A60',
+  // #74 (SPEC §7): WCAG AA (4.5:1) を surface/bg 双方で満たす (旧 #5A5A60 は約 2.7:1 で未達)。
+  fgFaint: '#8A8A90',
   grow: '#EAEAE8',
   accent: '#E0574C',
   star: '#F2C14B',
@@ -45,7 +46,8 @@ export const LIGHT_PALETTE: ThemePalette = {
   lineBg: '#E7E7E3',
   fg: '#1A1A19',
   fgSoft: 'rgba(26, 26, 25, 0.52)',
-  fgFaint: 'rgba(26, 26, 25, 0.26)',
+  // #74 (SPEC §7): WCAG AA (4.5:1) を満たす solid グレー (旧 rgba 0.26 は約 1.7:1 で未達)。
+  fgFaint: '#6E6E6E',
   grow: '#1A1A19',
   accent: '#B23A3A',
   star: '#C9941F',

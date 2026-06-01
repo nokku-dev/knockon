@@ -298,4 +298,20 @@ describe('ChainDetail', () => {
     // タップテスト自体は accessibilityLabel ベースの押下が成立しないため、
     // 「Pressable role が存在しない」ことで確認する
   });
+
+  // #74 (SPEC §8): 全ノード一時停止 (= 表示ノード 0) の空状態。
+  test('表示ノードが 0 件のとき「すべて一時停止中」の空状態を出す', () => {
+    const { getByLabelText, queryByText } = render(
+      <ChainDetail
+        chain={chain}
+        anchor={anchor}
+        nodes={[]}
+        achievements={{}}
+        onToggleNode={() => {}}
+      />,
+    );
+    expect(getByLabelText('すべて一時停止中')).toBeTruthy();
+    // チェーンタイトルは残る (カードは消さない)
+    expect(queryByText(chain.title)).toBeTruthy();
+  });
 });
