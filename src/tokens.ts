@@ -14,7 +14,9 @@ export const COLOR_LINE_BG = '#2A2A32';
 
 export const COLOR_FG = '#F4F4F2';
 export const COLOR_FG_SOFT = 'rgba(244, 244, 242, 0.52)';
-export const COLOR_FG_FAINT = '#5A5A60';
+// #74 (SPEC §7): WCAG AA (4.5:1) を surface/bg 双方で満たす faint グレー。
+// 旧 #5A5A60 は bg 上で約 2.7:1 で AA 未達だった。
+export const COLOR_FG_FAINT = '#8A8A90';
 
 export const COLOR_GROW = '#EAEAE8';
 export const COLOR_ACCENT = '#E0574C';
