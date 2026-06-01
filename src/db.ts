@@ -148,10 +148,14 @@ CREATE TABLE IF NOT EXISTS metric_kinds (
 -- 別の「app 動作設定軸」を保持する場所。 id = 'singleton' で 1 行固定。
 -- 将来の設定追加は ALTER TABLE app_settings ADD COLUMN ... で対応 (ADR-0027)。
 -- ADR-0029 (Issue #53): theme_mode 追加。 'auto' (OS の colorScheme に追従) / 'light' / 'dark' の 3 値。
+-- #72 (SPEC §5): onboarding_completed。初回ルート (onboarding) を通したか。
+--   新規ユーザーは 0 (= 初回起動で onboarding へ誘導)。既存ユーザーは MIGRATIONS[8] で
+--   1 にセット (= 既にチェーンを持っているので onboarding を出さない、別軸の app 動作設定)。
 CREATE TABLE IF NOT EXISTS app_settings (
   id TEXT PRIMARY KEY,
   reset_time TEXT NOT NULL DEFAULT '00:00',
-  theme_mode TEXT NOT NULL DEFAULT 'auto' CHECK(theme_mode IN ('auto', 'light', 'dark'))
+  theme_mode TEXT NOT NULL DEFAULT 'auto' CHECK(theme_mode IN ('auto', 'light', 'dark')),
+  onboarding_completed INTEGER NOT NULL DEFAULT 0 CHECK(onboarding_completed IN (0, 1))
 );
 
 CREATE INDEX IF NOT EXISTS idx_nodes_chain_order ON nodes(chain_id, order_index);
@@ -173,7 +177,7 @@ CREATE INDEX IF NOT EXISTS idx_modules_order ON modules(order_index);
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 const DROP_SQL = `
 DROP TABLE IF EXISTS app_settings;
@@ -265,6 +269,17 @@ export const MIGRATIONS: Record<number, Migration> = {
     await client.exec(
       `ALTER TABLE nodes ADD COLUMN module_id TEXT REFERENCES modules(id) DEFAULT NULL;`,
     );
+  },
+  // #72 (SPEC §5): app_settings に onboarding_completed 列を追加。
+  // ALTER の DEFAULT 0 で既存 row も一旦 0 になるが、続けて UPDATE で 1 にセットする
+  // (= 既存ユーザーは既にチェーンを持っており onboarding は不要)。新規ユーザーは
+  // initSchema の current===0 経路で SCHEMA_SQL の DEFAULT 0 のまま = onboarding へ誘導。
+  // CHECK 制約は ALTER ADD COLUMN では後付け不可なため列宣言に含める (MIGRATIONS[6] と同型)。
+  8: async (client) => {
+    await client.exec(
+      `ALTER TABLE app_settings ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0 CHECK(onboarding_completed IN (0, 1));`,
+    );
+    await client.exec(`UPDATE app_settings SET onboarding_completed = 1;`);
   },
 };
 

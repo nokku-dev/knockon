@@ -22,6 +22,7 @@ import {
 const FALLBACK_SETTINGS: AppSettings = {
   resetTime: DEFAULT_RESET_TIME,
   themeMode: DEFAULT_THEME_MODE,
+  onboardingCompleted: false,
 };
 
 export type UseSettingsResult = {

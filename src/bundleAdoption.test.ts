@@ -142,6 +142,24 @@ describe('adoptChainDraft — ドラフトの live 永続化 (#70)', () => {
     await db.close?.();
   });
 
+  test('anchorSpec=time を渡すと時刻アンカーが生成される (#72 onboarding)', async () => {
+    const db = await setup();
+    const draft = buildChainDraftFromBundle(testModules, testLinks, 'morning', '朝の束');
+    const chainId = await adoptChainDraft(
+      db,
+      draft,
+      '2026-05-31T00:00:00Z',
+      seqIdGen(),
+      { kind: 'time', time: '07:30' },
+    );
+    const chains = await listChains(db, 'active');
+    const created = chains.find((c) => c.id === chainId)!;
+    const anchor = await getAnchor(db, created.anchorId);
+    expect(anchor?.kind).toBe('time');
+    expect(anchor?.time).toBe('07:30');
+    await db.close?.();
+  });
+
   test('採用ノードは module_id を保持して永続化される (catalog 由来の所属が live に残る)', async () => {
     const db = await setup();
     const draft = buildChainDraftFromBundle(testModules, testLinks, 'morning', '朝の束');
