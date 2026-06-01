@@ -3,10 +3,12 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnalyticsScreen } from '../../src/AnalyticsScreen';
+import { DayDetailSection } from '../../src/DayDetailSection';
 import { MetricKindsEditor } from '../../src/MetricKindsEditor';
 import { SettingsLauncher } from '../../src/SettingsLauncher';
 import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../../src/tokens';
 import { useAnalyticsData } from '../../src/useAnalyticsData';
+import { useDayDetail } from '../../src/useDayDetail';
 import { useMetricsData } from '../../src/useMetricsData';
 
 // PR-Z2 (ADR-0024 §3b) + PR-Z3a (§3c) + PR-CC (ADR-0026): 分析タブ。
@@ -18,6 +20,8 @@ import { useMetricsData } from '../../src/useMetricsData';
 export default function AnalyticsTab() {
   const { data, error, loading } = useAnalyticsData();
   const metrics = useMetricsData();
+  // #63: 日々の詳細。全体 loading には含めない (日付切替で画面全体が再 loading しないため)。
+  const dayDetail = useDayDetail();
   const [kindsEditorOpen, setKindsEditorOpen] = useState(false);
 
   // どちらかが loading なら全体 loading 表示 (簡略化、 体感問題なし)。
@@ -43,6 +47,15 @@ export default function AnalyticsTab() {
           metricsSeries={metrics.data?.series}
           onAddMetric={metrics.addMetric}
           onEditKinds={() => setKindsEditorOpen(true)}
+          footer={
+            <DayDetailSection
+              dates={dayDetail.dates}
+              selectedDate={dayDetail.selectedDate}
+              today={dayDetail.today}
+              detail={dayDetail.detail}
+              onSelectDate={dayDetail.selectDate}
+            />
+          }
         />
       ) : null}
       <MetricKindsEditor

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { LineChart } from './LineChart';
@@ -23,6 +24,8 @@ export type AnalyticsScreenProps = {
   onAddMetric?: (metricKey: string, value: number) => Promise<void> | void;
   // PR-CC (ADR-0026): 「種別を編集」ボタン押下動線。 未指定なら非表示。
   onEditKinds?: () => void;
+  // #63: 末尾に差し込む追加セクション (日々の詳細)。同じ ScrollView 内に置く。
+  footer?: ReactNode;
 };
 
 export const AnalyticsScreen = ({
@@ -31,6 +34,7 @@ export const AnalyticsScreen = ({
   metricsSeries,
   onAddMetric,
   onEditKinds,
+  footer,
 }: AnalyticsScreenProps) => (
   <ScrollView contentContainerStyle={styles.scroll}>
     <Text style={styles.heading}>分析</Text>
@@ -50,6 +54,7 @@ export const AnalyticsScreen = ({
         onEditKinds={onEditKinds}
       />
     )}
+    {footer}
   </ScrollView>
 );
 
