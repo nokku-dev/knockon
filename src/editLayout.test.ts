@@ -3,6 +3,7 @@ import {
   buildModuleRoster,
   computeRunLeaders,
   deleteKindForSource,
+  reinsertByIndex,
   validatePromotion,
 } from './editLayout';
 
@@ -100,5 +101,37 @@ describe('validatePromotion — 昇格の入力検証 (#93)', () => {
   test('PROMOTE_COLORS は重複なしの色集合', () => {
     expect(new Set(PROMOTE_COLORS).size).toBe(PROMOTE_COLORS.length);
     expect(PROMOTE_COLORS.length).toBeGreaterThan(0);
+  });
+});
+
+describe('reinsertByIndex — undo の位置復元 (#94)', () => {
+  test('単一削除を元の位置に戻す', () => {
+    // ['A','C'] に B(index 1) を戻す → ['A','B','C']
+    expect(reinsertByIndex(['A', 'C'], [{ node: 'B', index: 1 }])).toEqual([
+      'A',
+      'B',
+      'C',
+    ]);
+  });
+
+  test('複数同時削除 (一括外し) を元の並びで戻す', () => {
+    // 元 ['A','B','C','D'] から B(1)/D(3) を削除 → ['A','C']。undo で元に戻る。
+    expect(
+      reinsertByIndex(
+        ['A', 'C'],
+        [
+          { node: 'D', index: 3 },
+          { node: 'B', index: 1 },
+        ],
+      ),
+    ).toEqual(['A', 'B', 'C', 'D']);
+  });
+
+  test('末尾削除も復元できる', () => {
+    expect(reinsertByIndex(['A', 'B'], [{ node: 'C', index: 2 }])).toEqual([
+      'A',
+      'B',
+      'C',
+    ]);
   });
 });

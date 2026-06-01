@@ -49,6 +49,10 @@ const noopProps = {
   onAddNewAction: () => {},
   onRemoveNode: () => {},
   onToggleNodeActive: () => {},
+  onDetachModule: () => {},
+  undoCount: 0,
+  onUndo: () => {},
+  onUndoDismiss: () => {},
   onReorderNodes: () => {},
   onCancel: () => {},
   onSave: () => {},
@@ -565,5 +569,45 @@ describe('ChainEditScreen #93 — カスタムモジュール化導線', () => {
       <ChainEditScreen draft={moduleDraft()} {...noopProps} modules={modules} />,
     );
     expect(queryByLabelText('カスタムをモジュール化')).toBeNull();
+  });
+});
+
+describe('ChainEditScreen #94 — 一括外し / undo', () => {
+  test('絞り込み中に「まとめて外す」で onDetachModule が該当 moduleId で呼ばれる', () => {
+    const onDetachModule = jest.fn();
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={moduleDraft()}
+        {...noopProps}
+        modules={modules}
+        onDetachModule={onDetachModule}
+      />,
+    );
+    fireEvent.press(getByLabelText('モジュール 朝食 (2) で絞り込む'));
+    fireEvent.press(getByLabelText('このモジュールをまとめて外す'));
+    expect(onDetachModule).toHaveBeenCalledWith('mod-meal');
+  });
+
+  test('undoCount=0 のとき undo バーは出ない', () => {
+    const { queryByLabelText } = render(
+      <ChainEditScreen draft={moduleDraft()} {...noopProps} modules={modules} undoCount={0} />,
+    );
+    expect(queryByLabelText('削除を元に戻す')).toBeNull();
+  });
+
+  test('undoCount>0 で undo バーが出て、タップで onUndo', () => {
+    const onUndo = jest.fn();
+    const { getByLabelText, getByText } = render(
+      <ChainEditScreen
+        draft={moduleDraft()}
+        {...noopProps}
+        modules={modules}
+        undoCount={2}
+        onUndo={onUndo}
+      />,
+    );
+    expect(getByText('2件を外しました')).toBeTruthy();
+    fireEvent.press(getByLabelText('削除を元に戻す'));
+    expect(onUndo).toHaveBeenCalled();
   });
 });

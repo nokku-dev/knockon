@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CUSTOM_INBOX_MODULE_ID } from './catalogSeed';
 import { getExpoSqliteClient } from './db.expo';
 import type { Action, Anchor, ChainStatus, Module, VariantMap } from './domain';
-import { validatePromotion } from './editLayout';
+import { reinsertByIndex, validatePromotion } from './editLayout';
+import type { RemovedEntry } from './editLayout';
 import {
   newActionId,
   newAnchorId,
@@ -169,6 +170,12 @@ export type UseChainEditResult = {
   // ノードを末尾に追加。
   addNodesFromTemplate: (template: TemplateChain) => Promise<void>;
   removeNode: (nodeId: string) => void;
+  // #94 (SPEC §6/§8): モジュールの一括外し (該当 module の全ノードを draft から外す)。
+  detachModule: (moduleId: string) => void;
+  // #94: 直近の削除/外し/一括外しを元に戻す。undoCount = 戻せるノード数 (0 = 戻せない)。
+  undoCount: number;
+  undoRemoval: () => void;
+  clearUndo: () => void;
   // #73 (SPEC §6): ノードの ON/OFF (一時停止) を切り替える (draft 上のトグル、保存で永続化)。
   toggleNodeActive: (nodeId: string) => void;
   // #93 (SPEC §6): 選択ノード (custom inbox) を user モジュールに昇格。
@@ -209,7 +216,12 @@ export const useChainEdit = (
   const [locationPermission, setLocationPermission] =
     useState<LocationPermissionStatus>('undetermined');
   const [locating, setLocating] = useState(false);
+  // #94: 直近の削除/外し/一括外しの退避 (直近 1 操作のみ・新しい削除で上書き)。
+  const [undo, setUndo] = useState<RemovedEntry<EditableNode>[] | null>(null);
   const mountedRef = useRef(true);
+  // 削除系で「現在の draft」を参照するための ref (setState updater 内で副作用を起こさない)。
+  const draftRef = useRef<ChainEditDraft | null>(null);
+  draftRef.current = draft;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -424,12 +436,48 @@ export const useChainEdit = (
     [],
   );
 
+  // #94: 単一ノードの削除/外し。元の index とノードを退避して undo 可能にする。
   const removeNode = useCallback((nodeId: string) => {
-    setDraft((prev) => {
-      if (!prev) return prev;
-      return { ...prev, nodes: prev.nodes.filter((n) => n.id !== nodeId) };
-    });
+    const cur = draftRef.current;
+    if (!cur) return;
+    const index = cur.nodes.findIndex((n) => n.id === nodeId);
+    if (index === -1) return;
+    setUndo([{ node: cur.nodes[index]!, index }]);
+    setDraft((prev) =>
+      prev ? { ...prev, nodes: prev.nodes.filter((n) => n.id !== nodeId) } : prev,
+    );
   }, []);
+
+  // #94: モジュール一括外し。該当 module の全ノードを退避して draft から外す。
+  const detachModule = useCallback((moduleId: string) => {
+    const cur = draftRef.current;
+    if (!cur) return;
+    const entries: RemovedEntry<EditableNode>[] = [];
+    cur.nodes.forEach((n, index) => {
+      if ((n.moduleId ?? null) === moduleId) entries.push({ node: n, index });
+    });
+    if (entries.length === 0) return;
+    setUndo(entries);
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            nodes: prev.nodes.filter((n) => (n.moduleId ?? null) !== moduleId),
+          }
+        : prev,
+    );
+  }, []);
+
+  // #94: 直近の削除/外しを元の位置に復元 (reinsertByIndex)。
+  const undoRemoval = useCallback(() => {
+    if (!undo) return;
+    setDraft((prev) =>
+      prev ? { ...prev, nodes: reinsertByIndex(prev.nodes, undo) } : prev,
+    );
+    setUndo(null);
+  }, [undo]);
+
+  const clearUndo = useCallback(() => setUndo(null), []);
 
   // #73: ON/OFF トグル (draft 上で active を反転、保存時に updateNodeActive で永続化)。
   const toggleNodeActive = useCallback((nodeId: string) => {
@@ -660,6 +708,10 @@ export const useChainEdit = (
     addNodeFromNewAction,
     addNodesFromTemplate,
     removeNode,
+    detachModule,
+    undoCount: undo?.length ?? 0,
+    undoRemoval,
+    clearUndo,
     toggleNodeActive,
     promoteToModule,
     reorderNodes,
