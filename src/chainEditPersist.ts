@@ -11,6 +11,7 @@ import {
   updateChain,
   updateNodeAction,
   updateNodeActive,
+  updateNodeModule,
 } from './repository';
 import type { ChainEditDraft, EditableAnchor } from './useChainEdit';
 
@@ -114,12 +115,14 @@ export const persistChainDraft = async (
     }
   }
 
-  // 既存ノードの action_id 更新 + ON/OFF (active) 更新 (order_index は触らない、衝突回避)。
-  // module_id は既存ノードでは触らない (= 採用時の所属を保持。停止/再開は所属を変えない)。
+  // 既存ノードの action_id / ON-OFF (active) / 所属モジュール (module_id) を更新
+  // (order_index は触らない、衝突回避)。module_id は draft の値を反映する
+  // (= #93 昇格で既存ノードの所属が custom inbox → user モジュールに移った場合に永続化)。
   for (const n of draft.nodes) {
     if (!n.isNew) {
       await updateNodeAction(db, n.id, n.actionId);
       await updateNodeActive(db, n.id, n.active);
+      await updateNodeModule(db, n.id, n.moduleId ?? null);
     }
   }
 

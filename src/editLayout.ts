@@ -55,3 +55,26 @@ export type DeleteKind = 'delete' | 'detach';
 export const deleteKindForSource = (
   source: CatalogSource | null | undefined,
 ): DeleteKind => (source === 'official' ? 'detach' : 'delete');
+
+// #93: カスタム→ユーザーモジュール昇格で選べる色パレット (a11y はラベル併用で担保、#74)。
+// catalog の goal カラーと同系統で識別しやすい暫定パレット。
+export const PROMOTE_COLORS: readonly string[] = [
+  '#4FB0AE',
+  '#C9849E',
+  '#5B8DEF',
+  '#B5835A',
+  '#E0A24C',
+  '#7C9CBF',
+  '#8B9EB0',
+  '#9B87C4',
+];
+
+// 昇格の入力バリデーション (純粋)。問題なしなら null、エラーは文言を返す。
+export const validatePromotion = (
+  name: string,
+  selectedCount: number,
+): string | null => {
+  if (selectedCount === 0) return 'アクションを 1 つ以上選んでください';
+  if (name.trim().length === 0) return 'モジュール名を入力してください';
+  return null;
+};

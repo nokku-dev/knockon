@@ -36,6 +36,7 @@ export default function EditChainRoute() {
     addNodesFromTemplate,
     removeNode,
     toggleNodeActive,
+    promoteToModule,
     reorderNodes,
     save,
     deleteChain,
@@ -116,6 +117,7 @@ export default function EditChainRoute() {
             onAddNodesFromTemplate={addNodesFromTemplate}
             onRemoveNode={removeNode}
             onToggleNodeActive={toggleNodeActive}
+            onPromoteToModule={promoteToModule}
             onReorderNodes={reorderNodes}
             onCancel={() => router.back()}
             onSave={handleSave}
