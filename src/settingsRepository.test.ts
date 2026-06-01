@@ -88,4 +88,22 @@ describe('settingsRepository', () => {
     expect(settings.themeMode).toBe('dark');
     await teardown(db);
   });
+
+  // #72 (SPEC §5): onboardingCompleted のラウンドトリップ。
+  test('初回起動: onboardingCompleted は false (新規ユーザーは onboarding へ)', async () => {
+    const db = await setup();
+    const settings = await getAppSettings(db);
+    expect(settings.onboardingCompleted).toBe(false);
+    await teardown(db);
+  });
+
+  test('updateAppSettings で onboardingCompleted を true に → 読み出せる (他項目は不変)', async () => {
+    const db = await setup();
+    await updateAppSettings(db, { onboardingCompleted: true });
+    const settings = await getAppSettings(db);
+    expect(settings.onboardingCompleted).toBe(true);
+    expect(settings.resetTime).toBe('00:00');
+    expect(settings.themeMode).toBe('auto');
+    await teardown(db);
+  });
 });

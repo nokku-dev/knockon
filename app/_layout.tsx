@@ -62,6 +62,9 @@ export default function RootLayout() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [themeMode, setThemeModeState] =
     useState<ThemeMode>(DEFAULT_THEME_MODE);
+  // #72 (SPEC §5): 初回ルート判定。app_settings.onboarding_completed=false の
+  // 新規ユーザーだけ /onboarding へ誘導する。既存ユーザーは MIGRATIONS[8] で true 初期化。
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const router = useRouter();
   // cold start で通知タップから起動された場合、 最後の response が取れる。
   const lastResponse = Notifications.useLastNotificationResponse();
@@ -81,11 +84,17 @@ export default function RootLayout() {
         await initSchema(db);
         // ADR-0029: themeMode を初回読み込み。 既存ユーザーは MIGRATIONS[6] で
         // default 'auto' になっている。 失敗しても起動は止めない (= silent fallback)。
+        // 取得失敗時は onboardingCompleted=true 扱い (= 既存ユーザーを onboarding に
+        // 閉じ込めない安全側 fallback)。
         const settings = await getAppSettings(db).catch(
-          (): { themeMode: ThemeMode } => ({ themeMode: DEFAULT_THEME_MODE }),
+          (): { themeMode: ThemeMode; onboardingCompleted: boolean } => ({
+            themeMode: DEFAULT_THEME_MODE,
+            onboardingCompleted: true,
+          }),
         );
         if (!cancelled) {
           setThemeModeState(settings.themeMode);
+          setNeedsOnboarding(!settings.onboardingCompleted);
         }
         // 起動時に通知を全 active チェーンと整合させる (drift 解消の safety net、 PR-1.5b-2)。
         // 通知関係のエラーは起動を止めない (権限拒否や Expo SDK 制限の影響を分離)。
@@ -117,6 +126,13 @@ export default function RootLayout() {
     await updateAppSettings(db, { themeMode: next });
     setThemeModeState(next);
   }, []);
+
+  // #72: 新規ユーザーは onboarding へ誘導 (ready 後に 1 回だけ)。onboarding 完了で
+  // complete() が onboarding_completed=true を書き、/(tabs) に replace 遷移する。
+  useEffect(() => {
+    if (!ready || !needsOnboarding) return;
+    router.replace('/onboarding');
+  }, [ready, needsOnboarding, router]);
 
   // PR-1.5b-3 通知タップ → Today ディープリンク。
   // (a) アプリ実行中 (foreground / background) に通知タップ → listener が拾う
@@ -199,6 +215,7 @@ export default function RootLayout() {
               }}
             >
               <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
               <Stack.Screen
                 name="chain/new"
                 options={{ presentation: 'modal' }}
