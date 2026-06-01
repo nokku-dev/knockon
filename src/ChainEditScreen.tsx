@@ -590,7 +590,7 @@ export const ChainEditScreen = ({
             onPress={onUndo}
             accessibilityRole="button"
             accessibilityLabel="削除を元に戻す"
-            hitSlop={8}
+            hitSlop={14}
           >
             <Text style={styles.undoAction}>↺ 元に戻す</Text>
           </Pressable>
@@ -678,7 +678,7 @@ const NodeEditorRow = ({
               : `${node.actionTitle} を再開`
           }
           style={[styles.toggleBtn, node.active && styles.toggleBtnOn]}
-          hitSlop={6}
+          hitSlop={10}
         >
           <Text style={[styles.toggleText, node.active && styles.toggleTextOn]}>
             {node.active ? 'ON' : 'OFF'}
@@ -817,7 +817,7 @@ const ActionPicker = ({
                   accessibilityRole="button"
                   accessibilityLabel={`アクション「${a.title}」を編集`}
                   style={styles.existingChipEdit}
-                  hitSlop={8}
+                  hitSlop={14}
                 >
                   <Text style={styles.existingChipEditText}>✎</Text>
                 </Pressable>
@@ -828,7 +828,7 @@ const ActionPicker = ({
                   accessibilityRole="button"
                   accessibilityLabel={`アクション「${a.title}」を削除`}
                   style={styles.existingChipDelete}
-                  hitSlop={8}
+                  hitSlop={14}
                 >
                   <Text style={styles.existingChipDeleteText}>×</Text>
                 </Pressable>
