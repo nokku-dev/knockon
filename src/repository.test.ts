@@ -630,6 +630,50 @@ describe('スキーマの不変条件', () => {
     await teardown(db);
   });
 
+  test('#73: nodes に active 列が追加されている (NOT NULL DEFAULT 1 / ON-OFF 一時停止)', async () => {
+    const db = await setup();
+    type ColumnRow = { name: string; notnull: number; dflt_value: string | null };
+    const cols = await db.all<ColumnRow>(`PRAGMA table_info(nodes)`);
+    const activeCol = cols.find((c) => c.name === 'active');
+    expect(activeCol).toBeTruthy();
+    expect(activeCol?.notnull).toBe(1);
+    expect(activeCol?.dflt_value).toBe('1');
+    await teardown(db);
+  });
+
+  test('#73: MIGRATIONS[9] が v8 schema の nodes に active 列を追加する (既存ノードは 1 で保全)', async () => {
+    const db = createBetterSqliteClient(':memory:');
+    await db.exec(`
+      CREATE TABLE actions (id TEXT PRIMARY KEY, title TEXT NOT NULL, variants_json TEXT, timer_seconds INTEGER);
+      CREATE TABLE anchors (id TEXT PRIMARY KEY, title TEXT NOT NULL, kind TEXT NOT NULL, time TEXT, latitude REAL, longitude REAL, radius_meters REAL);
+      CREATE TABLE chains (id TEXT PRIMARY KEY, title TEXT NOT NULL, anchor_id TEXT NOT NULL REFERENCES anchors(id), status TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE nodes (
+        id TEXT PRIMARY KEY,
+        chain_id TEXT NOT NULL REFERENCES chains(id) ON DELETE CASCADE,
+        order_index INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        action_id TEXT NOT NULL REFERENCES actions(id),
+        module_id TEXT,
+        UNIQUE(chain_id, order_index)
+      );
+    `);
+    await db.run(`INSERT INTO actions (id, title) VALUES ('act-1', 'a')`);
+    await db.run(`INSERT INTO anchors (id, title, kind) VALUES ('anc-1', 'x', 'behavior')`);
+    await db.run(
+      `INSERT INTO chains (id, title, anchor_id, status, created_at) VALUES ('ch-1', 'c', 'anc-1', 'active', '2026-01-01')`,
+    );
+    await db.run(
+      `INSERT INTO nodes (id, chain_id, order_index, kind, action_id) VALUES ('nd-1', 'ch-1', 0, 'action', 'act-1')`,
+    );
+
+    await MIGRATIONS[9]!(db);
+
+    type Row = { id: string; active: number };
+    const nodes = await db.all<Row>(`SELECT id, active FROM nodes`);
+    expect(nodes).toEqual([{ id: 'nd-1', active: 1 }]);
+    await teardown(db);
+  });
+
   test('ADR-0030: MIGRATIONS[7] が v6 schema に modules/links + nodes.module_id を追加する (既存データ保全)', async () => {
     // v6 schema 相当 (modules/links なし・nodes に module_id なし) を直接構築し、
     // 既存ユーザーの代理データを入れてから MIGRATIONS[7] を当てる。

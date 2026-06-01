@@ -88,7 +88,9 @@ describe('seedCatalog — DB 投入 (#69)', () => {
     const modules = await listModules(db);
     const links = await listLinks(db);
     const { modules: expectedModules, links: expectedLinks } = buildV0Catalog();
-    expect(modules).toHaveLength(expectedModules.length);
+    // official catalog の round-trip (custom inbox #73 は別途検証 / K-033 seed 非依存)
+    const officialModules = modules.filter((m) => m.source === 'official');
+    expect(officialModules).toHaveLength(expectedModules.length);
     expect(links).toHaveLength(expectedLinks.length);
     // JSON 往復が成立する (moment/goal 配列)
     const water = modules.find((m) => m.id === 'mod-wake-water')!;
@@ -118,7 +120,11 @@ describe('seedCatalog — DB 投入 (#69)', () => {
     const modules = await listModules(db);
     const links = await listLinks(db);
     const { modules: expectedModules, links: expectedLinks } = buildV0Catalog();
-    expect(modules).toHaveLength(expectedModules.length);
+    // 公式 + custom inbox の両方とも重複しない (INSERT OR IGNORE)
+    expect(modules.filter((m) => m.source === 'official')).toHaveLength(
+      expectedModules.length,
+    );
+    expect(modules.filter((m) => m.id === 'mod-custom-inbox')).toHaveLength(1);
     expect(links).toHaveLength(expectedLinks.length);
     await db.close?.();
   });
@@ -127,7 +133,19 @@ describe('seedCatalog — DB 投入 (#69)', () => {
     // setup (= initSchema) だけで catalog が入っていること
     const db = await setup();
     const modules = await listModules(db);
-    expect(modules.length).toBe(V0_CATALOG_DEFS.length);
+    expect(modules.filter((m) => m.source === 'official').length).toBe(
+      V0_CATALOG_DEFS.length,
+    );
+    await db.close?.();
+  });
+
+  test('#73: カスタムインボックスモジュール (kind=custom / source=user) が seed される', async () => {
+    const db = await setup();
+    const modules = await listModules(db);
+    const inbox = modules.find((m) => m.id === 'mod-custom-inbox');
+    expect(inbox).toBeTruthy();
+    expect(inbox?.kind).toBe('custom');
+    expect(inbox?.source).toBe('user');
     await db.close?.();
   });
 });

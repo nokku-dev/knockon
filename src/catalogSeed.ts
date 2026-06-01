@@ -264,6 +264,23 @@ export const buildV0Catalog = (): V0Catalog => {
   return { modules, links };
 };
 
+// #73 (SPEC §6): カスタムインボックスモジュール。編集 UI で「+ 追加」したアクションの
+// 既定の所属先 (= 未整理の中立グレー・単数インボックス)。複数選択 → 命名+色付けで
+// ユーザーモジュールに昇格する受け皿 (昇格は後送り)。source='user' なので削除は破壊的。
+// moment/goal は空 (discovery の扉には出さない / live 編集専用)。
+export const CUSTOM_INBOX_MODULE_ID = 'mod-custom-inbox';
+
+const CUSTOM_INBOX_MODULE: Module = {
+  id: CUSTOM_INBOX_MODULE_ID,
+  name: 'カスタム',
+  color: FALLBACK_COLOR,
+  moment: [],
+  goal: [],
+  source: 'user',
+  kind: 'custom',
+  orderIndex: 9999, // ロスター末尾に置く
+};
+
 // catalog を DB に投入する。固定 ID + INSERT OR IGNORE で冪等 (毎起動呼び出し可)。
 // モジュールを先に入れてから links を入れる (links.module_id の FK 制約を満たす)。
 export const seedCatalog = async (db: DbClient): Promise<void> => {
@@ -271,6 +288,8 @@ export const seedCatalog = async (db: DbClient): Promise<void> => {
   for (const module of modules) {
     await seedModule(db, module);
   }
+  // カスタムインボックス (#73) も official catalog と同経路で seed (冪等)。
+  await seedModule(db, CUSTOM_INBOX_MODULE);
   for (const link of links) {
     await seedLink(db, link);
   }

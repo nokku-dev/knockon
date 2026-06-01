@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { CUSTOM_INBOX_MODULE_ID } from './catalogSeed';
 import { getExpoSqliteClient } from './db.expo';
-import type { Action, Anchor, ChainStatus, VariantMap } from './domain';
+import type { Action, Anchor, ChainStatus, Module, VariantMap } from './domain';
 import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
 import {
   getCurrentPosition,
@@ -23,6 +24,7 @@ import {
   insertAction,
   listActions,
   listChains,
+  listModules,
   listNodes,
   updateAction as updateActionRepo,
 } from './repository';
@@ -37,6 +39,11 @@ export type EditableNode = {
   // Phase 2 variant: NodeEditorRow にバッジ (例: 月火水) を出すために保持。
   // updateAction で同期更新される。
   actionVariants: VariantMap | null;
+  // #73 (SPEC §6): 所属モジュール (チップ層 / C 案ラベル / source 別削除に使う)。
+  // テンプレ採用ノードは catalog 由来、手作り/追加は custom inbox。null = 未所属。
+  moduleId: string | null;
+  // #73 (SPEC §6): ON/OFF = 一時停止。true = 通常 (Today に出る) / false = 停止。
+  active: boolean;
 };
 
 export type EditableAnchor = {
@@ -99,6 +106,8 @@ const loadExisting = async (chainId: string): Promise<ChainEditDraft | null> => 
         actionId: n.actionId,
         actionTitle: act?.title ?? '',
         actionVariants: act?.variants ?? null,
+        moduleId: n.moduleId ?? null,
+        active: n.active !== false, // 既存 (undefined) は通常表示
       };
     }),
   );
@@ -123,6 +132,8 @@ const loadExisting = async (chainId: string): Promise<ChainEditDraft | null> => 
 export type UseChainEditResult = {
   draft: ChainEditDraft | null;
   availableActions: Action[];
+  // #73: モジュールメタ (チップ層 / 行のカラーストライプ / source 別削除に使う)。
+  modules: Module[];
   error: string | null;
   loading: boolean;
   saving: boolean;
@@ -145,6 +156,8 @@ export type UseChainEditResult = {
   // ノードを末尾に追加。
   addNodesFromTemplate: (template: TemplateChain) => Promise<void>;
   removeNode: (nodeId: string) => void;
+  // #73 (SPEC §6): ノードの ON/OFF (一時停止) を切り替える (draft 上のトグル、保存で永続化)。
+  toggleNodeActive: (nodeId: string) => void;
   // react-native-reorderable-list の onReorder({from, to}) からそのまま受け取る形。
   // DnD ライブラリ依存度を最小にするため、from/to の単純な index 並び替えに限定。
   reorderNodes: (from: number, to: number) => void;
@@ -169,6 +182,7 @@ export const useChainEdit = (
 ): UseChainEditResult => {
   const [draft, setDraft] = useState<ChainEditDraft | null>(null);
   const [availableActions, setAvailableActions] = useState<Action[]>([]);
+  const [modules, setModules] = useState<Module[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -184,6 +198,7 @@ export const useChainEdit = (
       try {
         const db = await getExpoSqliteClient();
         const actions = await listActions(db);
+        const mods = await listModules(db);
         let next: ChainEditDraft | null = null;
         if (chainId == null) {
           next = newDraft();
@@ -198,6 +213,7 @@ export const useChainEdit = (
         if (!cancelled) {
           setDraft(next);
           setAvailableActions(actions);
+          setModules(mods);
           setLocationPermission(permission);
         }
       } catch (e: unknown) {
@@ -297,6 +313,10 @@ export const useChainEdit = (
           actionId,
           actionTitle,
           actionVariants: found?.variants ?? null,
+          // #73: 「+追加」したノードは custom inbox に所属させる (新要素クラスを増やさず
+          // module 所属に統一)。昇格 (= ユーザーモジュール化) は後送り。
+          moduleId: CUSTOM_INBOX_MODULE_ID,
+          active: true,
         };
         return { ...prev, nodes: [...prev.nodes, next] };
       });
@@ -327,6 +347,8 @@ export const useChainEdit = (
             actionId: action.id,
             actionTitle: action.title,
             actionVariants: action.variants,
+            moduleId: CUSTOM_INBOX_MODULE_ID,
+            active: true,
           };
           return { ...prev, nodes: [...prev.nodes, next] };
         });
@@ -369,6 +391,8 @@ export const useChainEdit = (
             actionId: action.id,
             actionTitle: action.title,
             actionVariants: null,
+            moduleId: CUSTOM_INBOX_MODULE_ID,
+            active: true,
           }));
           return { ...prev, nodes: [...prev.nodes, ...appended] };
         });
@@ -385,6 +409,19 @@ export const useChainEdit = (
     setDraft((prev) => {
       if (!prev) return prev;
       return { ...prev, nodes: prev.nodes.filter((n) => n.id !== nodeId) };
+    });
+  }, []);
+
+  // #73: ON/OFF トグル (draft 上で active を反転、保存時に updateNodeActive で永続化)。
+  const toggleNodeActive = useCallback((nodeId: string) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        nodes: prev.nodes.map((n) =>
+          n.id === nodeId ? { ...n, active: !n.active } : n,
+        ),
+      };
     });
   }, []);
 
@@ -540,6 +577,7 @@ export const useChainEdit = (
   return {
     draft,
     availableActions,
+    modules,
     error,
     loading,
     saving,
@@ -556,6 +594,7 @@ export const useChainEdit = (
     addNodeFromNewAction,
     addNodesFromTemplate,
     removeNode,
+    toggleNodeActive,
     reorderNodes,
     save,
     deleteChain,
