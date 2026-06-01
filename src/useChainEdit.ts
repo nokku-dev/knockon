@@ -3,7 +3,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CUSTOM_INBOX_MODULE_ID } from './catalogSeed';
 import { getExpoSqliteClient } from './db.expo';
 import type { Action, Anchor, ChainStatus, Module, VariantMap } from './domain';
-import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
+import { validatePromotion } from './editLayout';
+import {
+  newActionId,
+  newAnchorId,
+  newChainId,
+  newModuleId,
+  newNodeId,
+} from './ids';
 import {
   getCurrentPosition,
   getLocationPermissionStatus,
@@ -22,6 +29,7 @@ import {
   getAction,
   getAnchor,
   insertAction,
+  insertModule,
   listActions,
   listChains,
   listModules,
@@ -163,6 +171,13 @@ export type UseChainEditResult = {
   removeNode: (nodeId: string) => void;
   // #73 (SPEC §6): ノードの ON/OFF (一時停止) を切り替える (draft 上のトグル、保存で永続化)。
   toggleNodeActive: (nodeId: string) => void;
+  // #93 (SPEC §6): 選択ノード (custom inbox) を user モジュールに昇格。
+  // モジュールは即 DB INSERT、ノードの所属付替えは draft 反映 (保存で永続化)。
+  promoteToModule: (
+    nodeIds: readonly string[],
+    name: string,
+    color: string,
+  ) => Promise<void>;
   // react-native-reorderable-list の onReorder({from, to}) からそのまま受け取る形。
   // DnD ライブラリ依存度を最小にするため、from/to の単純な index 並び替えに限定。
   reorderNodes: (from: number, to: number) => void;
@@ -429,6 +444,53 @@ export const useChainEdit = (
     });
   }, []);
 
+  // #93: 選択ノードを user モジュールに昇格。モジュールを即 INSERT (FK + チップ表示のため)、
+  // ノードの module_id 付替えは draft に反映し保存で永続化 (新規ノードは insertNode、
+  // 既存ノードは updateNodeModule、 chainEditPersist 参照)。
+  // orderIndex は official(0..) と custom inbox(9999) の間に置く (5000)。
+  const promoteToModule = useCallback(
+    async (nodeIds: readonly string[], name: string, color: string) => {
+      const validationError = validatePromotion(name, nodeIds.length);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+      const moduleId = newModuleId();
+      const module: Module = {
+        id: moduleId,
+        name: name.trim(),
+        color,
+        moment: [],
+        goal: [],
+        source: 'user',
+        kind: 'normal',
+        orderIndex: 5000,
+      };
+      try {
+        const db = await getExpoSqliteClient();
+        await insertModule(db, module);
+        if (!mountedRef.current) return;
+        setModules((prev) => [...prev, module]);
+        const idSet = new Set(nodeIds);
+        setDraft((prev) =>
+          prev
+            ? {
+                ...prev,
+                nodes: prev.nodes.map((n) =>
+                  idSet.has(n.id) ? { ...n, moduleId } : n,
+                ),
+              }
+            : prev,
+        );
+      } catch (e: unknown) {
+        if (mountedRef.current) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+      }
+    },
+    [],
+  );
+
   const reorderNodes = useCallback((from: number, to: number) => {
     setDraft((prev) => {
       if (!prev) return prev;
@@ -599,6 +661,7 @@ export const useChainEdit = (
     addNodesFromTemplate,
     removeNode,
     toggleNodeActive,
+    promoteToModule,
     reorderNodes,
     save,
     deleteChain,

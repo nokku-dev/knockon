@@ -17,6 +17,7 @@ import type {
 
 import { ActionEditor } from './ActionEditor';
 import { AnchorEditor } from './AnchorEditor';
+import { PromoteModulePanel } from './PromoteModulePanel';
 import { CUSTOM_INBOX_MODULE_ID } from './catalogSeed';
 import {
   buildModuleRoster,
@@ -63,6 +64,8 @@ export type ChainEditScreenProps = {
   onRemoveNode: (nodeId: string) => void;
   // #73 (SPEC §6): ノードの ON/OFF (一時停止) トグル。
   onToggleNodeActive: (nodeId: string) => void;
+  // #93 (SPEC §6): custom inbox ノードを user モジュールに昇格。未指定なら昇格 UI 非表示。
+  onPromoteToModule?: (nodeIds: string[], name: string, color: string) => void;
   // PR-Y1: テンプレチェーンを選んで末尾追加 (各アクションを新規 INSERT + ノード追加)。
   // 未指定なら Footer の「+ テンプレから追加」ボタンは表示されない。
   onAddNodesFromTemplate?: (template: TemplateChain) => void;
@@ -101,6 +104,7 @@ export const ChainEditScreen = ({
   onAddNodesFromTemplate,
   onRemoveNode,
   onToggleNodeActive,
+  onPromoteToModule,
   onReorderNodes,
   onCancel,
   onSave,
@@ -109,6 +113,8 @@ export const ChainEditScreen = ({
   onSaveAction,
 }: ChainEditScreenProps) => {
   const [adderOpen, setAdderOpen] = useState(false);
+  // #93: 昇格パネル (Modal) の open 状態。
+  const [promoteOpen, setPromoteOpen] = useState(false);
   // #95: チップタップで絞り込み中のモジュール (null = 絞り込みなし)。
   const [filterModuleId, setFilterModuleId] = useState<string | null>(null);
 
@@ -168,6 +174,15 @@ export const ChainEditScreen = ({
     }
     return out;
   }, [roster, modulesById]);
+
+  // #93: custom inbox 所属ノード = 昇格候補。
+  const customCandidates = useMemo(
+    () =>
+      draft.nodes
+        .filter((n) => n.moduleId === CUSTOM_INBOX_MODULE_ID)
+        .map((n) => ({ nodeId: n.id, title: n.actionTitle })),
+    [draft.nodes],
+  );
 
   const [newActionDraft, setNewActionDraft] = useState('');
   // Phase 2 variant: 編集中のアクション (Modal で ActionEditor を表示)。
@@ -407,6 +422,17 @@ export const ChainEditScreen = ({
                 <Text style={styles.addBtnText}>+ テンプレから追加</Text>
               </Pressable>
             )}
+            {/* #93: custom inbox に 1 件以上あれば「モジュール化」導線を出す */}
+            {onPromoteToModule && customCandidates.length > 0 && (
+              <Pressable
+                onPress={() => setPromoteOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="カスタムをモジュール化"
+                style={styles.addBtn}
+              >
+                <Text style={styles.addBtnText}>カスタムをモジュール化</Text>
+              </Pressable>
+            )}
           </View>
         ) : (
           <ActionPicker
@@ -450,6 +476,8 @@ export const ChainEditScreen = ({
       adderOpen,
       availableActions,
       assignableModules,
+      customCandidates.length,
+      onPromoteToModule,
       newActionDraft,
       onAddExistingAction,
       onAddNewAction,
@@ -502,6 +530,22 @@ export const ChainEditScreen = ({
               setTemplatePickerOpen(false);
             }}
             onCancel={() => setTemplatePickerOpen(false)}
+          />
+        )}
+      </Modal>
+      <Modal
+        visible={promoteOpen}
+        animationType="slide"
+        onRequestClose={() => setPromoteOpen(false)}
+      >
+        {onPromoteToModule && (
+          <PromoteModulePanel
+            candidates={customCandidates}
+            onPromote={(nodeIds, name, color) => {
+              onPromoteToModule(nodeIds, name, color);
+              setPromoteOpen(false);
+            }}
+            onCancel={() => setPromoteOpen(false)}
           />
         )}
       </Modal>
