@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -17,6 +17,7 @@ import type {
 
 import { ActionEditor } from './ActionEditor';
 import { AnchorEditor } from './AnchorEditor';
+import { CUSTOM_INBOX_MODULE_ID } from './catalogSeed';
 import {
   buildModuleRoster,
   computeRunLeaders,
@@ -56,8 +57,9 @@ export type ChainEditScreenProps = {
   onSetAnchorLocation: (latitude: number, longitude: number) => void;
   onSetAnchorRadius: (radiusMeters: number) => void;
   onFetchLocation: () => Promise<CurrentPosition | null>;
-  onAddExistingAction: (actionId: string, actionTitle: string) => void;
-  onAddNewAction: (actionTitle: string) => void;
+  // #95: moduleId = 追加先モジュール (振り分けピッカーで選択)。
+  onAddExistingAction: (actionId: string, actionTitle: string, moduleId: string) => void;
+  onAddNewAction: (actionTitle: string, moduleId: string) => void;
   onRemoveNode: (nodeId: string) => void;
   // #73 (SPEC §6): ノードの ON/OFF (一時停止) トグル。
   onToggleNodeActive: (nodeId: string) => void;
@@ -107,25 +109,66 @@ export const ChainEditScreen = ({
   onSaveAction,
 }: ChainEditScreenProps) => {
   const [adderOpen, setAdderOpen] = useState(false);
+  // #95: チップタップで絞り込み中のモジュール (null = 絞り込みなし)。
+  const [filterModuleId, setFilterModuleId] = useState<string | null>(null);
 
-  // #73: モジュールメタ map + チップ層ロスター + C 案ラベルの run leader を派生 (editLayout)。
+  // #73: モジュールメタ map + チップ層ロスター。ロスターは常に全ノードから算出。
   const modulesById = useMemo(() => {
     const map: Record<string, { name: string; color: string; source: CatalogSource }> = {};
     for (const m of modules) map[m.id] = { name: m.name, color: m.color, source: m.source };
     return map;
   }, [modules]);
-  const nodeModuleIds = useMemo(
+  const allModuleIds = useMemo(
     () => draft.nodes.map((n) => n.moduleId ?? null),
     [draft.nodes],
   );
   const roster = useMemo(
-    () => buildModuleRoster(nodeModuleIds, modulesById),
-    [nodeModuleIds, modulesById],
+    () => buildModuleRoster(allModuleIds, modulesById),
+    [allModuleIds, modulesById],
   );
+
+  // #95: 絞り込み中はそのモジュールのノードだけ表示。並び替えは無効化する
+  // (= 部分集合の index と全体 order_index が一致しないため、reorderNodes が壊れる)。
+  const filtering = filterModuleId !== null;
+  const visibleNodes = useMemo(
+    () =>
+      filterModuleId === null
+        ? draft.nodes
+        : draft.nodes.filter((n) => (n.moduleId ?? null) === filterModuleId),
+    [draft.nodes, filterModuleId],
+  );
+  // C 案ラベルの run leader は「表示中リスト」基準で算出 (renderItem の index は visibleNodes)。
   const runLeaders = useMemo(
-    () => computeRunLeaders(nodeModuleIds),
-    [nodeModuleIds],
+    () => computeRunLeaders(visibleNodes.map((n) => n.moduleId ?? null)),
+    [visibleNodes],
   );
+
+  // 絞り込み対象モジュールがロスターから消えたら絞り込み解除 (全ノード削除/外し対応)。
+  useEffect(() => {
+    if (filterModuleId !== null && !roster.some((r) => r.id === filterModuleId)) {
+      setFilterModuleId(null);
+    }
+  }, [filterModuleId, roster]);
+
+  // #95: 「+追加」の振り分け先候補 = チェーンに既にあるモジュール (ロスター) + custom inbox。
+  // custom inbox は常に末尾に 1 つ含める (= デフォルト所属先)。
+  const assignableModules = useMemo(() => {
+    const out: { id: string; name: string; color: string }[] = roster.map((r) => ({
+      id: r.id,
+      name: r.name,
+      color: r.color,
+    }));
+    if (!out.some((m) => m.id === CUSTOM_INBOX_MODULE_ID)) {
+      const inbox = modulesById[CUSTOM_INBOX_MODULE_ID];
+      out.push({
+        id: CUSTOM_INBOX_MODULE_ID,
+        name: inbox?.name ?? 'カスタム',
+        color: inbox?.color ?? COLOR_FG_FAINT,
+      });
+    }
+    return out;
+  }, [roster, modulesById]);
+
   const [newActionDraft, setNewActionDraft] = useState('');
   // Phase 2 variant: 編集中のアクション (Modal で ActionEditor を表示)。
   const [editingAction, setEditingAction] = useState<Action | null>(null);
@@ -148,19 +191,22 @@ export const ChainEditScreen = ({
           moduleColor={meta?.color}
           moduleName={showModuleName ? meta!.name : undefined}
           deleteKind={deleteKind}
+          dragEnabled={!filtering}
           onRemove={onRemoveNode}
           onToggleActive={onToggleNodeActive}
         />
       );
     },
-    [modulesById, runLeaders, onRemoveNode, onToggleNodeActive],
+    [modulesById, runLeaders, filtering, onRemoveNode, onToggleNodeActive],
   );
 
   const handleReorder = useCallback(
     ({ from, to }: ReorderableListReorderEvent) => {
+      // 絞り込み中は並び替え無効 (部分集合の index が全体と一致しない)。
+      if (filtering) return;
       onReorderNodes(from, to);
     },
-    [onReorderNodes],
+    [filtering, onReorderNodes],
   );
 
   const Header = useMemo(
@@ -262,27 +308,50 @@ export const ChainEditScreen = ({
           />
         </View>
 
-        {/* #73: チップ層 (採用中モジュールのロスター)。色 + ラベル併用で a11y 担保 (#74)。 */}
+        {/* #73/#95: チップ層 (採用中モジュールのロスター)。タップ=絞り込み (主)。
+            色 + ラベル併用で a11y 担保 (#74)。 */}
         {roster.length > 0 && (
           <View style={styles.rosterRow}>
-            {roster.map((r) => (
-              <View
-                key={r.id}
-                style={styles.rosterChip}
-                accessibilityLabel={`モジュール ${r.name} (${r.count})`}
-              >
-                <View style={[styles.rosterDot, { backgroundColor: r.color }]} />
-                <Text style={styles.rosterChipText}>{r.name}</Text>
-                <Text style={styles.rosterChipCount}>{r.count}</Text>
-              </View>
-            ))}
+            {roster.map((r) => {
+              const selected = filterModuleId === r.id;
+              return (
+                <Pressable
+                  key={r.id}
+                  onPress={() =>
+                    setFilterModuleId((prev) => (prev === r.id ? null : r.id))
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    selected
+                      ? `モジュール ${r.name} の絞り込みを解除`
+                      : `モジュール ${r.name} (${r.count}) で絞り込む`
+                  }
+                  accessibilityState={{ selected }}
+                  style={[styles.rosterChip, selected && styles.rosterChipSelected]}
+                >
+                  <View style={[styles.rosterDot, { backgroundColor: r.color }]} />
+                  <Text style={styles.rosterChipText}>{r.name}</Text>
+                  <Text style={styles.rosterChipCount}>{r.count}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         )}
 
         <View style={styles.nodesHeader}>
           <Text style={styles.sectionLabel}>ノード ({draft.nodes.length})</Text>
-          {draft.nodes.length > 0 && (
-            <Text style={styles.dragHint}>長押しで並び替え</Text>
+          {filtering ? (
+            <Pressable
+              onPress={() => setFilterModuleId(null)}
+              accessibilityRole="button"
+              accessibilityLabel="絞り込みを解除"
+            >
+              <Text style={styles.filterClear}>絞り込み中 ✕ 解除</Text>
+            </Pressable>
+          ) : (
+            draft.nodes.length > 0 && (
+              <Text style={styles.dragHint}>長押しで並び替え</Text>
+            )
           )}
         </View>
         {draft.nodes.length === 0 && (
@@ -297,6 +366,8 @@ export const ChainEditScreen = ({
       draft.anchor,
       draft.nodes.length,
       roster,
+      filterModuleId,
+      filtering,
       saving,
       canSave,
       locationPermission,
@@ -340,15 +411,16 @@ export const ChainEditScreen = ({
         ) : (
           <ActionPicker
             actions={availableActions}
+            assignableModules={assignableModules}
             newActionDraft={newActionDraft}
             onNewActionDraftChange={setNewActionDraft}
-            onSelectExisting={(a) => {
-              onAddExistingAction(a.id, a.title);
+            onSelectExisting={(a, moduleId) => {
+              onAddExistingAction(a.id, a.title, moduleId);
               setAdderOpen(false);
             }}
-            onSubmitNew={() => {
+            onSubmitNew={(moduleId) => {
               if (newActionDraft.trim().length === 0) return;
-              onAddNewAction(newActionDraft.trim());
+              onAddNewAction(newActionDraft.trim(), moduleId);
               setNewActionDraft('');
               setAdderOpen(false);
             }}
@@ -377,6 +449,7 @@ export const ChainEditScreen = ({
     [
       adderOpen,
       availableActions,
+      assignableModules,
       newActionDraft,
       onAddExistingAction,
       onAddNewAction,
@@ -391,7 +464,7 @@ export const ChainEditScreen = ({
   return (
     <>
       <ReorderableList
-        data={draft.nodes}
+        data={visibleNodes}
         onReorder={handleReorder}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
@@ -444,6 +517,7 @@ type NodeEditorRowProps = {
   moduleColor?: string; // 左カラーストライプ色 (C 案)。未所属なら undefined。
   moduleName?: string; // run 先頭のときだけ渡る (C 案・自己修復)。
   deleteKind: DeleteKind; // 'detach' (外す/非破壊) or 'delete' (削除/破壊的)。
+  dragEnabled: boolean; // #95: 絞り込み中は並び替え無効。
   onRemove: (nodeId: string) => void;
   onToggleActive: (nodeId: string) => void;
 };
@@ -453,6 +527,7 @@ const NodeEditorRow = ({
   moduleColor,
   moduleName,
   deleteKind,
+  dragEnabled,
   onRemove,
   onToggleActive,
 }: NodeEditorRowProps) => {
@@ -476,7 +551,7 @@ const NodeEditorRow = ({
         ]}
       />
       <Pressable
-        onLongPress={drag}
+        onLongPress={dragEnabled ? drag : undefined}
         delayLongPress={500}
         accessibilityRole="button"
         accessibilityLabel={`${node.actionTitle} をドラッグして並び替え`}
@@ -532,12 +607,16 @@ const NodeEditorRow = ({
   );
 };
 
+type AssignableModule = { id: string; name: string; color: string };
+
 type ActionPickerProps = {
   actions: readonly Action[];
+  // #95: 追加先モジュール候補 (ロスター + custom inbox)。
+  assignableModules: readonly AssignableModule[];
   newActionDraft: string;
   onNewActionDraftChange: (s: string) => void;
-  onSelectExisting: (action: Action) => void;
-  onSubmitNew: () => void;
+  onSelectExisting: (action: Action, moduleId: string) => void;
+  onSubmitNew: (moduleId: string) => void;
   onCancel: () => void;
   // 既存アクションの × ボタンが押されたときの確認 + 削除ハンドラ。
   // 未指定なら × は表示されない。
@@ -549,6 +628,7 @@ type ActionPickerProps = {
 
 const ActionPicker = ({
   actions,
+  assignableModules,
   newActionDraft,
   onNewActionDraftChange,
   onSelectExisting,
@@ -556,7 +636,11 @@ const ActionPicker = ({
   onCancel,
   onDeleteExisting,
   onEditExisting,
-}: ActionPickerProps) => (
+}: ActionPickerProps) => {
+  // #95: 追加先モジュール。デフォルトは custom inbox (= 末尾候補)。候補があればその先頭か
+  // custom inbox を初期選択にする。
+  const [target, setTarget] = useState<string>(CUSTOM_INBOX_MODULE_ID);
+  return (
   <View style={styles.picker}>
     <View style={styles.pickerHeader}>
       <Text style={styles.pickerLabel}>ノードを追加</Text>
@@ -564,6 +648,31 @@ const ActionPicker = ({
         <Text style={styles.pickerCancel}>閉じる</Text>
       </Pressable>
     </View>
+
+    {/* #95: 追加先 (既存モジュール or カスタム) の振り分け */}
+    {assignableModules.length > 0 && (
+      <>
+        <Text style={styles.pickerSubLabel}>追加先</Text>
+        <View style={styles.existingList}>
+          {assignableModules.map((m) => {
+            const selected = target === m.id;
+            return (
+              <Pressable
+                key={m.id}
+                onPress={() => setTarget(m.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`追加先: ${m.name}`}
+                accessibilityState={{ selected }}
+                style={[styles.targetChip, selected && styles.targetChipSelected]}
+              >
+                <View style={[styles.rosterDot, { backgroundColor: m.color }]} />
+                <Text style={styles.targetChipText}>{m.name}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </>
+    )}
 
     <Text style={styles.pickerSubLabel}>新しいアクション</Text>
     <View style={styles.newActionRow}>
@@ -574,10 +683,10 @@ const ActionPicker = ({
         placeholderTextColor={COLOR_FG_FAINT}
         style={styles.newActionInput}
         accessibilityLabel="新しいアクション名"
-        onSubmitEditing={onSubmitNew}
+        onSubmitEditing={() => onSubmitNew(target)}
       />
       <Pressable
-        onPress={onSubmitNew}
+        onPress={() => onSubmitNew(target)}
         accessibilityRole="button"
         accessibilityLabel="新しいアクションを追加"
         style={[
@@ -597,7 +706,7 @@ const ActionPicker = ({
           {actions.map((a) => (
             <Pressable
               key={a.id}
-              onPress={() => onSelectExisting(a)}
+              onPress={() => onSelectExisting(a, target)}
               accessibilityRole="button"
               accessibilityLabel={`既存アクション: ${a.title}`}
               style={styles.existingChip}
@@ -639,7 +748,8 @@ const ActionPicker = ({
       </>
     )}
   </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   listContent: { padding: 24, paddingBottom: 48 },
@@ -730,9 +840,23 @@ const styles = StyleSheet.create({
     backgroundColor: COLOR_SURFACE,
     minHeight: 32,
   },
+  rosterChipSelected: { backgroundColor: COLOR_LINE_BG, borderWidth: 1, borderColor: COLOR_GROW },
   rosterDot: { width: 10, height: 10, borderRadius: 999 },
   rosterChipText: { color: COLOR_FG, fontSize: 12, fontWeight: '600' },
   rosterChipCount: { color: COLOR_FG_FAINT, fontSize: 11, fontWeight: '600' },
+  filterClear: { color: COLOR_GROW, fontSize: 11, fontWeight: '600' },
+  targetChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: COLOR_LINE_BG,
+    minHeight: 32,
+  },
+  targetChipSelected: { borderWidth: 1, borderColor: COLOR_GROW },
+  targetChipText: { color: COLOR_FG, fontSize: 12, fontWeight: '600' },
   // #73 行 (左ストライプ + 行本体)
   nodeRowWrap: {
     flexDirection: 'row',

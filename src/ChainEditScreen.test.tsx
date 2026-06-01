@@ -196,7 +196,8 @@ describe('ChainEditScreen', () => {
     fireEvent.press(getByLabelText('ノードを追加'));
     fireEvent.changeText(getByLabelText('新しいアクション名'), '水を飲む');
     fireEvent.press(getByLabelText('新しいアクションを追加'));
-    expect(onAddNewAction).toHaveBeenCalledWith('水を飲む');
+    // #95: 追加先は既定で custom inbox。
+    expect(onAddNewAction).toHaveBeenCalledWith('水を飲む', 'mod-custom-inbox');
   });
 
   test('onDelete 未指定 (新規モード) では「このチェーンを削除」が表示されない', () => {
@@ -277,7 +278,7 @@ describe('ChainEditScreen', () => {
     );
     fireEvent.press(getByLabelText('ノードを追加'));
     fireEvent.press(getByLabelText('既存アクション: 水を飲む'));
-    expect(onAddExistingAction).toHaveBeenCalledWith('act1', '水を飲む');
+    expect(onAddExistingAction).toHaveBeenCalledWith('act1', '水を飲む', 'mod-custom-inbox');
   });
 
   test('onDeleteAction 未指定 (新規モード) では既存チップに × が表示されない', () => {
@@ -411,8 +412,8 @@ describe('ChainEditScreen #73 — チップ層 / ON-OFF / source 別削除', () 
     const { getByLabelText } = render(
       <ChainEditScreen draft={moduleDraft()} {...noopProps} modules={modules} />,
     );
-    expect(getByLabelText('モジュール 朝食 (2)')).toBeTruthy();
-    expect(getByLabelText('モジュール カスタム (1)')).toBeTruthy();
+    expect(getByLabelText('モジュール 朝食 (2) で絞り込む')).toBeTruthy();
+    expect(getByLabelText('モジュール カスタム (1) で絞り込む')).toBeTruthy();
   });
 
   test('C 案ラベル: run 先頭ノードだけモジュール名を出す (自己修復)', () => {
@@ -464,5 +465,64 @@ describe('ChainEditScreen #73 — チップ層 / ON-OFF / source 別削除', () 
     );
     fireEvent.press(getByLabelText('自作メモ を削除'));
     expect(onRemoveNode).toHaveBeenCalledWith('n3');
+  });
+});
+
+describe('ChainEditScreen #95 — チップ絞り込み / 振り分けピッカー', () => {
+  test('チップタップで該当モジュールのノードだけ表示 (絞り込み)', () => {
+    const { getByLabelText, queryByText, getByText } = render(
+      <ChainEditScreen draft={moduleDraft()} {...noopProps} modules={modules} />,
+    );
+    // 初期は全ノード表示
+    expect(getByText('朝食準備')).toBeTruthy();
+    expect(getByText('自作メモ')).toBeTruthy();
+    // カスタムで絞り込み → 朝食モジュールのノードは消える
+    fireEvent.press(getByLabelText('モジュール カスタム (1) で絞り込む'));
+    expect(queryByText('朝食準備')).toBeNull();
+    expect(getByText('自作メモ')).toBeTruthy();
+  });
+
+  test('絞り込み中チップ再タップで解除 (全ノードに戻る)', () => {
+    const { getByLabelText, getByText, queryByText } = render(
+      <ChainEditScreen draft={moduleDraft()} {...noopProps} modules={modules} />,
+    );
+    fireEvent.press(getByLabelText('モジュール カスタム (1) で絞り込む'));
+    expect(queryByText('朝食準備')).toBeNull();
+    fireEvent.press(getByLabelText('モジュール カスタム の絞り込みを解除'));
+    expect(getByText('朝食準備')).toBeTruthy();
+  });
+
+  test('振り分けピッカー: 追加先モジュールを選んで追加すると その module_id で onAddNewAction', () => {
+    const onAddNewAction = jest.fn();
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={moduleDraft()}
+        {...noopProps}
+        modules={modules}
+        onAddNewAction={onAddNewAction}
+      />,
+    );
+    fireEvent.press(getByLabelText('ノードを追加'));
+    // 追加先を「朝食」(mod-meal) に切替
+    fireEvent.press(getByLabelText('追加先: 朝食'));
+    fireEvent.changeText(getByLabelText('新しいアクション名'), 'ヨーグルト');
+    fireEvent.press(getByLabelText('新しいアクションを追加'));
+    expect(onAddNewAction).toHaveBeenCalledWith('ヨーグルト', 'mod-meal');
+  });
+
+  test('振り分け既定は custom inbox (追加先未選択なら custom inbox 所属)', () => {
+    const onAddNewAction = jest.fn();
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={moduleDraft()}
+        {...noopProps}
+        modules={modules}
+        onAddNewAction={onAddNewAction}
+      />,
+    );
+    fireEvent.press(getByLabelText('ノードを追加'));
+    fireEvent.changeText(getByLabelText('新しいアクション名'), 'ヨーグルト');
+    fireEvent.press(getByLabelText('新しいアクションを追加'));
+    expect(onAddNewAction).toHaveBeenCalledWith('ヨーグルト', 'mod-custom-inbox');
   });
 });
