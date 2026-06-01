@@ -16,6 +16,7 @@ export default function NewChainRoute() {
   const {
     draft,
     availableActions,
+    modules,
     error,
     loading,
     saving,
@@ -32,6 +33,7 @@ export default function NewChainRoute() {
     addNodeFromNewAction,
     addNodesFromTemplate,
     removeNode,
+    toggleNodeActive,
     reorderNodes,
     save,
     updateAction,
@@ -56,6 +58,7 @@ export default function NewChainRoute() {
           <ChainEditScreen
             draft={draft}
             availableActions={availableActions}
+            modules={modules}
             saving={saving}
             locationPermission={locationPermission}
             locating={locating}
@@ -70,6 +73,7 @@ export default function NewChainRoute() {
             onAddNewAction={addNodeFromNewAction}
             onAddNodesFromTemplate={addNodesFromTemplate}
             onRemoveNode={removeNode}
+            onToggleNodeActive={toggleNodeActive}
             onReorderNodes={reorderNodes}
             onCancel={() => router.back()}
             onSave={handleSave}

@@ -46,6 +46,7 @@ type NodeRow = {
   kind: 'action';
   action_id: string;
   module_id: string | null;
+  active: number; // #73: 0/1
 };
 
 type AchievementRow = {
@@ -93,6 +94,7 @@ const rowToNode = (r: NodeRow): Node => ({
   kind: r.kind,
   actionId: r.action_id,
   moduleId: r.module_id,
+  active: r.active === 1,
 });
 
 const rowToAchievement = (r: AchievementRow): Achievement => ({
@@ -238,9 +240,10 @@ export const deleteChain = async (
 
 export const insertNode = (db: DbClient, node: Node): Promise<void> =>
   db.run(
-    `INSERT INTO nodes (id, chain_id, order_index, kind, action_id, module_id)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO nodes (id, chain_id, order_index, kind, action_id, module_id, active)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     // moduleId は optional (#70): テンプレ採用ノードのみ値を持ち、手作りは null。
+    // active は #73: 未指定は 1 (通常表示) 既定。
     [
       node.id,
       node.chainId,
@@ -248,8 +251,18 @@ export const insertNode = (db: DbClient, node: Node): Promise<void> =>
       node.kind,
       node.actionId,
       node.moduleId ?? null,
+      node.active === false ? 0 : 1,
     ],
   );
+
+// #73 (SPEC §6): ノードの ON/OFF (一時停止) を切り替える。order_index / action_id は
+// 触らない (= 停止は非破壊・可逆、UNIQUE(chain_id, order_index) にも干渉しない)。
+export const updateNodeActive = (
+  db: DbClient,
+  nodeId: string,
+  active: boolean,
+): Promise<void> =>
+  db.run(`UPDATE nodes SET active = ? WHERE id = ?`, [active ? 1 : 0, nodeId]);
 
 // ノード 1 つを物理削除。 関連 achievements は schema の ON DELETE CASCADE で
 // 自動削除 (PR-1.8a)。 nodes 削除に対応する CASCADE は actions/anchors と違い

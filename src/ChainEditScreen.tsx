@@ -17,10 +17,16 @@ import type {
 
 import { ActionEditor } from './ActionEditor';
 import { AnchorEditor } from './AnchorEditor';
+import {
+  buildModuleRoster,
+  computeRunLeaders,
+  deleteKindForSource,
+} from './editLayout';
+import type { DeleteKind } from './editLayout';
 import { TemplateChainPicker } from './TemplateChainPicker';
 import { BUILTIN_TEMPLATE_CHAINS } from './templateChains';
 import type { TemplateChain } from './templateChains';
-import type { Action, Anchor, ChainStatus } from './domain';
+import type { Action, Anchor, CatalogSource, ChainStatus, Module } from './domain';
 import { summarizeVariantDays } from './domain';
 import type { CurrentPosition, LocationPermissionStatus } from './location';
 import {
@@ -38,6 +44,8 @@ import type { ChainEditDraft, EditableNode } from './useChainEdit';
 export type ChainEditScreenProps = {
   draft: ChainEditDraft;
   availableActions: readonly Action[];
+  // #73: モジュールメタ (チップ層 / 行のカラーストライプ / source 別削除に使う)。
+  modules: readonly Module[];
   saving: boolean;
   locationPermission: LocationPermissionStatus;
   locating: boolean;
@@ -51,6 +59,8 @@ export type ChainEditScreenProps = {
   onAddExistingAction: (actionId: string, actionTitle: string) => void;
   onAddNewAction: (actionTitle: string) => void;
   onRemoveNode: (nodeId: string) => void;
+  // #73 (SPEC §6): ノードの ON/OFF (一時停止) トグル。
+  onToggleNodeActive: (nodeId: string) => void;
   // PR-Y1: テンプレチェーンを選んで末尾追加 (各アクションを新規 INSERT + ノード追加)。
   // 未指定なら Footer の「+ テンプレから追加」ボタンは表示されない。
   onAddNodesFromTemplate?: (template: TemplateChain) => void;
@@ -73,6 +83,7 @@ export type ChainEditScreenProps = {
 export const ChainEditScreen = ({
   draft,
   availableActions,
+  modules,
   saving,
   locationPermission,
   locating,
@@ -87,6 +98,7 @@ export const ChainEditScreen = ({
   onAddNewAction,
   onAddNodesFromTemplate,
   onRemoveNode,
+  onToggleNodeActive,
   onReorderNodes,
   onCancel,
   onSave,
@@ -95,6 +107,25 @@ export const ChainEditScreen = ({
   onSaveAction,
 }: ChainEditScreenProps) => {
   const [adderOpen, setAdderOpen] = useState(false);
+
+  // #73: モジュールメタ map + チップ層ロスター + C 案ラベルの run leader を派生 (editLayout)。
+  const modulesById = useMemo(() => {
+    const map: Record<string, { name: string; color: string; source: CatalogSource }> = {};
+    for (const m of modules) map[m.id] = { name: m.name, color: m.color, source: m.source };
+    return map;
+  }, [modules]);
+  const nodeModuleIds = useMemo(
+    () => draft.nodes.map((n) => n.moduleId ?? null),
+    [draft.nodes],
+  );
+  const roster = useMemo(
+    () => buildModuleRoster(nodeModuleIds, modulesById),
+    [nodeModuleIds, modulesById],
+  );
+  const runLeaders = useMemo(
+    () => computeRunLeaders(nodeModuleIds),
+    [nodeModuleIds],
+  );
   const [newActionDraft, setNewActionDraft] = useState('');
   // Phase 2 variant: 編集中のアクション (Modal で ActionEditor を表示)。
   const [editingAction, setEditingAction] = useState<Action | null>(null);
@@ -106,10 +137,23 @@ export const ChainEditScreen = ({
   // ReorderableList は ScrollView 内に置けないので画面 root として使う。
   // 編集 UI 全体は ListHeaderComponent / ListFooterComponent で吸収する。
   const renderItem = useCallback(
-    ({ item }: ReorderableListRenderItemInfo<EditableNode>) => (
-      <NodeEditorRow node={item} onRemove={onRemoveNode} />
-    ),
-    [onRemoveNode],
+    ({ item, index }: ReorderableListRenderItemInfo<EditableNode>) => {
+      const meta = item.moduleId ? modulesById[item.moduleId] : undefined;
+      // C 案ラベル: run 先頭 (= leader) かつモジュール所属ありのとき名前を出す。
+      const showModuleName = !!meta && runLeaders[index] === true;
+      const deleteKind = deleteKindForSource(meta?.source ?? null);
+      return (
+        <NodeEditorRow
+          node={item}
+          moduleColor={meta?.color}
+          moduleName={showModuleName ? meta!.name : undefined}
+          deleteKind={deleteKind}
+          onRemove={onRemoveNode}
+          onToggleActive={onToggleNodeActive}
+        />
+      );
+    },
+    [modulesById, runLeaders, onRemoveNode, onToggleNodeActive],
   );
 
   const handleReorder = useCallback(
@@ -218,6 +262,23 @@ export const ChainEditScreen = ({
           />
         </View>
 
+        {/* #73: チップ層 (採用中モジュールのロスター)。色 + ラベル併用で a11y 担保 (#74)。 */}
+        {roster.length > 0 && (
+          <View style={styles.rosterRow}>
+            {roster.map((r) => (
+              <View
+                key={r.id}
+                style={styles.rosterChip}
+                accessibilityLabel={`モジュール ${r.name} (${r.count})`}
+              >
+                <View style={[styles.rosterDot, { backgroundColor: r.color }]} />
+                <Text style={styles.rosterChipText}>{r.name}</Text>
+                <Text style={styles.rosterChipCount}>{r.count}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         <View style={styles.nodesHeader}>
           <Text style={styles.sectionLabel}>ノード ({draft.nodes.length})</Text>
           {draft.nodes.length > 0 && (
@@ -235,6 +296,7 @@ export const ChainEditScreen = ({
       draft.status,
       draft.anchor,
       draft.nodes.length,
+      roster,
       saving,
       canSave,
       locationPermission,
@@ -378,45 +440,95 @@ const keyExtractor = (item: EditableNode): string => item.id;
 
 type NodeEditorRowProps = {
   node: EditableNode;
+  // #73: モジュール由来の表示メタ。
+  moduleColor?: string; // 左カラーストライプ色 (C 案)。未所属なら undefined。
+  moduleName?: string; // run 先頭のときだけ渡る (C 案・自己修復)。
+  deleteKind: DeleteKind; // 'detach' (外す/非破壊) or 'delete' (削除/破壊的)。
   onRemove: (nodeId: string) => void;
+  onToggleActive: (nodeId: string) => void;
 };
 
-const NodeEditorRow = ({ node, onRemove }: NodeEditorRowProps) => {
+const NodeEditorRow = ({
+  node,
+  moduleColor,
+  moduleName,
+  deleteKind,
+  onRemove,
+  onToggleActive,
+}: NodeEditorRowProps) => {
   // useReorderableDrag は ReorderableList の renderItem ツリー内でのみ有効。
   // タップ判定範囲は行全体 (Pressable) にし、見た目のハンドル ≡ は装飾の View
-  // にとどめる。削除ボタンは内側の別 Pressable のままで、子の Pressable が
-  // タッチを consume するため外側 (行) の長押しには bubble しない。
+  // にとどめる。子の Pressable (トグル/削除) はタッチを consume するため外側
+  // (行) の長押しには bubble しない。
   const drag = useReorderableDrag();
+  const removeLabel = deleteKind === 'detach' ? '外す' : '削除';
+  const removeA11y =
+    deleteKind === 'detach'
+      ? `${node.actionTitle} をチェーンから外す`
+      : `${node.actionTitle} を削除`;
   return (
-    <Pressable
-      onLongPress={drag}
-      delayLongPress={500}
-      accessibilityRole="button"
-      accessibilityLabel={`${node.actionTitle} をドラッグして並び替え`}
-      style={styles.nodeRow}
-    >
-      <View style={styles.dragHandle}>
-        <Text style={styles.dragHandleText}>≡</Text>
-      </View>
-      <Text style={styles.nodeTitle}>{node.actionTitle}</Text>
-      {node.actionVariants &&
-        summarizeVariantDays(node.actionVariants).length > 0 && (
-          <Text
-            style={styles.nodeVariantHint}
-            accessibilityLabel={`variant: ${summarizeVariantDays(node.actionVariants)}`}
-          >
-            {summarizeVariantDays(node.actionVariants)}
-          </Text>
-        )}
+    <View style={styles.nodeRowWrap}>
+      {/* C 案: 左カラーストライプ (モジュール色)。未所属は無色。 */}
+      <View
+        style={[
+          styles.moduleStripe,
+          { backgroundColor: moduleColor ?? 'transparent' },
+        ]}
+      />
       <Pressable
-        onPress={() => onRemove(node.id)}
+        onLongPress={drag}
+        delayLongPress={500}
         accessibilityRole="button"
-        accessibilityLabel={`${node.actionTitle} を削除`}
-        style={styles.removeBtn}
+        accessibilityLabel={`${node.actionTitle} をドラッグして並び替え`}
+        style={[styles.nodeRow, !node.active && styles.nodeRowPaused]}
       >
-        <Text style={styles.removeBtnText}>×</Text>
+        <View style={styles.dragHandle}>
+          <Text style={styles.dragHandleText}>≡</Text>
+        </View>
+        <View style={styles.nodeTitleCol}>
+          {/* run 先頭だけモジュール名 (C 案・自己修復) */}
+          {moduleName && <Text style={styles.nodeModuleName}>{moduleName}</Text>}
+          <Text style={[styles.nodeTitle, !node.active && styles.nodeTitlePaused]}>
+            {node.actionTitle}
+          </Text>
+        </View>
+        {node.actionVariants &&
+          summarizeVariantDays(node.actionVariants).length > 0 && (
+            <Text
+              style={styles.nodeVariantHint}
+              accessibilityLabel={`variant: ${summarizeVariantDays(node.actionVariants)}`}
+            >
+              {summarizeVariantDays(node.actionVariants)}
+            </Text>
+          )}
+        {/* ON/OFF = 一時停止トグル (停止と削除は別系統) */}
+        <Pressable
+          onPress={() => onToggleActive(node.id)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: node.active }}
+          accessibilityLabel={
+            node.active
+              ? `${node.actionTitle} を一時停止`
+              : `${node.actionTitle} を再開`
+          }
+          style={[styles.toggleBtn, node.active && styles.toggleBtnOn]}
+          hitSlop={6}
+        >
+          <Text style={[styles.toggleText, node.active && styles.toggleTextOn]}>
+            {node.active ? 'ON' : 'OFF'}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => onRemove(node.id)}
+          accessibilityRole="button"
+          accessibilityLabel={removeA11y}
+          style={styles.removeBtn}
+          hitSlop={6}
+        >
+          <Text style={styles.removeBtnText}>{removeLabel}</Text>
+        </Pressable>
       </Pressable>
-    </Pressable>
+    </View>
   );
 };
 
@@ -601,16 +713,64 @@ const styles = StyleSheet.create({
   },
   dragHint: { color: COLOR_FG_FAINT, fontSize: 11 },
   emptyHint: { color: COLOR_FG_FAINT, fontSize: 12, paddingHorizontal: 4 },
-  nodeRow: {
+  // #73 チップ層 (モジュールロスター)
+  rosterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingHorizontal: 4,
+  },
+  rosterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: COLOR_SURFACE,
+    minHeight: 32,
+  },
+  rosterDot: { width: 10, height: 10, borderRadius: 999 },
+  rosterChipText: { color: COLOR_FG, fontSize: 12, fontWeight: '600' },
+  rosterChipCount: { color: COLOR_FG_FAINT, fontSize: 11, fontWeight: '600' },
+  // #73 行 (左ストライプ + 行本体)
+  nodeRowWrap: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
     marginVertical: 2,
     borderRadius: 10,
+    overflow: 'hidden',
     backgroundColor: COLOR_SURFACE,
   },
+  moduleStripe: { width: 4 },
+  nodeRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  nodeRowPaused: { opacity: 0.5 },
+  nodeTitleCol: { flex: 1, gap: 2 },
+  nodeModuleName: {
+    color: COLOR_FG_FAINT,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  nodeTitlePaused: { textDecorationLine: 'line-through' },
+  toggleBtn: {
+    minWidth: 40,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    alignItems: 'center',
+    backgroundColor: COLOR_LINE_BG,
+  },
+  toggleBtnOn: { backgroundColor: COLOR_GROW },
+  toggleText: { color: COLOR_FG_FAINT, fontSize: 11, fontWeight: '700' },
+  toggleTextOn: { color: COLOR_BG },
   dragHandle: {
     width: 28,
     height: 28,
@@ -633,14 +793,16 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   removeBtn: {
-    width: 32,
-    height: 32,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    minHeight: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
+    borderRadius: 999,
     backgroundColor: COLOR_LINE_BG,
   },
-  removeBtnText: { color: COLOR_FG, fontSize: 16, fontWeight: '600' },
+  // 削除/外すは destructive 寄り。文字色のみ accent (DESIGN-SYSTEM §1 / PR-1.8a と整合)。
+  removeBtnText: { color: COLOR_ACCENT, fontSize: 12, fontWeight: '600' },
   addRow: {
     flexDirection: 'row',
     gap: 8,

@@ -49,6 +49,8 @@ const node = (id: string, actionId: string, isNew = true): EditableNode => ({
   actionId,
   actionTitle: `action ${actionId}`,
   actionVariants: null,
+  moduleId: null,
+  active: true,
 });
 
 describe('validateChainDraft', () => {
