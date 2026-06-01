@@ -149,8 +149,13 @@ export type UseChainEditResult = {
   locating: boolean;
   fetchCurrentLocation: () => Promise<CurrentPosition | null>;
   // ノード編集
-  addNodeFromExistingAction: (actionId: string, actionTitle: string) => void;
-  addNodeFromNewAction: (actionTitle: string) => Promise<void>;
+  // #95: moduleId = 追加先モジュール (振り分けピッカーで選択)。省略時は custom inbox。
+  addNodeFromExistingAction: (
+    actionId: string,
+    actionTitle: string,
+    moduleId?: string,
+  ) => void;
+  addNodeFromNewAction: (actionTitle: string, moduleId?: string) => Promise<void>;
   // PR-Y1 (ADR-0023): テンプレチェーンを選んで末尾にフラット追加。
   // 各アクションを新規 INSERT (= 既存 actions と重複しても別物として扱う) +
   // ノードを末尾に追加。
@@ -302,7 +307,7 @@ export const useChainEdit = (
   );
 
   const addNodeFromExistingAction = useCallback(
-    (actionId: string, actionTitle: string) => {
+    (actionId: string, actionTitle: string, moduleId: string = CUSTOM_INBOX_MODULE_ID) => {
       setDraft((prev) => {
         if (!prev) return prev;
         // availableActions から variant を引いて NodeEditorRow のバッジ表示に渡す
@@ -313,9 +318,8 @@ export const useChainEdit = (
           actionId,
           actionTitle,
           actionVariants: found?.variants ?? null,
-          // #73: 「+追加」したノードは custom inbox に所属させる (新要素クラスを増やさず
-          // module 所属に統一)。昇格 (= ユーザーモジュール化) は後送り。
-          moduleId: CUSTOM_INBOX_MODULE_ID,
+          // #73/#95: 「+追加」したノードの所属先。振り分けピッカーで選択 (省略時 custom inbox)。
+          moduleId,
           active: true,
         };
         return { ...prev, nodes: [...prev.nodes, next] };
@@ -325,7 +329,7 @@ export const useChainEdit = (
   );
 
   const addNodeFromNewAction = useCallback(
-    async (actionTitle: string) => {
+    async (actionTitle: string, moduleId: string = CUSTOM_INBOX_MODULE_ID) => {
       const trimmed = actionTitle.trim();
       if (trimmed.length === 0) return;
       try {
@@ -347,7 +351,7 @@ export const useChainEdit = (
             actionId: action.id,
             actionTitle: action.title,
             actionVariants: action.variants,
-            moduleId: CUSTOM_INBOX_MODULE_ID,
+            moduleId,
             active: true,
           };
           return { ...prev, nodes: [...prev.nodes, next] };
