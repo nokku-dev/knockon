@@ -9,5 +9,6 @@ export const newChainId = (): string => `chain-${Crypto.randomUUID()}`;
 export const newNodeId = (): string => `node-${Crypto.randomUUID()}`;
 export const newActionId = (): string => `action-${Crypto.randomUUID()}`;
 export const newAnchorId = (): string => `anchor-${Crypto.randomUUID()}`;
+export const newModuleId = (): string => `module-${Crypto.randomUUID()}`;
 export const newMetricId = (): string => `metric-${Crypto.randomUUID()}`;
 export const newMetricKindId = (): string => `metric-kind-${Crypto.randomUUID()}`;

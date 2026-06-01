@@ -526,3 +526,44 @@ describe('ChainEditScreen #95 — チップ絞り込み / 振り分けピッカ�
     expect(onAddNewAction).toHaveBeenCalledWith('ヨーグルト', 'mod-custom-inbox');
   });
 });
+
+describe('ChainEditScreen #93 — カスタムモジュール化導線', () => {
+  test('custom inbox ノードがあり onPromoteToModule 指定で「カスタムをモジュール化」が出る', () => {
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={moduleDraft()}
+        {...noopProps}
+        modules={modules}
+        onPromoteToModule={() => {}}
+      />,
+    );
+    // moduleDraft の n3 は custom inbox 所属 → 導線が出る
+    expect(getByLabelText('カスタムをモジュール化')).toBeTruthy();
+  });
+
+  test('custom inbox ノードが無ければ導線は出ない', () => {
+    // 全ノード official 所属の draft
+    const officialOnly: ChainEditDraft = {
+      ...moduleDraft(),
+      nodes: [
+        { id: 'n1', isNew: false, actionId: 'a1', actionTitle: '朝食準備', actionVariants: null, moduleId: 'mod-meal', active: true },
+      ],
+    };
+    const { queryByLabelText } = render(
+      <ChainEditScreen
+        draft={officialOnly}
+        {...noopProps}
+        modules={modules}
+        onPromoteToModule={() => {}}
+      />,
+    );
+    expect(queryByLabelText('カスタムをモジュール化')).toBeNull();
+  });
+
+  test('onPromoteToModule 未指定なら導線は出ない', () => {
+    const { queryByLabelText } = render(
+      <ChainEditScreen draft={moduleDraft()} {...noopProps} modules={modules} />,
+    );
+    expect(queryByLabelText('カスタムをモジュール化')).toBeNull();
+  });
+});

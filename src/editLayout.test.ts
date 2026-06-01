@@ -1,7 +1,9 @@
 import {
+  PROMOTE_COLORS,
   buildModuleRoster,
   computeRunLeaders,
   deleteKindForSource,
+  validatePromotion,
 } from './editLayout';
 
 // #73 (SPEC docs/template-modules-spec.md §6): 編集UI の純粋ドメイン層。
@@ -79,5 +81,24 @@ describe('deleteKindForSource — source 別の削除破壊性 (#73)', () => {
   test('null/undefined (手作り = 未所属) は delete (破壊的)', () => {
     expect(deleteKindForSource(null)).toBe('delete');
     expect(deleteKindForSource(undefined)).toBe('delete');
+  });
+});
+
+describe('validatePromotion — 昇格の入力検証 (#93)', () => {
+  test('選択 0 件はエラー', () => {
+    expect(validatePromotion('朝食', 0)).toMatch(/アクション/);
+  });
+
+  test('名前が空白のみはエラー', () => {
+    expect(validatePromotion('   ', 2)).toMatch(/モジュール名/);
+  });
+
+  test('名前あり + 選択ありは null (OK)', () => {
+    expect(validatePromotion('朝食', 2)).toBeNull();
+  });
+
+  test('PROMOTE_COLORS は重複なしの色集合', () => {
+    expect(new Set(PROMOTE_COLORS).size).toBe(PROMOTE_COLORS.length);
+    expect(PROMOTE_COLORS.length).toBeGreaterThan(0);
   });
 });

@@ -264,6 +264,15 @@ export const updateNodeActive = (
 ): Promise<void> =>
   db.run(`UPDATE nodes SET active = ? WHERE id = ?`, [active ? 1 : 0, nodeId]);
 
+// #93: ノードの所属モジュールを更新 (カスタム→ユーザーモジュール昇格で使う)。
+// module_id は modules(id) への FK。昇格先モジュールは事前に insertModule 済みの前提。
+export const updateNodeModule = (
+  db: DbClient,
+  nodeId: string,
+  moduleId: string | null,
+): Promise<void> =>
+  db.run(`UPDATE nodes SET module_id = ? WHERE id = ?`, [moduleId, nodeId]);
+
 // ノード 1 つを物理削除。 関連 achievements は schema の ON DELETE CASCADE で
 // 自動削除 (PR-1.8a)。 nodes 削除に対応する CASCADE は actions/anchors と違い
 // 派生記録のみが消えるため、 副作用は限定的。
