@@ -125,5 +125,6 @@ superseded-by: []
 ### 注意点
 
 - **タイマー実行中のバックグラウンド遷移**: ユーザーが他アプリに切替えると JS タイマーは停止する場合あり。 Phase 1 受容 (= タイマー使用時は前面表示前提)
+  - **追記 (Issue #86)**: 検証期間中に不便シグナル → wall-clock (`Date.now()`) ベース + AppState 'active' listener で foreground 復帰時に残り時間再計算、 通知も開始時に future-trigger で事前スケジュール (= OS 側で発火するため background でも alarm が鳴る) に変更。 K-005 ルール (片側 supersede の逆参照) で本項目に解消メモを残す
 - **正準データの軸**: `timer_seconds` は派生値ではなく **ユーザー設定値**として正準に含めるが、 タイマー実行ログ (= 「いつ何秒経過したか」の record) は保存しない (= 派生値、 Phase 2 で「タイマー履歴」機能が出たら再判断)
 - **K-006 不変条件テスト更新必要**: actions テーブルの 4 カラム (id / title / variants_json / timer_seconds) 固定化

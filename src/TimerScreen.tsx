@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
 import {
+  AppState,
   Modal,
   Pressable,
   StyleSheet,
@@ -21,8 +22,20 @@ import {
 // PR-BB (ADR-0025): ノードタイマーのフルスクリーン Modal。
 // 起動 → カウントダウン → 完了で自動達成 + 通知音 + 振動 + 閉じる。
 //
-// 通知音: expo-notifications で trigger: null の即時通知 = OS デフォルト通知音
-// (= 控えめ、 サイレント時は鳴らない)。 expo-av / アセット追加なしで依存ゼロ。
+// Issue #86: バックグラウンドでもタイマーが動くように修正。 旧実装は setInterval
+// ベースで background で JS が throttle されると残り時間が止まり alarm も鳴らない
+// 問題があった (= ADR-0025 「注意点」で Phase 1 受容と書いた挙動)。 修正方針:
+//   1. wall-clock 基準: 開始時に endTime = Date.now() + duration*1000 を確定。
+//      毎 tick / AppState 'active' 復帰時に Date.now() で残り時間を再計算する
+//      (= JS の setInterval が止まっていても foreground 復帰時点で正しい値に)。
+//   2. 通知の事前スケジュール: 開始時に future trigger (= duration 秒後) で通知を
+//      スケジュール。 OS タイマーで発火するため、 background で JS が止まっていても
+//      alarm が鳴る。 pause / cancel / 通常完了時にキャンセル可。
+//   3. AppState 'active' listener: foreground 復帰時に setNow(Date.now()) で
+//      remaining を再評価 → 過ぎていたら onComplete (自動達成) を発火。
+//
+// 通知音: app/_layout.tsx の setNotificationHandler が data.kind === 'timer-complete'
+//         のときだけ shouldPlaySound: true を返す (K-026 回避)。
 // 振動: react-native 標準 Vibration API (built-in、 依存追加なし)。
 
 export type TimerScreenProps = {
@@ -33,6 +46,37 @@ export type TimerScreenProps = {
   onComplete: () => void;
 };
 
+const NOTIFICATION_CONTENT = (actionTitle: string) => ({
+  title: 'タイマー完了',
+  body: actionTitle,
+  sound: true,
+  data: { kind: 'timer-complete' as const },
+});
+
+const scheduleCompletionNotification = (
+  seconds: number,
+  actionTitle: string,
+): Promise<string | null> =>
+  Notifications.scheduleNotificationAsync({
+    content: NOTIFICATION_CONTENT(actionTitle),
+    // future-trigger: OS 側で `seconds` 経過後に発火する。 background で JS が止まっていても
+    // OS が発火するため alarm が鳴る (Issue #86)。
+    // SDK 54 では `{ seconds, type: 'timeInterval' }` 形式を推奨。 mock では trigger
+    // の中身は問われない (= 内容は OS API に委譲)。
+    trigger: {
+      seconds: Math.max(seconds, 1),
+      type: 'timeInterval',
+      repeats: false,
+    } as unknown as Notifications.NotificationTriggerInput,
+  })
+    .then((id) => id)
+    .catch(() => null);
+
+const cancelNotification = (id: string | null) => {
+  if (!id) return;
+  Notifications.cancelScheduledNotificationAsync(id).catch(() => undefined);
+};
+
 export const TimerScreen = ({
   visible,
   durationSeconds,
@@ -40,69 +84,129 @@ export const TimerScreen = ({
   onCancel,
   onComplete,
 }: TimerScreenProps) => {
-  const [remaining, setRemaining] = useState(durationSeconds);
-  const [paused, setPaused] = useState(false);
-  // visible 遷移を検出して remaining をリセット (= モーダル再オープン時)
-  const prevVisibleRef = useRef(visible);
+  // wall-clock model:
+  //   - running: endTimeMs != null, pausedRemainingMs == null
+  //   - paused:  endTimeMs == null, pausedRemainingMs != null
+  //   - idle (visible=false): どちらも null
+  const [endTimeMs, setEndTimeMs] = useState<number | null>(null);
+  const [pausedRemainingMs, setPausedRemainingMs] = useState<number | null>(
+    null,
+  );
+  // now を state で持つことで setInterval tick / AppState 'active' のどちらからも
+  // setNow(Date.now()) を呼ぶだけで残り時間表示が再評価される。
+  const [now, setNow] = useState<number>(() => Date.now());
+  const notifIdRef = useRef<string | null>(null);
+  const completedRef = useRef(false);
+  // 初期値は false 固定: 初回マウント時に visible=true なら init effect を発火させるため
+  // (useRef(visible) だと初回 prev=true で init が skip される)。
+  const prevVisibleRef = useRef(false);
 
+  // visible 遷移を検出して新規 timer を開始 / 終了。
   useEffect(() => {
-    if (visible && !prevVisibleRef.current) {
-      setRemaining(durationSeconds);
-      setPaused(false);
-    }
+    const wasVisible = prevVisibleRef.current;
     prevVisibleRef.current = visible;
-  }, [visible, durationSeconds]);
 
-  // カウントダウン (1 秒間隔)。 paused or 非表示なら interval を回さない。
-  // dep を [visible, paused] のみに絞り、 1 個の interval を再利用 (= clearInterval/
-  // setInterval の毎秒再生成によるドリフト回避)。 setRemaining は functional update。
+    if (visible && !wasVisible) {
+      // open: 新規タイマー開始
+      const start = Date.now();
+      setEndTimeMs(start + durationSeconds * 1000);
+      setPausedRemainingMs(null);
+      setNow(start);
+      completedRef.current = false;
+      scheduleCompletionNotification(durationSeconds, actionTitle).then((id) => {
+        notifIdRef.current = id;
+      });
+    } else if (!visible && wasVisible) {
+      // close: scheduled 通知をキャンセル + state リセット
+      cancelNotification(notifIdRef.current);
+      notifIdRef.current = null;
+      setEndTimeMs(null);
+      setPausedRemainingMs(null);
+      completedRef.current = false;
+    }
+  }, [visible, durationSeconds, actionTitle]);
+
+  // 1 秒間隔の tick: now を Date.now() で更新 → remaining が再計算される。
+  // dep を [visible, endTimeMs] に絞り、 paused 中は interval を回さない。
   useEffect(() => {
-    if (!visible || paused) return;
-    const id = setInterval(() => {
-      setRemaining((r) => (r > 0 ? r - 1 : r));
-    }, 1000);
+    if (!visible || endTimeMs == null) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [visible, paused]);
+  }, [visible, endTimeMs]);
 
-  // 完了通知 + 振動 + onComplete 呼び出し。 remaining が 0 になった瞬間 1 回だけ発火。
-  // 受容判断 (K-010 同型):
-  // - JS timer は backgrounding で不正確になるが Phase 1 N=1 前提 (= タイマー使用中は前面表示) を受容
-  // - dep に onComplete / actionTitle を含めない (= 親の inline closure で毎レンダ新参照で
-  //   ループするため)。 結果として stale closure になりうるが、 「タイマー 1 回中に
-  //   onComplete / actionTitle が変わるシナリオはない」前提で受容
+  // Issue #86: AppState 'active' で foreground 復帰を検出 → now を再評価。
+  // background 中に JS が止まっていても wall-clock で remaining が正しく更新される。
+  // 復帰時点で remainingMs <= 0 なら下の完了 effect が onComplete を発火する。
   useEffect(() => {
     if (!visible) return;
-    if (remaining > 0) return;
-    // 即時通知 (banner なし、 音のみ)。 app/_layout.tsx の setNotificationHandler は
-    // data.kind === 'timer-complete' のときだけ shouldPlaySound: true を返す
-    // (K-026 回避: 個別 sound: true は foreground では global handler に上書きされる)。
-    Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'タイマー完了',
-        body: actionTitle,
-        sound: true,
-        data: { kind: 'timer-complete' },
-      },
-      trigger: null,
-    }).catch(() => {
-      // 通知 schedule 失敗は silently fallback (K-024 同型)
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setNow(Date.now());
     });
+    return () => sub.remove();
+  }, [visible]);
+
+  const remainingMs =
+    endTimeMs != null
+      ? Math.max(endTimeMs - now, 0)
+      : pausedRemainingMs != null
+      ? pausedRemainingMs
+      : durationSeconds * 1000;
+  const remainingSec = Math.ceil(remainingMs / 1000);
+
+  // 完了検出 (remainingMs が 0 に到達した瞬間 1 回だけ発火)。
+  // completedRef で再発火を防ぐ (= 親が visible=false にする前のレンダで再評価されても OK)。
+  useEffect(() => {
+    if (!visible) return;
+    if (endTimeMs == null) return; // paused or idle
+    if (remainingMs > 0) return;
+    if (completedRef.current) return;
+    completedRef.current = true;
+    // 事前スケジュール済み通知は OS が発火している (or もう発火した) ので個別の
+    // 即時通知は再発しない。 cancel もしない (= 既に発火済みの想定で OS に委ねる)。
+    notifIdRef.current = null;
     Vibration.vibrate([100, 50, 100]);
     onComplete();
-    // onComplete 内で visible=false に切替される前提のため、 再発火しないよう
-    // dependency は [visible, remaining] にしてリセット時に再評価。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, remaining]);
+  }, [visible, endTimeMs, remainingMs]);
 
-  const minutes = Math.floor(Math.max(remaining, 0) / 60);
-  const seconds = Math.max(remaining, 0) % 60;
+  const paused = pausedRemainingMs != null;
+
+  const handleTogglePause = () => {
+    if (endTimeMs != null) {
+      // running → paused: 残り時間を保存、 scheduled 通知をキャンセル
+      const remaining = Math.max(endTimeMs - Date.now(), 0);
+      setPausedRemainingMs(remaining);
+      setEndTimeMs(null);
+      cancelNotification(notifIdRef.current);
+      notifIdRef.current = null;
+    } else if (pausedRemainingMs != null) {
+      // paused → running: 新しい endTime を計算 + 通知を再スケジュール
+      const start = Date.now();
+      setEndTimeMs(start + pausedRemainingMs);
+      setPausedRemainingMs(null);
+      setNow(start);
+      const seconds = Math.max(Math.ceil(pausedRemainingMs / 1000), 1);
+      scheduleCompletionNotification(seconds, actionTitle).then((id) => {
+        notifIdRef.current = id;
+      });
+    }
+  };
+
+  const handleCancel = () => {
+    cancelNotification(notifIdRef.current);
+    notifIdRef.current = null;
+    onCancel();
+  };
+
+  const minutes = Math.floor(Math.max(remainingSec, 0) / 60);
+  const seconds = Math.max(remainingSec, 0) % 60;
 
   return (
     <Modal
       visible={visible}
       animationType="fade"
       presentationStyle="fullScreen"
-      onRequestClose={onCancel}
+      onRequestClose={handleCancel}
     >
       <View style={styles.root}>
         <View style={styles.body}>
@@ -117,7 +221,7 @@ export const TimerScreen = ({
         </View>
         <View style={styles.actions}>
           <Pressable
-            onPress={() => setPaused((p) => !p)}
+            onPress={handleTogglePause}
             accessibilityRole="button"
             accessibilityLabel={paused ? 'タイマー再開' : 'タイマー一時停止'}
             style={styles.actionBtn}
@@ -125,7 +229,7 @@ export const TimerScreen = ({
             <Text style={styles.actionText}>{paused ? '再開' : '一時停止'}</Text>
           </Pressable>
           <Pressable
-            onPress={onCancel}
+            onPress={handleCancel}
             accessibilityRole="button"
             accessibilityLabel="タイマーキャンセル"
             style={[styles.actionBtn, styles.actionBtnCancel]}
