@@ -43,6 +43,9 @@ import {
 } from './tokens';
 import type { ChainEditDraft, EditableNode } from './useChainEdit';
 
+// #94 (SPEC §8): undo バーの表示時間。これを過ぎると削除が確定し undo 不可になる。
+const UNDO_TIMEOUT_MS = 5000;
+
 export type ChainEditScreenProps = {
   draft: ChainEditDraft;
   availableActions: readonly Action[];
@@ -66,6 +69,11 @@ export type ChainEditScreenProps = {
   onToggleNodeActive: (nodeId: string) => void;
   // #93 (SPEC §6): custom inbox ノードを user モジュールに昇格。未指定なら昇格 UI 非表示。
   onPromoteToModule?: (nodeIds: string[], name: string, color: string) => void;
+  // #94 (SPEC §6/§8): モジュール一括外し + undo。
+  onDetachModule: (moduleId: string) => void;
+  undoCount: number;
+  onUndo: () => void;
+  onUndoDismiss: () => void;
   // PR-Y1: テンプレチェーンを選んで末尾追加 (各アクションを新規 INSERT + ノード追加)。
   // 未指定なら Footer の「+ テンプレから追加」ボタンは表示されない。
   onAddNodesFromTemplate?: (template: TemplateChain) => void;
@@ -105,6 +113,10 @@ export const ChainEditScreen = ({
   onRemoveNode,
   onToggleNodeActive,
   onPromoteToModule,
+  onDetachModule,
+  undoCount,
+  onUndo,
+  onUndoDismiss,
   onReorderNodes,
   onCancel,
   onSave,
@@ -155,6 +167,14 @@ export const ChainEditScreen = ({
       setFilterModuleId(null);
     }
   }, [filterModuleId, roster]);
+
+  // #94: undo バーのタイムアウト (SPEC §8: 5 秒で自動的に確定 = undo 不可に)。
+  // undoCount が変わるたびにタイマーを張り直す (新しい削除で延長)。
+  useEffect(() => {
+    if (undoCount === 0) return;
+    const t = setTimeout(onUndoDismiss, UNDO_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [undoCount, onUndoDismiss]);
 
   // #95: 「+追加」の振り分け先候補 = チェーンに既にあるモジュール (ロスター) + custom inbox。
   // custom inbox は常に末尾に 1 つ含める (= デフォルト所属先)。
@@ -356,13 +376,23 @@ export const ChainEditScreen = ({
         <View style={styles.nodesHeader}>
           <Text style={styles.sectionLabel}>ノード ({draft.nodes.length})</Text>
           {filtering ? (
-            <Pressable
-              onPress={() => setFilterModuleId(null)}
-              accessibilityRole="button"
-              accessibilityLabel="絞り込みを解除"
-            >
-              <Text style={styles.filterClear}>絞り込み中 ✕ 解除</Text>
-            </Pressable>
+            <View style={styles.filterActions}>
+              {/* 二次アクション: 絞り込み中のモジュールを一括で外す */}
+              <Pressable
+                onPress={() => filterModuleId && onDetachModule(filterModuleId)}
+                accessibilityRole="button"
+                accessibilityLabel="このモジュールをまとめて外す"
+              >
+                <Text style={styles.detachText}>まとめて外す</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setFilterModuleId(null)}
+                accessibilityRole="button"
+                accessibilityLabel="絞り込みを解除"
+              >
+                <Text style={styles.filterClear}>✕ 解除</Text>
+              </Pressable>
+            </View>
           ) : (
             draft.nodes.length > 0 && (
               <Text style={styles.dragHint}>長押しで並び替え</Text>
@@ -383,6 +413,7 @@ export const ChainEditScreen = ({
       roster,
       filterModuleId,
       filtering,
+      onDetachModule,
       saving,
       canSave,
       locationPermission,
@@ -549,6 +580,22 @@ export const ChainEditScreen = ({
           />
         )}
       </Modal>
+      {/* #94: undo バー (直近 1 操作のみ・タイムアウトで自動確定) */}
+      {undoCount > 0 && (
+        <View style={styles.undoBar}>
+          <Text style={styles.undoText}>
+            {undoCount}件を外しました
+          </Text>
+          <Pressable
+            onPress={onUndo}
+            accessibilityRole="button"
+            accessibilityLabel="削除を元に戻す"
+            hitSlop={8}
+          >
+            <Text style={styles.undoAction}>↺ 元に戻す</Text>
+          </Pressable>
+        </View>
+      )}
     </>
   );
 };
@@ -889,6 +936,23 @@ const styles = StyleSheet.create({
   rosterChipText: { color: COLOR_FG, fontSize: 12, fontWeight: '600' },
   rosterChipCount: { color: COLOR_FG_FAINT, fontSize: 11, fontWeight: '600' },
   filterClear: { color: COLOR_GROW, fontSize: 11, fontWeight: '600' },
+  filterActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  detachText: { color: COLOR_ACCENT, fontSize: 11, fontWeight: '600' },
+  undoBar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLOR_SURFACE,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  undoText: { color: COLOR_FG, fontSize: 13 },
+  undoAction: { color: COLOR_GROW, fontSize: 13, fontWeight: '700' },
   targetChip: {
     flexDirection: 'row',
     alignItems: 'center',
