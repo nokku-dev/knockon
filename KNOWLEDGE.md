@@ -279,3 +279,11 @@
 - **原因**: SQLite の制約で、 ALTER ADD COLUMN で外部キー (REFERENCES) 付きカラムを足す場合、 デフォルト値が NULL であることを明示しないと追加できない。 CREATE TABLE 時の列定義 (= 新規ユーザーの SCHEMA_SQL 側) ではこの制約は出ない。
 - **解決**: `ALTER TABLE nodes ADD COLUMN module_id TEXT REFERENCES modules(id) DEFAULT NULL;` と明示的に `DEFAULT NULL` を付ける。 SCHEMA_SQL 側 (CREATE 時) は DEFAULT 不要。
 - **教訓**: migration で REFERENCES 付きカラムを ALTER ADD する場合は `DEFAULT NULL` を明示する。 「SCHEMA_SQL (CREATE) では動くのに MIGRATIONS (ALTER) で reject される」という test/新規ユーザーでは出ない prod-既存ユーザー固有のエラーになりうる ([K-018](#k-018) / [K-021](#k-021) と同型の test/prod・新規/既存差)。 Phase 2 以降で FK 付きカラムを既存テーブルに足すときに再度踏みやすい。
+
+## K-035: commit/push/PR/マージを1バッチで並列実行しない — 各ステップの結果を確認してから次へ
+
+- **状況**: #70 (PR-70a) / #82 で「branch 作成 → commit → push → PR 作成 → CI 待ち → マージ」を 1 つの応答に複数 Bash で詰め込んで実行した。
+- **問題**: (1) type-check fail を確認せず後続を実行し、 CI 赤のままマージして main を壊した ([K-032](#k-032) 違反を 2 回)。 (2) 並列 Bash の 1 つがキャンセルされると後続が連鎖キャンセルされ、 commit/push が「実行したつもりで未実行」になり、 PR 番号の取り違え等で状態把握が壊れた。
+- **原因**: git の状態遷移は逐次依存 (commit → push → PR → merge) なのに、 結果確認を挟まず投機的に並べた。 「速く回す」ことを優先して各ステップの exit code / 出力を読まなかった。
+- **解決**: 状態を変える git / gh 操作は「1 コマンド実行 → 結果確認 → 次」を厳守。 特に **type-check / jest の exit code** と **mergeStateStatus = CLEAN** は次へ進む前に必ず目視する。 読み取り専用クエリ (grep / git log 等) の並列はよいが、 破壊的・逐次依存の操作は並べない。
+- **教訓**: 逐次依存の破壊的操作はバッチ化しない。 [K-032](#k-032) (CI green 確認) の運用は「並列実行しない」ことで初めて守れる。 物理ガード ([.claude/hooks/guard-pr-merge.sh](.claude/hooks/guard-pr-merge.sh)) を入れても、 投機的バッチ実行をやめなければ別の経路で事故る。 迷走検知ルール (同一ファイル 3 回編集 / エラー 3 サイクル) に該当したら即停止して状態を `git status` / `gh pr list` で棚卸しする。
