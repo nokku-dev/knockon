@@ -278,24 +278,39 @@ describe('スキーマの不変条件', () => {
     await teardown(db);
   });
 
-  // ADR-0028 + ADR-0029 (Issue #53): app_settings カラム = id / reset_time / theme_mode。
-  test('app_settings テーブル: カラムは id / reset_time / theme_mode', async () => {
+  // ADR-0028 + ADR-0029 + #72: app_settings カラム = id / reset_time / theme_mode / onboarding_completed。
+  test('app_settings テーブル: カラムは id / reset_time / theme_mode / onboarding_completed', async () => {
     const db = await setup();
     type ColumnRow = { name: string };
     const cols = await db.all<ColumnRow>(`PRAGMA table_info(app_settings)`);
     const colNames = cols.map((c) => c.name).sort();
-    expect(colNames).toEqual(['id', 'reset_time', 'theme_mode']);
+    expect(colNames).toEqual([
+      'id',
+      'onboarding_completed',
+      'reset_time',
+      'theme_mode',
+    ]);
     await teardown(db);
   });
 
-  test('app_settings テーブル: 初回起動で 1 行 (singleton) が seed されている (reset_time, theme_mode default)', async () => {
+  test('app_settings テーブル: 初回起動で 1 行 (singleton) が seed され、onboarding_completed は 0 (新規 = 未完了)', async () => {
     const db = await setup();
-    type Row = { id: string; reset_time: string; theme_mode: string };
+    type Row = {
+      id: string;
+      reset_time: string;
+      theme_mode: string;
+      onboarding_completed: number;
+    };
     const rows = await db.all<Row>(
-      `SELECT id, reset_time, theme_mode FROM app_settings`,
+      `SELECT id, reset_time, theme_mode, onboarding_completed FROM app_settings`,
     );
     expect(rows).toEqual([
-      { id: 'singleton', reset_time: '00:00', theme_mode: 'auto' },
+      {
+        id: 'singleton',
+        reset_time: '00:00',
+        theme_mode: 'auto',
+        onboarding_completed: 0,
+      },
     ]);
     await teardown(db);
   });
@@ -483,6 +498,50 @@ describe('スキーマの不変条件', () => {
     );
     expect(rows).toEqual([
       { id: 'singleton', reset_time: '03:00', theme_mode: 'auto' },
+    ]);
+    await teardown(db);
+  });
+
+  test('#72: MIGRATIONS[8] が app_settings に onboarding_completed 列を追加し、既存ユーザーは 1 (完了済み扱い)', async () => {
+    // v7 schema (theme_mode まで) を直接構築 → MIGRATIONS[8] を呼ぶ。
+    const db = createBetterSqliteClient(':memory:');
+    await db.exec(`
+      CREATE TABLE app_settings (
+        id TEXT PRIMARY KEY,
+        reset_time TEXT NOT NULL DEFAULT '00:00',
+        theme_mode TEXT NOT NULL DEFAULT 'auto'
+      );
+    `);
+    // 既存ユーザーの代理 row (= 既にチェーンを持っている前提)
+    await db.run(
+      `INSERT INTO app_settings (id, reset_time, theme_mode) VALUES ('singleton', '03:00', 'dark')`,
+    );
+    await MIGRATIONS[8]!(db);
+    type ColumnRow = { name: string };
+    const cols = await db.all<ColumnRow>(`PRAGMA table_info(app_settings)`);
+    expect(cols.map((c) => c.name).sort()).toEqual([
+      'id',
+      'onboarding_completed',
+      'reset_time',
+      'theme_mode',
+    ]);
+    // 既存ユーザーは onboarding_completed=1 (= onboarding を出さない) + 既存値保全
+    type Row = {
+      id: string;
+      reset_time: string;
+      theme_mode: string;
+      onboarding_completed: number;
+    };
+    const rows = await db.all<Row>(
+      `SELECT id, reset_time, theme_mode, onboarding_completed FROM app_settings`,
+    );
+    expect(rows).toEqual([
+      {
+        id: 'singleton',
+        reset_time: '03:00',
+        theme_mode: 'dark',
+        onboarding_completed: 1,
+      },
     ]);
     await teardown(db);
   });
