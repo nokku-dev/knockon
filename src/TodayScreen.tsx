@@ -128,6 +128,7 @@ export const TodayScreen = ({
                 fireTotal={fireNodes.length}
                 fireCompleted={fireCompleted}
                 anchorFiredToday={c.anchorFiredToday}
+                streakDays={c.completionStreakDays}
                 onPress={() => handleOpen(c.chain.id)}
               />
             );

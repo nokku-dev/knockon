@@ -60,6 +60,7 @@ const buildChainData = (
   title: string,
   nodes: TodayNode[],
   achievements: AchievementMap = {},
+  completionStreakDays = 0,
 ): TodayChainData => ({
   chain: buildChain(id, title),
   anchor: buildAnchor(`${id}-anchor`, '起点'),
@@ -68,6 +69,7 @@ const buildChainData = (
   anchorFiredToday: false,
   recentAchievements: [],
   nodeIdsEstablished: new Set<string>(),
+  completionStreakDays,
 });
 
 describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {
@@ -122,6 +124,54 @@ describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {
     );
     fireEvent.press(getByLabelText(/朝のルーティン を開く/));
     expect(queryByLabelText('このチェーンを編集')).toBeNull();
+  });
+
+  test('Issue #103: 連続達成日数が >= 1 ならカードに小さく表示される', () => {
+    const chains: TodayChainData[] = [
+      buildChainData(
+        'c1',
+        '朝のルーティン',
+        [fireNode('n1', '水を飲む')],
+        {},
+        5,
+      ),
+    ];
+    const { getByText } = render(
+      <TodayScreen chains={chains} onToggleNode={() => {}} />,
+    );
+    expect(getByText('5 日連続')).toBeTruthy();
+  });
+
+  test('Issue #103: 連続達成 0 → 何も表示しない (反 streak: 切れたら指差さない)', () => {
+    const chains: TodayChainData[] = [
+      buildChainData(
+        'c1',
+        '朝のルーティン',
+        [fireNode('n1', '水を飲む')],
+        {},
+        0,
+      ),
+    ];
+    const { queryByText } = render(
+      <TodayScreen chains={chains} onToggleNode={() => {}} />,
+    );
+    expect(queryByText(/日連続/)).toBeNull();
+  });
+
+  test('Issue #103: 連続達成 >=14 → "14+ 日連続" 表示 (ウィンドウ上限 cap)', () => {
+    const chains: TodayChainData[] = [
+      buildChainData(
+        'c1',
+        '朝のルーティン',
+        [fireNode('n1', '水を飲む')],
+        {},
+        14,
+      ),
+    ];
+    const { getByText } = render(
+      <TodayScreen chains={chains} onToggleNode={() => {}} />,
+    );
+    expect(getByText('14+ 日連続')).toBeTruthy();
   });
 
   test('進捗 0/N と N/N の表示が区別される', () => {

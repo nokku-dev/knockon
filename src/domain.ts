@@ -524,3 +524,57 @@ export const isNodeEstablished = (
   );
   return count >= minAchievedDays;
 };
+
+// #103: Today カードに表示する「連続達成日数」(チェーン単位)。
+// 定義: 「その日のチェーンの全 fire ノードが達成されていた日」が今日から
+// 連続して何日続いているか。 今日がまだ未完成なら昨日を基点に数える
+// (= 今日達成すれば streak が伸び、 未達成でも昨日までの数字は表示される)。
+//
+// 反 streak 原則 (DESIGN-SYSTEM §0) との関係: 禁止 UI は「炎 / カレンダー型 /
+// 警告色での未達アラート」であって、 小さい数字での積み上がり表示は Celebrate
+// (積み上がり) として許容する (Issue #103 起票者判断)。 解除 / 中断時の指差し
+// 表示はしない (streak=0 は呼び出し側で非表示にする)。
+//
+// 変動制約 (Phase 1 受容): fire ノード集合は今日時点のものを過去日にも適用する。
+// 過去日が variant=skip だった日 / ノードが今日追加されたばかりの日でも
+// 今日の fire 集合を要求する。 厳密には日ごとに resolveActionForDate で resolve
+// すべきだが、 N=1 / 14D ウィンドウ前提で読みづらさよりシンプルさを優先。
+// 変動シグナルが出たら variant-aware に refactor 候補 (K-014 ルート)。
+//
+// ウィンドウ上限 (Phase 1 受容): 14D 範囲のデータしか保持していないため、
+// 14D を超える streak は 14 でキャップされる (呼び出し側で "14+" 表記)。
+export const chainCompletionStreakDays = (
+  achievements: readonly Achievement[],
+  fireNodeIds: readonly string[],
+  today: IsoDate,
+  windowDays: number = 14,
+): number => {
+  if (fireNodeIds.length === 0 || windowDays <= 0) return 0;
+  const fireSet = new Set(fireNodeIds);
+  // date → 達成済みの fire ノード ID 集合
+  const achievedByDate = new Map<IsoDate, Set<string>>();
+  for (const a of achievements) {
+    if (!a.achieved || !fireSet.has(a.nodeId)) continue;
+    let s = achievedByDate.get(a.date);
+    if (!s) {
+      s = new Set();
+      achievedByDate.set(a.date, s);
+    }
+    s.add(a.nodeId);
+  }
+  const isCompleteOn = (d: IsoDate): boolean =>
+    (achievedByDate.get(d)?.size ?? 0) >= fireSet.size;
+
+  const dates = recentDateRange(today, windowDays); // 古い順
+  let i = dates.length - 1;
+  // 今日が未完成なら昨日を基点に数える。 全日未完成なら 0。
+  if (!isCompleteOn(dates[i])) {
+    i -= 1;
+  }
+  let streak = 0;
+  for (; i >= 0; i--) {
+    if (isCompleteOn(dates[i])) streak++;
+    else break;
+  }
+  return streak;
+};
