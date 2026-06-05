@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, within } from '@testing-library/react-native';
 
 // @gorhom/bottom-sheet は reanimated worklet を要求するため jest 環境では mock 化。
 // PR-AA: BottomSheet を「children 透過」モックに変更し、 Sheet 内コンテンツ
@@ -16,6 +16,36 @@ jest.mock('@gorhom/bottom-sheet', () => {
       children ?? null,
   };
 });
+
+// Issue #102: InAppNotificationToast は reanimated / safe-area-context に依存する。
+// TodayScreen test では表示の有無 + テキスト内容だけ検証すれば十分なので、
+// 単純な View + Text に差し替える (= rendering 副作用を test 環境から排除)。
+jest.mock('./InAppNotificationToast', () => {
+  const React = require('react');
+  const { Text, View } = require('react-native');
+  return {
+    InAppNotificationToast: ({
+      title,
+      body,
+    }: {
+      title: string;
+      body: string;
+    }) =>
+      React.createElement(
+        View,
+        { accessibilityLabel: 'タイマー完了トースト' },
+        React.createElement(Text, null, title),
+        React.createElement(Text, null, body),
+      ),
+  };
+});
+
+// Issue #102: TimerScreen の事前スケジュール通知 mock。 jest 環境で
+// expo-notifications を実呼び出ししないため。
+jest.mock('expo-notifications', () => ({
+  scheduleNotificationAsync: jest.fn(() => Promise.resolve('mock-notif-id')),
+  cancelScheduledNotificationAsync: jest.fn(() => Promise.resolve(undefined)),
+}));
 
 import type { TodayNode } from './ChainDetail';
 import type { AchievementMap, Anchor, Chain, Node } from './domain';
@@ -172,6 +202,88 @@ describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {
       <TodayScreen chains={chains} onToggleNode={() => {}} />,
     );
     expect(getByText('14+ 日連続')).toBeTruthy();
+  // Issue #102: タイマーがバックグラウンドに行ったあと完了した時に、
+  // foreground 復帰後の挙動 (= 自動達成 + Modal クローズ) は無音で進むため
+  // ユーザーが「完了したのか / キャンセルされたのか」を判別できない。
+  // 完了時にはトースト ("タイマー完了" + アクション名) で feedback を出す。
+  describe('Issue #102: タイマー完了フィードバック', () => {
+    const timerNode = (id: string, label: string, seconds: number): TodayNode => {
+      const node: Node = {
+        id,
+        chainId: 'c1',
+        orderIndex: 0,
+        kind: 'action',
+        actionId: `act-${id}`,
+      };
+      return {
+        node,
+        action: {
+          id: `act-${id}`,
+          title: label,
+          variants: null,
+          timerSeconds: seconds,
+        },
+        label,
+        kind: 'fire',
+      };
+    };
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+      jest.clearAllMocks();
+    });
+
+    test('タイマー自動完了 → 完了トーストが表示される (アクション名 + 「タイマー完了」)', () => {
+      const chains: TodayChainData[] = [
+        buildChainData('c1', '朝のルーティン', [timerNode('n1', '読書', 60)]),
+      ];
+      const onMarkNodeAchieved = jest.fn();
+      const { getByLabelText, queryByLabelText } = render(
+        <TodayScreen
+          chains={chains}
+          onToggleNode={() => {}}
+          onMarkNodeAchieved={onMarkNodeAchieved}
+        />,
+      );
+      // チェーンを開く → ChainDetail 表示 → タイマー開始ボタン押下
+      fireEvent.press(getByLabelText(/朝のルーティン を開く/));
+      fireEvent.press(getByLabelText('読書 1 分のタイマー開始'));
+      // 完了まで進める (= 60秒 + バッファ)
+      act(() => {
+        jest.advanceTimersByTime(61_000);
+      });
+      // 既存挙動: 自動達成記録
+      expect(onMarkNodeAchieved).toHaveBeenCalledWith('c1', 'n1', true);
+      // 新規挙動: 完了トースト表示 (アクション名 + 完了メッセージ)
+      const toast = queryByLabelText('タイマー完了トースト');
+      expect(toast).toBeTruthy();
+      const inToast = within(toast!);
+      expect(inToast.getByText('タイマー完了')).toBeTruthy();
+      expect(inToast.getByText('読書')).toBeTruthy();
+    });
+
+    test('タイマーキャンセル → 完了トーストは出ない (ユーザー起点の操作には feedback 不要)', () => {
+      const chains: TodayChainData[] = [
+        buildChainData('c1', '朝のルーティン', [timerNode('n1', '読書', 60)]),
+      ];
+      const onMarkNodeAchieved = jest.fn();
+      const { getByLabelText, queryByLabelText } = render(
+        <TodayScreen
+          chains={chains}
+          onToggleNode={() => {}}
+          onMarkNodeAchieved={onMarkNodeAchieved}
+        />,
+      );
+      fireEvent.press(getByLabelText(/朝のルーティン を開く/));
+      fireEvent.press(getByLabelText('読書 1 分のタイマー開始'));
+      // キャンセル
+      fireEvent.press(getByLabelText('タイマーキャンセル'));
+      expect(onMarkNodeAchieved).not.toHaveBeenCalled();
+      expect(queryByLabelText('タイマー完了トースト')).toBeNull();
+    });
   });
 
   test('進捗 0/N と N/N の表示が区別される', () => {

@@ -8,6 +8,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ChainCard } from './ChainCard';
 import { ChainDetail } from './ChainDetail';
+import { InAppNotificationToast } from './InAppNotificationToast';
 import { TimerScreen } from './TimerScreen';
 import {
   COLOR_BG,
@@ -50,6 +51,14 @@ export const TodayScreen = ({
     chainId: string;
     nodeId: string;
     durationSeconds: number;
+    actionTitle: string;
+  } | null>(null);
+  // Issue #102: タイマー自動完了時にユーザーへ feedback トーストを出す。
+  // 旧挙動 = Modal が無音で閉じるだけで、 特に background → foreground 復帰時に
+  // 「完了したのか、 キャンセルされたのか、 何が起きたのか」が判別できなかった。
+  // 完了時は actionTitle を含めたトーストを表示し、 cancel 時は表示しない
+  // (= ユーザー起点の操作は意図が明示的なので feedback 不要)。
+  const [timerCompletionToast, setTimerCompletionToast] = useState<{
     actionTitle: string;
   } | null>(null);
 
@@ -200,12 +209,32 @@ export const TodayScreen = ({
         onComplete={() => {
           // 「force set true」で達成記録。 onToggleNode (反転) ではなく
           // onMarkNodeAchieved を使うのは K-027 同型 (既達成 → 未達成に戻るバグ防止)。
-          if (timerState && onMarkNodeAchieved) {
-            onMarkNodeAchieved(timerState.chainId, timerState.nodeId, true);
+          if (timerState) {
+            if (onMarkNodeAchieved) {
+              onMarkNodeAchieved(timerState.chainId, timerState.nodeId, true);
+            }
+            // Issue #102: 完了 feedback トーストを表示。 Modal は閉じる
+            // (= 順序的にトースト state を先にセットしてから Modal を閉じる、
+            // 万一どちらかの setState が drop されても feedback は残る)。
+            setTimerCompletionToast({ actionTitle: timerState.actionTitle });
           }
           setTimerState(null);
         }}
       />
+
+      {/* Issue #102: タイマー完了トースト。 background 中に OS タイマーで完了 →
+          foreground 復帰で TimerScreen が自動 onComplete → ここに表示される。
+          foreground 中に通常完了した場合も同じトーストで「達成記録された」を明示。
+          tap / auto-dismiss (4 秒) のどちらでも消える。 */}
+      {timerCompletionToast && (
+        <InAppNotificationToast
+          title="タイマー完了"
+          body={timerCompletionToast.actionTitle}
+          onPress={() => setTimerCompletionToast(null)}
+          onDismiss={() => setTimerCompletionToast(null)}
+          autoDismissMs={4000}
+        />
+      )}
     </View>
   );
 };
