@@ -44,7 +44,7 @@
 1. Welcome（1行・カルーセル無し）
 2. 最初のモーメント（朝/夜）
 3. アンカー時刻
-4. スタータープレビュー →「これで始める」
+4. **アクション選択**（starter モジュールのアクションを一覧・既定 ON で取捨選択）→「これで始める」
 5. もう一方も?（opt-in 継続。floor は1チェーン）
 6. 通知許可（投資後・理由付き、1回で両チェーン分）
 7. 完了 ＋「✓ 明日◯時に起動」＋ [今すぐ1回試す]
@@ -52,6 +52,7 @@
 - load-bearing: **アンカー時刻設定** と **通知許可**。どちらか欠けるとチェーンが発火せず初日に死ぬ。
 - 進捗インジケータ・各画面の戻る導線・moment 選択の実分岐（夜→夜の束）は実装済み（#72 / [ADR-0031](decisions/0031-onboarding-first-run-route.md)）。
 - 実装メモ（#72）: 1 本目は時刻アンカー付きで採用、2 本目（もう一方の moment）はデフォルト時刻で採用し調整はチェーン編集に委ねる（floor は 1 本）。初回判定は `app_settings.onboarding_completed`（新規=false→onboarding、既存ユーザーは migration で true）。
+- 実装メモ（#106 / [ADR-0035](decisions/0035-onboarding-action-selection.md)）: step 4 を固定セット一括採用から **アクション選択式** に変更。starter モジュールのアクションを一覧表示し既定 ON（starter×defaultOn）、要らないものを外して採用（`buildOnboardingAdoptionFromSelection`）。追加モジュールは onboarding 後に編集 UI で足す。テンプレ catalog は既に link=アクション最小単位で、データ構造変更は不要だった。2 本目は引き続き既定セット採用。
 
 ## 6. 編集UI（チップあり2層）
 

@@ -7,7 +7,19 @@ const baseProps: OnboardingScreenProps = {
   step: 'welcome',
   firstMoment: null,
   time: '07:00',
-  previewTitles: ['歯磨き', '白湯'],
+  previewModules: [
+    {
+      moduleId: 'mod-a',
+      moduleName: '目覚め・水分',
+      moduleColor: '#4FB0AE',
+      links: [
+        { id: 'lnk-1', title: '歯磨き' },
+        { id: 'lnk-2', title: '白湯' },
+      ],
+    },
+  ],
+  selectedLinkIds: new Set(['lnk-1', 'lnk-2']),
+  onToggleLink: () => {},
   secondMoment: null,
   adoptedTimes: [],
   notifyDecided: null,
@@ -60,17 +72,42 @@ describe('OnboardingScreen (#72)', () => {
     expect(onConfirmTime).toHaveBeenCalled();
   });
 
-  test('preview: プレビューのアクション名を表示し、これで始めるで onAdoptFirst', () => {
+  test('preview: 選べるアクションを表示し、これで始める(件数付き)で onAdoptFirst', () => {
     const onAdoptFirst = jest.fn();
     const { getByText } = renderStep({
       step: 'preview',
       firstMoment: 'morning',
       onAdoptFirst,
     });
+    expect(getByText('目覚め・水分')).toBeTruthy(); // モジュール見出し
     expect(getByText('歯磨き')).toBeTruthy();
     expect(getByText('白湯')).toBeTruthy();
-    fireEvent.press(getByText('これで始める'));
+    // 選択数 2 が CTA に出る
+    fireEvent.press(getByText('これで始める (2)'));
     expect(onAdoptFirst).toHaveBeenCalled();
+  });
+
+  test('preview: アクションタップで onToggleLink が該当 linkId で呼ばれる (#106)', () => {
+    const onToggleLink = jest.fn();
+    const { getByLabelText } = renderStep({
+      step: 'preview',
+      firstMoment: 'morning',
+      onToggleLink,
+    });
+    fireEvent.press(getByLabelText('歯磨き'));
+    expect(onToggleLink).toHaveBeenCalledWith('lnk-1');
+  });
+
+  test('preview: 選択ゼロだと「これで始める」を押しても採用されない (disabled, #106)', () => {
+    const onAdoptFirst = jest.fn();
+    const { getByText } = renderStep({
+      step: 'preview',
+      firstMoment: 'morning',
+      selectedLinkIds: new Set<string>(),
+      onAdoptFirst,
+    });
+    fireEvent.press(getByText('これで始める (0)'));
+    expect(onAdoptFirst).not.toHaveBeenCalled();
   });
 
   test('second: もう一方を追加 / 1本で始める の 2 択', () => {
