@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
 import {
+  chainCompletionStreakDays,
   effectiveTodayIsoDate,
   isAnchorFiringToday,
   isNodeEstablished,
@@ -52,6 +53,10 @@ export type TodayChainData = {
   // PR-Z1 (ADR-0024 §3a): 定着判定済みノード ID の集合 (派生値)。 14D ウィンドウで
   // 10 日以上達成しているノードを派生計算。 楽観更新時は recentAchievements 経由で再計算。
   nodeIdsEstablished: ReadonlySet<string>;
+  // #103: チェーン単位の連続達成日数 (派生値、 14D ウィンドウで cap)。
+  // 今日が未完成でも昨日基点で数える (= 今日達成すれば伸びる、 未達成でも昨日までの
+  // 数字は表示される)。 0 は呼び出し側で非表示 (反 streak 原則: 切れたら指差さない)。
+  completionStreakDays: number;
 };
 
 // Today 画面全体の状態。 ADR-0020 で「手動発火」概念を廃止、 active な全チェーンを
@@ -123,6 +128,15 @@ const loadChainForToday = async (
       nodeIdsEstablished.add(n.node.id);
     }
   }
+  // #103: 連続達成日数 (Today カード表示用)。 fire ノード集合 (kind='fire') を要求。
+  const fireNodeIds = validNodes
+    .filter((n) => n.kind === 'fire')
+    .map((n) => n.node.id);
+  const completionStreakDays = chainCompletionStreakDays(
+    records,
+    fireNodeIds,
+    today,
+  );
 
   // ADR-0012: 既存の発火 record があれば「今日発火済み」確定。
   const todayFirings = await listAnchorFiringsForDate(db, anchor.id, today);
@@ -143,6 +157,7 @@ const loadChainForToday = async (
     anchorFiredToday,
     recentAchievements: records,
     nodeIdsEstablished,
+    completionStreakDays,
   };
 };
 
@@ -283,6 +298,15 @@ export const useTodayData = (): UseTodayDataResult => {
       } else {
         nextEstablished.delete(nodeId);
       }
+      // #103: 連続達成日数を再計算 (タップで今日の完成状態が変わると streak も変動)。
+      const fireNodeIds = target.nodes
+        .filter((n) => n.kind === 'fire')
+        .map((n) => n.node.id);
+      const nextStreakDays = chainCompletionStreakDays(
+        nextRecent,
+        fireNodeIds,
+        data.today,
+      );
       setData((prev) =>
         prev
           ? {
@@ -294,6 +318,7 @@ export const useTodayData = (): UseTodayDataResult => {
                       achievements: nextAchievements,
                       recentAchievements: nextRecent,
                       nodeIdsEstablished: nextEstablished,
+                      completionStreakDays: nextStreakDays,
                     }
                   : c,
               ),
@@ -347,6 +372,15 @@ export const useTodayData = (): UseTodayDataResult => {
       } else {
         nextEstablished.delete(nodeId);
       }
+      // #103: 連続達成日数を再計算 (タイマー完了 → 自動達成で streak が伸びる)。
+      const fireNodeIds = target.nodes
+        .filter((n) => n.kind === 'fire')
+        .map((n) => n.node.id);
+      const nextStreakDays = chainCompletionStreakDays(
+        nextRecent,
+        fireNodeIds,
+        data.today,
+      );
       setData((prev) =>
         prev
           ? {
@@ -358,6 +392,7 @@ export const useTodayData = (): UseTodayDataResult => {
                       achievements: nextAchievements,
                       recentAchievements: nextRecent,
                       nodeIdsEstablished: nextEstablished,
+                      completionStreakDays: nextStreakDays,
                     }
                   : c,
               ),
