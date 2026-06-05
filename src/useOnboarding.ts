@@ -3,12 +3,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adoptChainDraft } from './bundleAdoption';
 import type { IdGen } from './bundleAdoption';
 import { getExpoSqliteClient } from './db.expo';
+import { buildBundleForMoment } from './discovery';
 import { momentLabel } from './discoveryLabels';
 import type { Link, Module } from './domain';
 import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
 import {
   DEFAULT_ANCHOR_TIMES,
   buildOnboardingAdoption,
+  buildOnboardingAdoptionFromSelection,
   nextStep,
   otherMoment,
   prevStep,
@@ -31,6 +33,14 @@ const defaultIdGen: IdGen = {
   node: newNodeId,
 };
 
+// #106: onboarding preview の選択リスト 1 モジュール分 (starter モジュールの行)。
+export type OnboardingPreviewModule = {
+  moduleId: string;
+  moduleName: string;
+  moduleColor: string;
+  links: { id: string; title: string }[];
+};
+
 export type UseOnboardingResult = {
   loading: boolean;
   error: string | null;
@@ -38,7 +48,11 @@ export type UseOnboardingResult = {
   firstMoment: OnboardingMoment | null;
   secondMoment: OnboardingMoment | null;
   time: string;
-  previewTitles: string[];
+  // #106: starter モジュールのアクションを選択式に。previewModules = 選べる行、
+  // selectedLinkIds = 採用する集合 (既定 = starter×defaultOn)、toggleLink で取捨選択。
+  previewModules: OnboardingPreviewModule[];
+  selectedLinkIds: Set<string>;
+  toggleLink: (linkId: string) => void;
   adoptedTimes: string[];
   notifyDecided: 'granted' | 'denied' | null;
   adopting: boolean;
@@ -73,6 +87,8 @@ export const useOnboarding = (
   );
   const [adopting, setAdopting] = useState(false);
   const [firstChainId, setFirstChainId] = useState<string | null>(null);
+  // #106: 1 本目で採用するアクション集合 (selectMoment で starter×defaultOn を初期選択)。
+  const [selectedLinkIds, setSelectedLinkIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -100,43 +116,65 @@ export const useOnboarding = (
     [firstMoment],
   );
 
-  const previewTitles = useMemo(() => {
-    if (!firstMoment) return [];
-    return buildOnboardingAdoption(
-      modules,
-      links,
-      firstMoment,
-      time,
-      momentLabel(firstMoment),
-    ).draft.nodes.map((n) => n.actionTitle);
-  }, [modules, links, firstMoment, time]);
+  // #106: starter モジュールのプレビュー (選択リストの素材)。discovery の束プレビューを再利用。
+  const bundle = useMemo(
+    () =>
+      firstMoment
+        ? buildBundleForMoment(modules, links, firstMoment, momentLabel(firstMoment))
+        : null,
+    [modules, links, firstMoment],
+  );
+
+  const previewModules = useMemo<OnboardingPreviewModule[]>(() => {
+    if (!bundle) return [];
+    return bundle.starterModules.map((m) => ({
+      moduleId: m.module.id,
+      moduleName: m.module.name,
+      moduleColor: m.module.color,
+      links: m.links.map((l) => ({ id: l.id, title: l.title })),
+    }));
+  }, [bundle]);
 
   const back = useCallback(() => setStep((s) => prevStep(s)), []);
   const start = useCallback(() => setStep('moment'), []);
-  const selectMoment = useCallback((m: OnboardingMoment) => {
-    setFirstMoment(m);
-    setTime(DEFAULT_ANCHOR_TIMES[m]);
-    setStep('anchorTime');
+  const selectMoment = useCallback(
+    (m: OnboardingMoment) => {
+      setFirstMoment(m);
+      setTime(DEFAULT_ANCHOR_TIMES[m]);
+      // 既定選択 = starter×defaultOn (最小核から始める。要らないものは外せる)。
+      const b = buildBundleForMoment(modules, links, m, momentLabel(m));
+      setSelectedLinkIds(new Set(b.defaultSelectedLinkIds));
+      setStep('anchorTime');
+    },
+    [modules, links],
+  );
+
+  const toggleLink = useCallback((linkId: string) => {
+    setSelectedLinkIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(linkId)) next.delete(linkId);
+      else next.add(linkId);
+      return next;
+    });
   }, []);
   const changeTime = useCallback((t: string) => setTime(t), []);
   const confirmTime = useCallback(() => setStep('preview'), []);
 
-  // 1 本目を採用 (時刻アンカー付き) → second へ。
+  // 1 本目を採用 (選択アクション + 時刻アンカー) → second へ (#106)。
   const adoptFirst = useCallback(
     async (now: string) => {
       if (!firstMoment) return;
       setAdopting(true);
       try {
         const db = await getExpoSqliteClient();
-        const { draft, anchor } = buildOnboardingAdoption(
-          modules,
+        const { draft, anchor } = buildOnboardingAdoptionFromSelection(
           links,
-          firstMoment,
+          Array.from(selectedLinkIds),
           time,
           momentLabel(firstMoment),
         );
         if (draft.nodes.length === 0) {
-          setError('採用できるアクションがありません');
+          setError('アクションを 1 つ以上選んでください');
           return;
         }
         const chainId = await adoptChainDraft(db, draft, now, idGen, anchor);
@@ -149,7 +187,7 @@ export const useOnboarding = (
         setAdopting(false);
       }
     },
-    [modules, links, firstMoment, time, idGen],
+    [links, firstMoment, time, selectedLinkIds, idGen],
   );
 
   // もう一方 (other moment) をデフォルト時刻で採用 → notify へ。
@@ -221,7 +259,9 @@ export const useOnboarding = (
     firstMoment,
     secondMoment,
     time,
-    previewTitles,
+    previewModules,
+    selectedLinkIds,
+    toggleLink,
     adoptedTimes,
     notifyDecided,
     adopting,

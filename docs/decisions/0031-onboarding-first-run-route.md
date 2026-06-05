@@ -14,6 +14,8 @@ superseded-by: []
 
 Issue #72: テンプレ onboarding (状態扉 7 ステップ + 通知拒否フォールバック)。SPEC [docs/template-modules-spec.md](../template-modules-spec.md) §5。
 
+> 補足 (#106 / [ADR-0035](./0035-onboarding-action-selection.md)): 本 ADR では step 4 を「固定セット (starter×defaultOn) 一括採用」としたが、ADR-0035 で **アクション選択式** に改定した (starter モジュールのアクションを既定 ON で取捨選択)。それ以外の構造 (7 ステップ / 通知拒否フォールバック / onboarding_completed ゲート / 2 本目は既定セット) は本 ADR のまま不変。
+
 discovery (#70/#71, [ADR-0030](./0030-template-module-link-data-model.md)) で「テンプレ束を選んで採用する」フローは整った。onboarding は「初回起動でアプリを最初に触る瞬間」を、状態ゴール扉だけに絞った 1 画面 1 決定の連続で設計する。
 
 load-bearing な前提が 2 つある (SPEC §5): **アンカー時刻設定** と **通知許可**。どちらか欠けるとチェーンが自動発火せず「初日に死ぬ」。一方で SPEC §8 で「通知拒否時のフォールバック (アプリ内アラーム / 手動起動)」が未解決事項として残っていた。

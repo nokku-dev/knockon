@@ -1,5 +1,6 @@
 import { buildChainDraftFromBundle } from './domain';
 import type { ChainDraft, Link, Module } from './domain';
+import { buildChainDraftFromSelection } from './discovery';
 
 // #72 (SPEC docs/template-modules-spec.md §5): onboarding (初回ルート) の純粋ドメイン層。
 // 状態ゴール扉だけを通る 1 画面 1 決定の連続を、ステップ順 / moment 分岐 /
@@ -73,6 +74,7 @@ export type OnboardingAdoption = {
 
 // moment + 時刻 → 採用ドラフト (starter×defaultOn) + 時刻アンカー。
 // buildChainDraftFromBundle (discovery と共有) を時刻アンカー付きで包む純粋関数。
+// 2 本目 (もう一方の moment) の既定セット採用に使う (#106 後も選択なしの一括採用)。
 export const buildOnboardingAdoption = (
   modules: readonly Module[],
   links: readonly Link[],
@@ -81,5 +83,18 @@ export const buildOnboardingAdoption = (
   title: string,
 ): OnboardingAdoption => ({
   draft: buildChainDraftFromBundle(modules, links, moment, title),
+  anchor: { kind: 'time', time },
+});
+
+// #106: ユーザーが選んだリンク集合 + 時刻 → 採用ドラフト + 時刻アンカー。
+// 1 本目 onboarding でアクションを個別選択 (starter モジュールのリンクから取捨選択) した
+// 結果を採用する。buildChainDraftFromSelection (discovery と共有) を時刻アンカーで包む。
+export const buildOnboardingAdoptionFromSelection = (
+  links: readonly Link[],
+  selectedLinkIds: readonly string[],
+  time: string,
+  title: string,
+): OnboardingAdoption => ({
+  draft: buildChainDraftFromSelection(links, selectedLinkIds, title),
   anchor: { kind: 'time', time },
 });

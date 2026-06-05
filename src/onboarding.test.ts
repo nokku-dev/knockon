@@ -4,6 +4,7 @@ import {
   ONBOARDING_MOMENTS,
   ONBOARDING_STEPS,
   buildOnboardingAdoption,
+  buildOnboardingAdoptionFromSelection,
   nextStep,
   otherMoment,
   prevStep,
@@ -109,5 +110,56 @@ describe('buildOnboardingAdoption — moment+時刻 → 時刻アンカー付き
     const { draft, anchor } = buildOnboardingAdoption(cm, cl, 'morning', '06:00', '朝');
     expect(draft.nodes.length).toBeGreaterThan(0);
     expect(anchor.time).toBe('06:00');
+  });
+});
+
+describe('buildOnboardingAdoptionFromSelection — 選択アクション → 採用 (#106)', () => {
+  const links: Link[] = [
+    {
+      id: 't-lnk-1',
+      title: '歯磨き',
+      moduleId: 't-mod-morning',
+      defaultOn: true,
+      position: 0,
+      source: 'official',
+      timerSeconds: null,
+      starter: true,
+    },
+    {
+      id: 't-lnk-2',
+      title: 'サプリ',
+      moduleId: 't-mod-morning',
+      defaultOn: false,
+      position: 1,
+      source: 'official',
+      timerSeconds: null,
+      starter: true,
+    },
+  ];
+
+  test('選んだリンクだけが position 昇順でドラフトになる', () => {
+    const { draft } = buildOnboardingAdoptionFromSelection(
+      links,
+      ['t-lnk-2'],
+      '07:30',
+      '朝',
+    );
+    expect(draft.nodes.map((n) => n.actionTitle)).toEqual(['サプリ']);
+  });
+
+  test('複数選択は position 順で並ぶ + 時刻アンカーを伴う', () => {
+    const { draft, anchor } = buildOnboardingAdoptionFromSelection(
+      links,
+      ['t-lnk-2', 't-lnk-1'],
+      '07:30',
+      '朝',
+    );
+    expect(draft.nodes.map((n) => n.actionTitle)).toEqual(['歯磨き', 'サプリ']);
+    expect(anchor).toEqual({ kind: 'time', time: '07:30' });
+  });
+
+  test('選択ゼロは空ドラフト', () => {
+    const { draft } = buildOnboardingAdoptionFromSelection(links, [], '07:30', '朝');
+    expect(draft.nodes).toEqual([]);
   });
 });
