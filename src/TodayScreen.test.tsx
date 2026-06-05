@@ -202,6 +202,8 @@ describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {
       <TodayScreen chains={chains} onToggleNode={() => {}} />,
     );
     expect(getByText('14+ 日連続')).toBeTruthy();
+  });
+
   // Issue #102: タイマーがバックグラウンドに行ったあと完了した時に、
   // foreground 復帰後の挙動 (= 自動達成 + Modal クローズ) は無音で進むため
   // ユーザーが「完了したのか / キャンセルされたのか」を判別できない。
