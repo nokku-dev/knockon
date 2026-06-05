@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { momentLabel } from './discoveryLabels';
 import { ONBOARDING_STEPS, stepProgress } from './onboarding';
 import type { OnboardingMoment, OnboardingStep } from './onboarding';
+import type { OnboardingPreviewModule } from './useOnboarding';
 import {
   COLOR_BG,
   COLOR_FG,
@@ -31,7 +33,10 @@ export type OnboardingScreenProps = {
   step: OnboardingStep;
   firstMoment: OnboardingMoment | null;
   time: string; // 1 本目アンカー時刻 'HH:MM'
-  previewTitles: string[]; // 1 本目プレビューのアクション名列 (position 昇順)
+  // #106: 1 本目で選べる starter モジュールのアクション + 選択集合。
+  previewModules: OnboardingPreviewModule[];
+  selectedLinkIds: Set<string>;
+  onToggleLink: (linkId: string) => void;
   secondMoment: OnboardingMoment | null; // もう一方の moment (= otherMoment(first))
   adoptedTimes: string[]; // 採用したチェーンの起動時刻 (done のサマリ用、1 or 2 件)
   notifyDecided: 'granted' | 'denied' | null;
@@ -266,24 +271,60 @@ const renderStep = (props: OnboardingScreenProps) => {
     case 'preview':
       return (
         <View style={styles.stepCol}>
-          <Text style={styles.h1}>このチェーンで始めます</Text>
+          <Text style={styles.h1}>やることを選びましょう</Text>
           <Text style={styles.lead}>
-            まずは小さく。あとからいくらでも足せます。
+            まずは小さく。要らないものは外して OK。あとから足せます。
           </Text>
-          <View style={styles.previewCard}>
-            {props.previewTitles.map((t, i) => (
-              <View key={`${t}-${i}`} style={styles.previewRow}>
-                <View style={styles.previewDot} />
-                <Text style={styles.previewText}>{t}</Text>
+          <ScrollView
+            style={styles.previewScroll}
+            contentContainerStyle={styles.previewScrollContent}
+          >
+            {props.previewModules.map((m) => (
+              <View key={m.moduleId} style={styles.previewModule}>
+                <View style={styles.previewModuleHead}>
+                  <View
+                    style={[styles.previewModuleDot, { backgroundColor: m.moduleColor }]}
+                  />
+                  <Text style={styles.previewModuleName}>{m.moduleName}</Text>
+                </View>
+                {m.links.map((l) => {
+                  const checked = props.selectedLinkIds.has(l.id);
+                  return (
+                    <Pressable
+                      key={l.id}
+                      onPress={() => props.onToggleLink(l.id)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked }}
+                      accessibilityLabel={l.title}
+                      style={styles.previewLinkRow}
+                    >
+                      <View
+                        style={[
+                          styles.previewCheckbox,
+                          checked && styles.previewCheckboxChecked,
+                        ]}
+                      >
+                        {checked && <Text style={styles.previewCheckmark}>✓</Text>}
+                      </View>
+                      <Text
+                        style={[
+                          styles.previewLinkText,
+                          !checked && styles.previewLinkTextMuted,
+                        ]}
+                      >
+                        {l.title}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
             ))}
-          </View>
-          <View style={styles.grow} />
+          </ScrollView>
           <PrimaryButton
-            label="これで始める"
+            label={`これで始める (${props.selectedLinkIds.size})`}
             onPress={props.onAdoptFirst}
             busy={props.adopting}
-            disabled={props.previewTitles.length === 0}
+            disabled={props.selectedLinkIds.size === 0}
           />
         </View>
       );
@@ -396,22 +437,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   timeColon: { color: COLOR_FG_FAINT, fontSize: 56, fontWeight: '700' },
-  previewCard: {
+  // #106: 選択リスト
+  previewScroll: { flex: 1, marginTop: 8 },
+  previewScrollContent: { gap: 16, paddingBottom: 8 },
+  previewModule: { gap: 8 },
+  previewModuleHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  previewModuleDot: { width: 10, height: 10, borderRadius: 999 },
+  previewModuleName: { color: COLOR_FG_SOFT, fontSize: 13, fontWeight: '700' },
+  previewLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
     backgroundColor: COLOR_SURFACE,
-    borderRadius: 14,
-    padding: 16,
-    gap: 14,
-    marginTop: 8,
+    minHeight: 44,
   },
-  previewRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  previewDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 999,
+  previewCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: COLOR_GROW,
+    borderColor: COLOR_FG_FAINT,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  previewText: { color: COLOR_FG, fontSize: 16 },
+  previewCheckboxChecked: { backgroundColor: COLOR_GROW, borderColor: COLOR_GROW },
+  previewCheckmark: { color: COLOR_BG, fontSize: 14, fontWeight: '700' },
+  previewLinkText: { color: COLOR_FG, fontSize: 16, flex: 1 },
+  previewLinkTextMuted: { color: COLOR_FG_SOFT },
   noticeCard: {
     backgroundColor: COLOR_SURFACE,
     borderRadius: 14,
