@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MetricInputModal } from './MetricInputModal';
+import { MetricTrendChart } from './MetricTrendChart';
+import { derivedDailyMetricPoints } from './metricTrend';
+import type { IsoDate } from './domain';
 import type { MetricSeries } from './useMetricsData';
 import {
   COLOR_FG,
@@ -28,12 +31,16 @@ export type MetricsSectionProps = {
   onAddMetric: (metricKey: string, value: number) => Promise<void> | void;
   // PR-CC (ADR-0026): 「種別を編集」ボタンの動線。 未指定なら非表示 (発見性は親が制御)。
   onEditKinds?: () => void;
+  // #110: 14D 日別遷移グラフの x 軸 (古い→新しい)。 useMetricsData 由来。
+  // 未指定なら遷移グラフ非表示 (= テスト fixture / 旧呼び出しの後方互換)。
+  trendDates?: readonly IsoDate[];
 };
 
 export const MetricsSection = ({
   series,
   onAddMetric,
   onEditKinds,
+  trendDates,
 }: MetricsSectionProps) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [initialKind, setInitialKind] = useState<string | undefined>(undefined);
@@ -85,6 +92,14 @@ export const MetricsSection = ({
             <Text style={styles.meta}>
               14 日で {s.records14d.length} 件記録
             </Text>
+            {/* #110: 体重等の日別遷移グラフ。 trendDates が無い (fixture 等) or
+                記録 < 2 件なら MetricTrendChart 側で null 返し → 何も描画しない。
+                Celebrate 主 (= 「使ってない」を責めない、 ADR-0024 構造的策と整合)。 */}
+            {trendDates && (
+              <MetricTrendChart
+                points={derivedDailyMetricPoints(s.records14d, trendDates)}
+              />
+            )}
           </View>
           <Pressable
             onPress={() => handleOpenModal(s.kind.key)}
