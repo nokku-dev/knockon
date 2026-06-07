@@ -10,6 +10,7 @@ import {
   COLOR_GROW,
   COLOR_SURFACE,
 } from './tokens';
+import type { IsoDate } from './domain';
 import type { AnalyticsChainData } from './useAnalyticsData';
 import type { MetricSeries } from './useMetricsData';
 
@@ -24,6 +25,8 @@ export type AnalyticsScreenProps = {
   onAddMetric?: (metricKey: string, value: number) => Promise<void> | void;
   // PR-CC (ADR-0026): 「種別を編集」ボタン押下動線。 未指定なら非表示。
   onEditKinds?: () => void;
+  // #110: メトリクス日別遷移グラフの x 軸日付配列 (14D)。
+  metricsTrendDates?: readonly IsoDate[];
   // #63: 末尾に差し込む追加セクション (日々の詳細)。同じ ScrollView 内に置く。
   footer?: ReactNode;
 };
@@ -34,6 +37,7 @@ export const AnalyticsScreen = ({
   metricsSeries,
   onAddMetric,
   onEditKinds,
+  metricsTrendDates,
   footer,
 }: AnalyticsScreenProps) => (
   <ScrollView contentContainerStyle={styles.scroll}>
@@ -52,6 +56,7 @@ export const AnalyticsScreen = ({
         series={metricsSeries}
         onAddMetric={onAddMetric}
         onEditKinds={onEditKinds}
+        trendDates={metricsTrendDates}
       />
     )}
     {footer}
