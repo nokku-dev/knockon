@@ -86,4 +86,65 @@ describe('MetricsSection', () => {
     fireEvent.press(getByLabelText('体重 を記録'));
     expect(getByText('メトリクスを記録')).toBeTruthy();
   });
+
+  // #110: 体重 (および同型のメトリクス) の日別遷移グラフ
+  test('trendDates 未指定なら遷移グラフは描画しない (旧呼び出しの後方互換)', () => {
+    const { queryAllByTestId } = render(
+      <MetricsSection
+        series={buildSeries({ weight: { latest: 72.5, count: 3 } })}
+        onAddMetric={() => {}}
+      />,
+    );
+    expect(queryAllByTestId('metric-trend-chart')).toHaveLength(0);
+  });
+
+  test('trendDates 指定 + 記録 2 件以上で遷移グラフが描画される', () => {
+    const { queryAllByTestId } = render(
+      <MetricsSection
+        series={[
+          {
+            kind: BUILTIN_AS_KINDS[0]!, // weight
+            latest: {
+              id: 'm-1',
+              metricKey: 'weight',
+              value: 72.5,
+              recordedAt: '2026-06-05T09:00:00',
+              source: 'manual' as const,
+            },
+            records14d: [
+              {
+                id: 'r-1',
+                metricKey: 'weight',
+                value: 73.0,
+                recordedAt: '2026-06-01T09:00:00',
+                source: 'manual' as const,
+              },
+              {
+                id: 'r-2',
+                metricKey: 'weight',
+                value: 72.5,
+                recordedAt: '2026-06-05T09:00:00',
+                source: 'manual' as const,
+              },
+            ],
+          },
+          ...BUILTIN_AS_KINDS.slice(1).map((kind) => ({
+            kind,
+            latest: null,
+            records14d: [],
+          })),
+        ]}
+        onAddMetric={() => {}}
+        trendDates={[
+          '2026-06-01',
+          '2026-06-02',
+          '2026-06-03',
+          '2026-06-04',
+          '2026-06-05',
+        ]}
+      />,
+    );
+    // weight 行に 1 つだけ描画される (他 2 種別は記録 0 件で非表示)
+    expect(queryAllByTestId('metric-trend-chart')).toHaveLength(1);
+  });
 });

@@ -6,6 +6,7 @@ import { AnalyticsScreen } from '../../src/AnalyticsScreen';
 import { DayDetailSection } from '../../src/DayDetailSection';
 import { MetricKindsEditor } from '../../src/MetricKindsEditor';
 import { SettingsLauncher } from '../../src/SettingsLauncher';
+import { recentDateRange } from '../../src/domain';
 import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../../src/tokens';
 import { useAnalyticsData } from '../../src/useAnalyticsData';
 import { useDayDetail } from '../../src/useDayDetail';
@@ -47,6 +48,11 @@ export default function AnalyticsTab() {
           metricsSeries={metrics.data?.series}
           onAddMetric={metrics.addMetric}
           onEditKinds={() => setKindsEditorOpen(true)}
+          metricsTrendDates={
+            metrics.data
+              ? recentDateRange(metrics.data.today, metrics.data.windowDays)
+              : undefined
+          }
           footer={
             <DayDetailSection
               dates={dayDetail.dates}
