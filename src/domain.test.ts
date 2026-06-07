@@ -20,6 +20,7 @@ import {
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
   lastAchievedNodeIndex,
+  nodeCompletionStreakDays,
   recentDateRange,
   resolveActionForDate,
   shouldSeed,
@@ -905,5 +906,81 @@ describe('chainCompletionStreakDays (Issue #103: Today カード連続達成日�
     expect(
       chainCompletionStreakDays(records, ['n1', 'n2'], '2026-05-19'),
     ).toBe(0);
+  });
+});
+
+describe('nodeCompletionStreakDays (Issue #103: アクション単位の連続達成日数)', () => {
+  // helper: 指定日付に該当ノードを achieved=true で記録する
+  const doneOn = (nodeId: string, dates: readonly string[]): Achievement[] =>
+    dates.map((date) => ({ nodeId, date, achieved: true }));
+
+  test('該当ノードの記録が無い → 0', () => {
+    expect(nodeCompletionStreakDays([], 'n1', '2026-05-19')).toBe(0);
+  });
+
+  test('連続達成 → 日数を返す (今日含む)', () => {
+    const records = doneOn('n1', ['2026-05-17', '2026-05-18', '2026-05-19']);
+    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19')).toBe(3);
+  });
+
+  test('今日が未達でも昨日まで連続なら昨日基点で数える', () => {
+    // 今日 (5/19) は未達、 昨日 / 一昨日は達成済 → streak=2 (昨日から数える)
+    const records = doneOn('n1', ['2026-05-17', '2026-05-18']);
+    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19')).toBe(2);
+  });
+
+  test('途中で未達があったら streak は切れる', () => {
+    // 5/19 達成, 5/18 達成, 5/17 未達 (記録なし), 5/16 達成 → streak=2
+    const records = doneOn('n1', ['2026-05-16', '2026-05-18', '2026-05-19']);
+    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19')).toBe(2);
+  });
+
+  test('全日未達 → 0', () => {
+    expect(nodeCompletionStreakDays([], 'n1', '2026-05-19')).toBe(0);
+  });
+
+  test('14D ウィンドウで上限キャップ', () => {
+    const dates = Array.from({ length: 20 }, (_, i) => {
+      const dayNum = i + 1;
+      const day = String(dayNum).padStart(2, '0');
+      return `2026-05-${day}`;
+    });
+    const records = doneOn('n1', dates);
+    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-20')).toBe(14);
+  });
+
+  test('windowDays=7 を指定するとそのウィンドウ内でキャップ', () => {
+    const dates = Array.from({ length: 14 }, (_, i) => {
+      const dayNum = i + 6;
+      const day = String(dayNum).padStart(2, '0');
+      return `2026-05-${day}`;
+    });
+    const records = doneOn('n1', dates);
+    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19', 7)).toBe(7);
+  });
+
+  test('今日のみ達成 → 1', () => {
+    const records = doneOn('n1', ['2026-05-19']);
+    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19')).toBe(1);
+  });
+
+  test('別ノードの記録は無視する', () => {
+    // n2 は 5/17-19 全達成、 n1 は 5/19 のみ達成 → n1 の streak=1
+    const records: Achievement[] = [
+      ...doneOn('n2', ['2026-05-17', '2026-05-18', '2026-05-19']),
+      ...doneOn('n1', ['2026-05-19']),
+    ];
+    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19')).toBe(1);
+  });
+
+  test('achieved=false の記録は達成と数えない', () => {
+    // 5/17, 5/18 は achieved=true、 5/19 は achieved=false → 今日基点なら incomplete →
+    // 昨日基点で 2 日連続
+    const records: Achievement[] = [
+      { nodeId: 'n1', date: '2026-05-17', achieved: true },
+      { nodeId: 'n1', date: '2026-05-18', achieved: true },
+      { nodeId: 'n1', date: '2026-05-19', achieved: false },
+    ];
+    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19')).toBe(2);
   });
 });
