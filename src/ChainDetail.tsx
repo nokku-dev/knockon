@@ -56,6 +56,10 @@ export type ChainDetailProps = {
   onToggleNode: (nodeId: string) => void;
   anchorFiredToday?: boolean;
   nodeIdsEstablished?: ReadonlySet<string>;
+  // Issue #103 (comment): ノード単位の連続達成日数 (14D ウィンドウで cap)。
+  // 0 のノードは UI 非表示 (反 streak 原則: 切れたら指差さない)。
+  // 14 以上は呼び出し側で "14+" 表記。 kind='skip' のノードには出さない。
+  nodeStreakDays?: Readonly<Record<string, number>>;
   // PR-BB (ADR-0025): タイマー設定済みノードでタップされたとき呼ぶ。
   // 親 (TodayScreen) が TimerScreen Modal を制御する責務。 onStartTimer 未指定 → ボタン非表示。
   onStartTimer?: (nodeId: string, durationSeconds: number, actionTitle: string) => void;
@@ -114,6 +118,7 @@ export const ChainDetail = ({
   onToggleNode,
   anchorFiredToday = false,
   nodeIdsEstablished,
+  nodeStreakDays,
   onStartTimer,
 }: ChainDetailProps) => {
   const domainNodes = nodes.map((n) => n.node);
@@ -241,6 +246,7 @@ export const ChainDetail = ({
               achieved={achievements[node.id] ?? false}
               onPress={() => onToggleNode(node.id)}
               timerSeconds={action.timerSeconds}
+              streakDays={nodeStreakDays?.[node.id] ?? 0}
               onStartTimer={
                 onStartTimer &&
                 action.timerSeconds != null &&
@@ -337,12 +343,14 @@ const NodeRow = ({
   achieved,
   onPress,
   timerSeconds,
+  streakDays,
   onStartTimer,
 }: {
   actionTitle: string;
   achieved: boolean;
   onPress: () => void;
   timerSeconds: number | null;
+  streakDays: number;
   onStartTimer?: () => void;
 }) => {
   const scale = useSharedValue(1);
@@ -369,6 +377,9 @@ const NodeRow = ({
   }));
 
   const minutes = timerSeconds != null ? Math.round(timerSeconds / 60) : null;
+  // Issue #103 (comment): 0 は非表示 (反 streak 原則)、 14 以上は cap で "14+"
+  const streakLabel =
+    streakDays >= 14 ? '14+ 日連続' : streakDays >= 1 ? `${streakDays} 日連続` : null;
 
   return (
     <View style={[styles.contentRow, styles.nodeRowContainer, { height: NODE_ROW_HEIGHT }]}>
@@ -382,6 +393,14 @@ const NodeRow = ({
         <Animated.View style={[styles.nodeTextWrap, animatedStyle]}>
           <Text style={styles.nodeText}>{actionTitle}</Text>
         </Animated.View>
+        {streakLabel && (
+          <Text
+            style={styles.nodeStreakText}
+            accessibilityLabel={`連続達成 ${streakLabel}`}
+          >
+            {streakLabel}
+          </Text>
+        )}
       </Pressable>
       {onStartTimer && minutes != null && (
         <Pressable
@@ -447,9 +466,22 @@ const styles = StyleSheet.create({
   },
   anchorRowLabel: { color: COLOR_FG_FAINT, fontSize: 12 },
   nodeRowContainer: { flexDirection: 'row', alignItems: 'center' },
-  nodePressArea: { flex: 1, justifyContent: 'center' },
-  nodeTextWrap: { alignSelf: 'flex-start' },
+  nodePressArea: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  nodeTextWrap: { alignSelf: 'center' },
   nodeText: { color: COLOR_FG, fontSize: 16 },
+  // Issue #103 (comment): ノード単位の連続達成数を小さくニュートラルに。
+  // ChainCard.streakText と同じトーン (= 派手にしない、 Celebrate 主だが控えめ)。
+  nodeStreakText: {
+    color: COLOR_FG_FAINT,
+    fontSize: 11,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
   timerBtn: {
     paddingVertical: 6,
     paddingHorizontal: 10,

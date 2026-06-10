@@ -9,6 +9,7 @@ import {
   isNodeEstablished,
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
+  nodeCompletionStreakDays,
   recentDateRange,
   resolveActionForDate,
   sortChainsForDisplay,
@@ -57,6 +58,10 @@ export type TodayChainData = {
   // 今日が未完成でも昨日基点で数える (= 今日達成すれば伸びる、 未達成でも昨日までの
   // 数字は表示される)。 0 は呼び出し側で非表示 (反 streak 原則: 切れたら指差さない)。
   completionStreakDays: number;
+  // #103 (comment): ノード単位の連続達成日数 (派生値、 14D ウィンドウで cap)。
+  // チェーン詳細 (ChainDetail) のアクション行に「N 日連続」を小さく表示する。
+  // 楽観更新時は handleToggle / markNodeAchieved 内で対象ノード分のみ再計算。
+  nodeStreakDays: Readonly<Record<string, number>>;
 };
 
 // Today 画面全体の状態。 ADR-0020 で「手動発火」概念を廃止、 active な全チェーンを
@@ -137,6 +142,13 @@ const loadChainForToday = async (
     fireNodeIds,
     today,
   );
+  // #103 (comment): ノード単位の連続達成日数 (ChainDetail のアクション行表示用)。
+  // skip ノードは streak を出さないため fire のみ計算 (= 0 と未掲載は ChainDetail 側で
+  // 同じ扱い: 非表示)。
+  const nodeStreakDays: Record<string, number> = {};
+  for (const id of fireNodeIds) {
+    nodeStreakDays[id] = nodeCompletionStreakDays(records, id, today);
+  }
 
   // ADR-0012: 既存の発火 record があれば「今日発火済み」確定。
   const todayFirings = await listAnchorFiringsForDate(db, anchor.id, today);
@@ -158,6 +170,7 @@ const loadChainForToday = async (
     recentAchievements: records,
     nodeIdsEstablished,
     completionStreakDays,
+    nodeStreakDays,
   };
 };
 
@@ -307,6 +320,12 @@ export const useTodayData = (): UseTodayDataResult => {
         fireNodeIds,
         data.today,
       );
+      // #103 (comment): ノード単位の streak は対象ノードのみ再計算 (他ノードは
+      // この toggle の影響を受けない)。 計算量は O(14D) で軽量。
+      const nextNodeStreakDays: Record<string, number> = {
+        ...target.nodeStreakDays,
+        [nodeId]: nodeCompletionStreakDays(nextRecent, nodeId, data.today),
+      };
       setData((prev) =>
         prev
           ? {
@@ -319,6 +338,7 @@ export const useTodayData = (): UseTodayDataResult => {
                       recentAchievements: nextRecent,
                       nodeIdsEstablished: nextEstablished,
                       completionStreakDays: nextStreakDays,
+                      nodeStreakDays: nextNodeStreakDays,
                     }
                   : c,
               ),
@@ -381,6 +401,11 @@ export const useTodayData = (): UseTodayDataResult => {
         fireNodeIds,
         data.today,
       );
+      // #103 (comment): ノード単位の streak も再計算 (対象ノードのみ)。
+      const nextNodeStreakDays: Record<string, number> = {
+        ...target.nodeStreakDays,
+        [nodeId]: nodeCompletionStreakDays(nextRecent, nodeId, data.today),
+      };
       setData((prev) =>
         prev
           ? {
@@ -393,6 +418,7 @@ export const useTodayData = (): UseTodayDataResult => {
                       recentAchievements: nextRecent,
                       nodeIdsEstablished: nextEstablished,
                       completionStreakDays: nextStreakDays,
+                      nodeStreakDays: nextNodeStreakDays,
                     }
                   : c,
               ),

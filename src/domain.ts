@@ -543,6 +543,43 @@ export const isNodeEstablished = (
 //
 // ウィンドウ上限 (Phase 1 受容): 14D 範囲のデータしか保持していないため、
 // 14D を超える streak は 14 でキャップされる (呼び出し側で "14+" 表記)。
+// #103 (comment): アクション (= ノード) 単位の連続達成日数。
+// チェーン全体ではなく、 チェーン内の各アクション毎の streak を Today で
+// 小さく表示するための派生計算 (Issue #103 追加コメント: 「チェーン全体
+// だけではなく、 チェーン内のアクション毎の連続達成数も表示する」)。
+//
+// chainCompletionStreakDays と同じ semantics: 今日が未達なら昨日基点で
+// 数える、 windowDays で cap、 0 は呼び出し側で非表示。
+//
+// 変動制約 (Phase 1 受容): variant=skip の日も「未達」として扱う
+// (= chain 版と同じ簡易モデル)。 K-014 ルートで variant-aware に拡張可。
+export const nodeCompletionStreakDays = (
+  achievements: readonly Achievement[],
+  nodeId: string,
+  today: IsoDate,
+  windowDays: number = 14,
+): number => {
+  if (windowDays <= 0) return 0;
+  const achievedDates = new Set<IsoDate>();
+  for (const a of achievements) {
+    if (a.nodeId === nodeId && a.achieved) achievedDates.add(a.date);
+  }
+  const isAchievedOn = (d: IsoDate): boolean => achievedDates.has(d);
+
+  const dates = recentDateRange(today, windowDays); // 古い順
+  let i = dates.length - 1;
+  // 今日が未達なら昨日を基点に数える。 全日未達なら 0。
+  if (!isAchievedOn(dates[i])) {
+    i -= 1;
+  }
+  let streak = 0;
+  for (; i >= 0; i--) {
+    if (isAchievedOn(dates[i])) streak++;
+    else break;
+  }
+  return streak;
+};
+
 export const chainCompletionStreakDays = (
   achievements: readonly Achievement[],
   fireNodeIds: readonly string[],
