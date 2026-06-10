@@ -91,6 +91,7 @@ const buildChainData = (
   nodes: TodayNode[],
   achievements: AchievementMap = {},
   completionStreakDays = 0,
+  nodeStreakDays: Record<string, number> = {},
 ): TodayChainData => ({
   chain: buildChain(id, title),
   anchor: buildAnchor(`${id}-anchor`, '起点'),
@@ -100,6 +101,7 @@ const buildChainData = (
   recentAchievements: [],
   nodeIdsEstablished: new Set<string>(),
   completionStreakDays,
+  nodeStreakDays,
 });
 
 describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {
@@ -202,6 +204,29 @@ describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {
       <TodayScreen chains={chains} onToggleNode={() => {}} />,
     );
     expect(getByText('14+ 日連続')).toBeTruthy();
+  });
+
+  test('Issue #103 (comment): カード展開時、 ノード単位の連続達成日数が ChainDetail に流れる', () => {
+    const chains: TodayChainData[] = [
+      buildChainData(
+        'c1',
+        '朝のルーティン',
+        [fireNode('n1', '水を飲む'), fireNode('n2', 'ストレッチ')],
+        {},
+        2,
+        { n1: 3, n2: 0 },
+      ),
+    ];
+    const { getByLabelText, getAllByText, queryByText } = render(
+      <TodayScreen chains={chains} onToggleNode={() => {}} />,
+    );
+    fireEvent.press(getByLabelText(/朝のルーティン を開く/));
+    // n1 は streak=3 → "3 日連続" 表示 (チェーン全体の "2 日連続" とは別の表示)
+    expect(getByLabelText('連続達成 3 日連続')).toBeTruthy();
+    // n2 は streak=0 → 表示しない
+    expect(queryByText(/^0 日連続$/)).toBeNull();
+    // "2 日連続" (チェーン全体) も同時に表示される (カード上で残存)
+    expect(getAllByText('2 日連続').length).toBeGreaterThan(0);
   });
 
   // Issue #102: タイマーがバックグラウンドに行ったあと完了した時に、
