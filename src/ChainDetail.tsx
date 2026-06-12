@@ -304,11 +304,14 @@ const NodeMarker = ({
   }));
 
   if (established) {
+    // Issue #113: 定着済みでも「今日の達成」状態を視覚区別する。 未達なら塗り
+    // つぶしなし (アウトライン)、 達成済みなら塗りつぶしあり。 stroke は常に
+    // COLOR_STAR に保ち、「定着済みノードである」識別性を残す。
     return (
       <AnimatedPolygon
         testID={`node-marker-star-${nodeId}`}
         animatedProps={starAnimatedProps}
-        fill={COLOR_STAR}
+        fill={achieved ? COLOR_STAR : COLOR_BG}
         stroke={COLOR_STAR}
         strokeWidth={1.5}
       />
