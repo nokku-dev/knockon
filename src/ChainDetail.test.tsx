@@ -1,4 +1,5 @@
 import { fireEvent, render } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 
 import type { DateMatrixCell } from './analyticsDerivation';
 import type {
@@ -555,6 +556,41 @@ describe('ChainDetail', () => {
         />,
       );
       expect(getAllByTestId(/^node-recent-cell-n-skip-/).length).toBe(7);
+    });
+
+    // Issue #145: マトリクスセルを縦横半分サイズ (8→4) に縮小し、 セル間隔 (slot 幅)
+    // も比例縮小 (10→5) する。 実機で横幅占有が大きすぎたため (#125 で実装時、 7 セル×10px
+    // = 70px がノード行右端を圧迫)。 二値表示・read-only の既存挙動は変えない。
+    test('Issue #145: マトリクスセルは縦横 4px / slot 幅 5px に縮小される', () => {
+      const cellsByNode = new Map<string, readonly DateMatrixCell[]>([
+        ['n1', buildCells(['achieved', 'miss', 'skip', 'achieved', 'miss', 'achieved', 'miss'])],
+      ]);
+      const oneNode: readonly TodayNode[] = [todayNodes[0]];
+      const { getByTestId } = render(
+        <ChainDetail
+          chain={chain}
+          anchor={anchor}
+          nodes={oneNode}
+          achievements={{}}
+          onToggleNode={() => {}}
+          nodeRecentCells={cellsByNode}
+        />,
+      );
+      const slot = getByTestId('node-recent-cell-n1-2026-05-13');
+      const slotStyle = StyleSheet.flatten(slot.props.style) as {
+        width?: number;
+      };
+      expect(slotStyle.width).toBe(5);
+      // 内側のセル View はスロットの単一子要素
+      const cellView = slot.children[0] as unknown as {
+        props: { style: unknown };
+      };
+      const cellStyle = StyleSheet.flatten(cellView.props.style) as {
+        width?: number;
+        height?: number;
+      };
+      expect(cellStyle.width).toBe(4);
+      expect(cellStyle.height).toBe(4);
     });
 
     test('既存のノードタップ (toggle) は引き続き動く (マトリクス追加がレイアウトを壊さない)', () => {
