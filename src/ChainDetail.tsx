@@ -11,6 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, Line } from 'react-native-svg';
 
+import type { DateMatrixCell } from './analyticsDerivation';
 import type {
   AchievementMap,
   Action,
@@ -27,6 +28,7 @@ import {
   COLOR_FG_SOFT,
   COLOR_GROW,
   COLOR_LINE_BG,
+  COLOR_OK,
   COLOR_STAR,
 } from './tokens';
 
@@ -59,6 +61,10 @@ export type ChainDetailProps = {
   // PR-BB (ADR-0025): タイマー設定済みノードでタップされたとき呼ぶ。
   // 親 (TodayScreen) が TimerScreen Modal を制御する責務。 onStartTimer 未指定 → ボタン非表示。
   onStartTimer?: (nodeId: string, durationSeconds: number, actionTitle: string) => void;
+  // #125: 各ノード行右端に直近 7 日間の達成グリフマトリクスを描画する。
+  // 渡されない / 該当 nodeId 不在のノードはマトリクス非表示 (既存挙動互換)。 派生値の
+  // 計算は useTodayData が担当 (純粋関数 nodeDateMatrixCells、 ChainDetail は表示係)。
+  nodeRecentCells?: ReadonlyMap<string, readonly DateMatrixCell[]>;
 };
 
 const SPINE_X = 9;
@@ -91,6 +97,7 @@ export const ChainDetail = ({
   anchorFiredToday = false,
   nodeIdsEstablished,
   onStartTimer,
+  nodeRecentCells,
 }: ChainDetailProps) => {
   const domainNodes = nodes.map((n) => n.node);
   const lastAchievedIdx = lastAchievedNodeIndex(domainNodes, achievements);
@@ -208,7 +215,12 @@ export const ChainDetail = ({
         </View>
         {nodes.map(({ node, action, label, kind }) =>
           kind === 'skip' ? (
-            <SkipNodeRow key={node.id} actionTitle={label} />
+            <SkipNodeRow
+              key={node.id}
+              nodeId={node.id}
+              actionTitle={label}
+              recentCells={nodeRecentCells?.get(node.id)}
+            />
           ) : (
             <NodeRow
               key={node.id}
@@ -226,6 +238,7 @@ export const ChainDetail = ({
                       onStartTimer(node.id, action.timerSeconds!, label)
                   : undefined
               }
+              recentCells={nodeRecentCells?.get(node.id)}
             />
           ),
         )}
@@ -280,13 +293,22 @@ const NodeMarker = ({
   );
 };
 
-const SkipNodeRow = ({ actionTitle }: { actionTitle: string }) => (
+const SkipNodeRow = ({
+  nodeId,
+  actionTitle,
+  recentCells,
+}: {
+  nodeId: string;
+  actionTitle: string;
+  recentCells?: readonly DateMatrixCell[];
+}) => (
   <View
-    style={[styles.contentRow, { height: NODE_ROW_HEIGHT }]}
+    style={[styles.contentRow, styles.nodeRowContainer, { height: NODE_ROW_HEIGHT }]}
     accessibilityLabel={`${actionTitle} (今日は休む日)`}
   >
     <Text style={styles.skipMark}>—</Text>
-    <Text style={styles.skipNodeText}>{actionTitle}</Text>
+    <Text style={[styles.skipNodeText, styles.skipNodeTextFlex]}>{actionTitle}</Text>
+    {recentCells && <NodeRecentCellsMatrix nodeId={nodeId} cells={recentCells} />}
   </View>
 );
 
@@ -298,6 +320,7 @@ const NodeRow = ({
   onPress,
   timerSeconds,
   onStartTimer,
+  recentCells,
 }: {
   nodeId: string;
   actionTitle: string;
@@ -306,6 +329,7 @@ const NodeRow = ({
   onPress: () => void;
   timerSeconds: number | null;
   onStartTimer?: () => void;
+  recentCells?: readonly DateMatrixCell[];
 }) => {
   const scale = useSharedValue(1);
   const prevAchievedRef = useRef(achieved);
@@ -370,9 +394,59 @@ const NodeRow = ({
           <Text style={styles.timerBtnText}>⏱ {minutes} 分</Text>
         </Pressable>
       )}
+      {recentCells && <NodeRecentCellsMatrix nodeId={nodeId} cells={recentCells} />}
     </View>
   );
 };
+
+// #125: アクション行右端に置く直近 7 日間の達成グリフマトリクス。
+// セル語彙は分析タブの DateMatrixSection (#115 / ADR-0037) と同じ:
+// - 達成 = COLOR_OK の塗り四角 (Celebrate 主)
+// - 未達 = COLOR_FG_FAINT のアウトライン四角 (赤や塗りは使わない = マイナスを指差さない)
+// - 休む日 (variant null) = 空セル (対象外なので何も置かない)
+// 表示専用 (tap detail なし、 ChainDetail のノード行タップで toggle するため)。 サイズは
+// 行高 (44px) 内に収まるよう小さく (8px セル + 10px slot、 7 セルで 70px 幅)。
+const RECENT_CELL_SIZE = 8;
+const RECENT_CELL_SLOT = 10;
+
+const cellStateLabel = (cell: DateMatrixCell): '達成' | '休む日' | '未達' =>
+  cell.achieved ? '達成' : cell.skipped ? '休む日' : '未達';
+
+const monthDayLabel = (date: string): string => {
+  const [, m, d] = date.split('-');
+  return `${Number(m)}/${Number(d)}`;
+};
+
+const NodeRecentCellsMatrix = ({
+  nodeId,
+  cells,
+}: {
+  nodeId: string;
+  cells: readonly DateMatrixCell[];
+}) => (
+  <View style={styles.recentCellsRow}>
+    {cells.map((cell) => (
+      <View
+        key={cell.date}
+        testID={`node-recent-cell-${nodeId}-${cell.date}`}
+        accessible
+        accessibilityLabel={`${monthDayLabel(cell.date)} ${cellStateLabel(cell)}`}
+        style={styles.recentCellSlot}
+      >
+        <View
+          style={[
+            styles.recentCell,
+            cell.achieved
+              ? styles.recentCellAchieved
+              : cell.skipped
+                ? styles.recentCellSkip
+                : styles.recentCellMiss,
+          ]}
+        />
+      </View>
+    ))}
+  </View>
+);
 
 const styles = StyleSheet.create({
   root: { padding: 24 },
@@ -463,4 +537,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   skipNodeText: { color: COLOR_FG_FAINT, fontSize: 16 },
+  // SkipNodeRow に flex 行レイアウトを追加した際 (#125)、 タイトルが残り幅を占める
+  // ことでマトリクスが右端に押し出されるようにする。 abs 配置の skipMark は影響しない。
+  skipNodeTextFlex: { flex: 1 },
+  // #125: 直近 7 日間達成グリフマトリクス。 分析タブ DateMatrixSection と同じ語彙
+  // (達成 = COLOR_OK 塗り / 未達 = アウトライン / 休む日 = 空) の縮小版。
+  recentCellsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 4,
+  },
+  recentCellSlot: {
+    width: RECENT_CELL_SLOT,
+    height: NODE_ROW_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recentCell: {
+    width: RECENT_CELL_SIZE,
+    height: RECENT_CELL_SIZE,
+    borderRadius: 2,
+  },
+  recentCellAchieved: { backgroundColor: COLOR_OK },
+  recentCellMiss: { borderWidth: 1, borderColor: COLOR_FG_FAINT },
+  recentCellSkip: {},
 });
