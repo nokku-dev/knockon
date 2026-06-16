@@ -14,9 +14,16 @@ import type { TemplateChain } from './templateChains';
 // PR-Y1 (ADR-0023): builtin テンプレを選んで末尾追加するモーダル UI。
 // 各カードに title + アクション一覧 (プレビュー) を表示、 タップで onSelect。
 // 「閉じる」キャンセル。
+//
+// #134: onSelect は (template, selectedActionTitles) を受け取る。
+// 現状アクション個別選択 UI は無いため、 選択集合は常に template.actions (= 全件) で
+// 呼ばれる。 アクションの部分選択は Phase 2 の拡張。
 export type TemplateChainPickerProps = {
   templates: ReadonlyArray<TemplateChain>;
-  onSelect: (template: TemplateChain) => void;
+  onSelect: (
+    template: TemplateChain,
+    selectedActionTitles: ReadonlyArray<string>,
+  ) => void;
   onCancel: () => void;
 };
 
@@ -43,7 +50,7 @@ export const TemplateChainPicker = ({
       {templates.map((t) => (
         <Pressable
           key={t.id}
-          onPress={() => onSelect(t)}
+          onPress={() => onSelect(t, t.actions)}
           accessibilityRole="button"
           accessibilityLabel={`テンプレ「${t.title}」を追加`}
           style={styles.card}

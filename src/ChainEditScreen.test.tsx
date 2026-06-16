@@ -267,6 +267,26 @@ describe('ChainEditScreen', () => {
     expect(getByLabelText('テンプレから追加')).toBeTruthy();
   });
 
+  test('テンプレ選択で onAddNodesFromTemplate が (template, 全アクション) で呼ばれる', () => {
+    // #134: TemplateChainPicker の新 onSelect シグネチャを ChainEditScreen で配線し、
+    // 選択集合 (現状は template.actions = 全件) を onAddNodesFromTemplate に渡す。
+    const onAddNodesFromTemplate = jest.fn();
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        onAddNodesFromTemplate={onAddNodesFromTemplate}
+      />,
+    );
+    fireEvent.press(getByLabelText('テンプレから追加'));
+    // BUILTIN_TEMPLATE_CHAINS[0] = morning-routine
+    fireEvent.press(getByLabelText('テンプレ「朝のルーティン」を追加'));
+    expect(onAddNodesFromTemplate).toHaveBeenCalledTimes(1);
+    const [template, titles] = onAddNodesFromTemplate.mock.calls[0];
+    expect(template.id).toBe('morning-routine');
+    expect(titles).toEqual(template.actions);
+  });
+
   test('既存アクションリストから選択で onAddExistingAction', () => {
     const onAddExistingAction = jest.fn();
     const existingActions: Action[] = [
