@@ -403,10 +403,11 @@ const NodeRow = ({
 // - 達成 = COLOR_OK の塗り四角 (Celebrate 主)
 // - 未達 = COLOR_FG_FAINT のアウトライン四角 (赤や塗りは使わない = マイナスを指差さない)
 // - 休む日 (variant null) = 空セル (対象外なので何も置かない)
-// 表示専用 (tap detail なし、 ChainDetail のノード行タップで toggle するため)。 サイズは
-// 行高 (44px) 内に収まるよう小さく (8px セル + 10px slot、 7 セルで 70px 幅)。
-const RECENT_CELL_SIZE = 8;
-const RECENT_CELL_SLOT = 10;
+// 表示専用 (tap detail なし、 ChainDetail のノード行タップで toggle するため)。
+// #145: 実機で横幅占有が大きすぎたため (旧 8px セル + 10px slot で 7 セル = 70px)
+// セル幅・高さおよび slot を縦横半分に縮小 (4px セル + 5px slot、 7 セルで 35px 幅)。
+const RECENT_CELL_SIZE = 4;
+const RECENT_CELL_SLOT = 5;
 
 const cellStateLabel = (cell: DateMatrixCell): '達成' | '休む日' | '未達' =>
   cell.achieved ? '達成' : cell.skipped ? '休む日' : '未達';
@@ -555,7 +556,7 @@ const styles = StyleSheet.create({
   recentCell: {
     width: RECENT_CELL_SIZE,
     height: RECENT_CELL_SIZE,
-    borderRadius: 2,
+    borderRadius: 1,
   },
   recentCellAchieved: { backgroundColor: COLOR_OK },
   recentCellMiss: { borderWidth: 1, borderColor: COLOR_FG_FAINT },
