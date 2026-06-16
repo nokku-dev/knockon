@@ -16,7 +16,7 @@ import { getAppSettings } from './settingsRepository';
 
 // #115 (ADR-0037): 分析タブの達成マトリクス用データ。 過去 60 日 (8 週) のノード × 日付を
 // 一括ロードし、 dateMatrixForWindow (純粋) でマトリクス化する。
-// - 集計 (達成率) は useAnalyticsData、 1 日詳細は useDayDetail の責務。 本 hook はマトリクス専用。
+// - 集計 (達成率) は useAnalyticsData の責務。 本 hook はマトリクス (達成記録の俯瞰) 専用。
 // - 派生のみ (ADR-0001): 達成記録から毎回計算し保存しない。 達成記録は 60 日範囲を 1 クエリ取得。
 // - SPEC §3: Today / チェーン詳細の窓は 14D 維持。 60 日窓は本 UI に限る (分析面の例外)。
 
