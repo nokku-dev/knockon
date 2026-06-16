@@ -147,6 +147,26 @@ export type DateMatrixChainGroup = {
   nodes: DateMatrixNodeRow[];
 };
 
+// #125: ノード単位の DateMatrixCell 列を返す純粋関数。 Today のアクション行右端に
+// 直近 7 日間の達成グリフマトリクスを描画する用途で抽出した。
+// dateMatrixForWindow (#115) と同じ語彙 (達成 / 未達 / 休む日 = variant null) を維持し、
+// チェーン単位のグループ化責務だけを上位に分離する形。
+export const nodeDateMatrixCells = (
+  windowDates: readonly IsoDate[],
+  action: Action | undefined,
+  nodeId: string,
+  achievements: readonly Achievement[],
+): DateMatrixCell[] =>
+  windowDates.map((date): DateMatrixCell => {
+    if (!action) return { date, achieved: false, skipped: false };
+    const resolved = resolveActionForDate(action, date);
+    return {
+      date,
+      achieved: isNodeAchievedOn(achievements, nodeId, date),
+      skipped: resolved.kind === 'skip',
+    };
+  });
+
 export const dateMatrixForWindow = (
   windowDates: readonly IsoDate[],
   chains: readonly {
@@ -162,15 +182,7 @@ export const dateMatrixForWindow = (
     chainTitle: chain.chainTitle,
     nodes: chain.nodes.map((node) => {
       const action = actionsById[node.actionId];
-      const cells = windowDates.map((date): DateMatrixCell => {
-        if (!action) return { date, achieved: false, skipped: false };
-        const resolved = resolveActionForDate(action, date);
-        return {
-          date,
-          achieved: isNodeAchievedOn(achievements, node.id, date),
-          skipped: resolved.kind === 'skip',
-        };
-      });
+      const cells = nodeDateMatrixCells(windowDates, action, node.id, achievements);
       const lastDate = windowDates[windowDates.length - 1];
       const label =
         action && lastDate

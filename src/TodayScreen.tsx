@@ -182,6 +182,7 @@ export const TodayScreen = ({
                 achievements={openChain.achievements}
                 anchorFiredToday={openChain.anchorFiredToday}
                 nodeIdsEstablished={openChain.nodeIdsEstablished}
+                nodeRecentCells={openChain.nodeRecentCells}
                 onToggleNode={(nodeId) => onToggleNode(openChain.chain.id, nodeId)}
                 onStartTimer={(nodeId, durationSeconds, actionTitle) => {
                   setTimerState({

@@ -98,6 +98,7 @@ const buildChainData = (
   anchorFiredToday: false,
   recentAchievements: [],
   nodeIdsEstablished: new Set<string>(),
+  nodeRecentCells: new Map(),
 });
 
 describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {

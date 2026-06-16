@@ -4,6 +4,7 @@ import {
   dailyChainAchievementSeries,
   dateMatrixForWindow,
   nodeAchievementStats,
+  nodeDateMatrixCells,
 } from './analyticsDerivation';
 
 const buildNode = (id: string, actionId: string): Node => ({
@@ -324,5 +325,58 @@ describe('dateMatrixForWindow (#115 / ADR-0037: ノード × 日付の達成マ�
 
   test('チェーン 0 件なら空配列', () => {
     expect(dateMatrixForWindow(dates, [], {}, [])).toEqual([]);
+  });
+});
+
+describe('nodeDateMatrixCells (#125: Today アクション行右端の小マトリクス用、 ノード単位セル列)', () => {
+  const dates = ['2026-05-17', '2026-05-18', '2026-05-19']; // 昇順 (最新が末尾)
+
+  test('action=null → 全セル未達・非 skip (落ちない)', () => {
+    const cells = nodeDateMatrixCells(dates, undefined, 'n1', []);
+    expect(cells).toEqual([
+      { date: '2026-05-17', achieved: false, skipped: false },
+      { date: '2026-05-18', achieved: false, skipped: false },
+      { date: '2026-05-19', achieved: false, skipped: false },
+    ]);
+  });
+
+  test('windowDates と同順 (昇順、 最新が末尾) で達成セルを返す', () => {
+    const action = buildAction('a1');
+    const achievements: Achievement[] = [
+      { nodeId: 'n1', date: '2026-05-17', achieved: true },
+      { nodeId: 'n1', date: '2026-05-19', achieved: true },
+    ];
+    const cells = nodeDateMatrixCells(dates, action, 'n1', achievements);
+    expect(cells.map((c) => c.date)).toEqual(dates);
+    expect(cells.map((c) => c.achieved)).toEqual([true, false, true]);
+    expect(cells.every((c) => !c.skipped)).toBe(true);
+  });
+
+  test('variant null の曜日は skipped=true (休む日)', () => {
+    // 2026-05-18 は月曜。 月のみ発火 variant → 17(日)/19(火) は skip。
+    const variantAction = buildVariantAction('a1', {
+      mon: '筋トレ',
+      tue: null,
+      wed: null,
+      thu: null,
+      fri: null,
+      sat: null,
+      sun: null,
+    });
+    const cells = nodeDateMatrixCells(dates, variantAction, 'n1', []);
+    expect(cells.map((c) => c.skipped)).toEqual([true, false, true]);
+  });
+
+  test('他ノードの達成記録は混ざらない (nodeId フィルタ)', () => {
+    const action = buildAction('a1');
+    const achievements: Achievement[] = [
+      { nodeId: 'n2', date: '2026-05-19', achieved: true }, // n2 の達成は無視
+    ];
+    const cells = nodeDateMatrixCells(dates, action, 'n1', achievements);
+    expect(cells.every((c) => !c.achieved)).toBe(true);
+  });
+
+  test('windowDates が空 → 空セル配列', () => {
+    expect(nodeDateMatrixCells([], buildAction('a1'), 'n1', [])).toEqual([]);
   });
 });
