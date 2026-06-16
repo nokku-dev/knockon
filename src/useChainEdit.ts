@@ -404,12 +404,16 @@ export const useChainEdit = (
   // → 新規 EditableNode をまとめて末尾に追加。
   // #305 (knockon#133): selectedActionTitles が渡れば、 そのリストだけを取り込む
   // (省略時は template.actions 全件 = 旧 1-step 互換)。
+  // 追加順は常に **テンプレ順** を保つ (selectedActionTitles の並びには依存しない)。
+  // picker の選択順で渡ってきても template.actions の出現順でフィルタする (#133/#305 のテスト整合)。
   const addNodesFromTemplate = useCallback(
     async (
       template: TemplateChain,
       selectedActionTitles?: ReadonlyArray<string>,
     ) => {
-      const titles = selectedActionTitles ?? template.actions;
+      const titles = selectedActionTitles
+        ? template.actions.filter((a) => selectedActionTitles.includes(a))
+        : template.actions;
       try {
         const db = await getExpoSqliteClient();
         const newActions: Action[] = [];
