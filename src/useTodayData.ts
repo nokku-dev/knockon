@@ -40,7 +40,10 @@ import {
 import { getAppSettings } from './settingsRepository';
 import type { TodayNode } from './ChainDetail';
 
-// #125: Today のアクション行右端に直近 7 日間の達成グリフマトリクスを描画する。
+// #125 / ADR-0038: Today ChainDetail のノード行右端に直近 7 日間の達成グリフマトリクスを
+// 描画する。 ADR-0038 で SPEC §3「v1 単一窓 14D 固定」を軸別再解釈し「Today ChainDetail
+// ノード行 = 7D / Today カード・スパイン・定着判定 = 14D / 分析タブ = 60D」と正式化した
+// ため、 この定数は ADR-0038 §決定 1 の「目的ごとの固定窓」の実装側エントリポイント。
 // 14D ウィンドウ (定着判定用) の中から 7D 分だけ slice すれば足りる
 // (recentDateRange の末尾 7 件 = 直近 7 日)。 マトリクス自体の派生値計算 (variant 解決等)
 // は nodeDateMatrixCells に集約。

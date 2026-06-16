@@ -61,7 +61,9 @@ export type ChainDetailProps = {
   // PR-BB (ADR-0025): タイマー設定済みノードでタップされたとき呼ぶ。
   // 親 (TodayScreen) が TimerScreen Modal を制御する責務。 onStartTimer 未指定 → ボタン非表示。
   onStartTimer?: (nodeId: string, durationSeconds: number, actionTitle: string) => void;
-  // #125: 各ノード行右端に直近 7 日間の達成グリフマトリクスを描画する。
+  // #125 / ADR-0038: 各ノード行右端に直近 7 日間の達成グリフマトリクスを描画する。
+  // ADR-0038 で SPEC §3「v1 単一窓 14D 固定」を軸別再解釈 (K-015 パターン 2 度目の適用)
+  // し、 Today ChainDetail ノード行 = 7D の「実行直前の振り返り窓」として正式化された。
   // 渡されない / 該当 nodeId 不在のノードはマトリクス非表示 (既存挙動互換)。 派生値の
   // 計算は useTodayData が担当 (純粋関数 nodeDateMatrixCells、 ChainDetail は表示係)。
   nodeRecentCells?: ReadonlyMap<string, readonly DateMatrixCell[]>;
@@ -398,7 +400,9 @@ const NodeRow = ({
   );
 };
 
-// #125: アクション行右端に置く直近 7 日間の達成グリフマトリクス。
+// #125 / ADR-0038: アクション行右端に置く直近 7 日間の達成グリフマトリクス。
+// ADR-0038 §決定 1「Today ChainDetail ノード行 = 7D」/ §決定 3「目的ごとの固定窓 (= 同じ
+// 目的に複数窓を持たない)」の実装側エントリポイント。 横スクロールはしない (7 セル固定)。
 // セル語彙は分析タブの DateMatrixSection (#115 / ADR-0037) と同じ:
 // - 達成 = COLOR_OK の塗り四角 (Celebrate 主)
 // - 未達 = COLOR_FG_FAINT のアウトライン四角 (赤や塗りは使わない = マイナスを指差さない)
