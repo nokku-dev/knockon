@@ -168,7 +168,12 @@ export type UseChainEditResult = {
   // PR-Y1 (ADR-0023): テンプレチェーンを選んで末尾にフラット追加。
   // 各アクションを新規 INSERT (= 既存 actions と重複しても別物として扱う) +
   // ノードを末尾に追加。
-  addNodesFromTemplate: (template: TemplateChain) => Promise<void>;
+  // Issue #133: selectedActionTitles を省略すると全アクション (後方互換)、
+  // 指定すると一致する title のみテンプレ順で追加する。
+  addNodesFromTemplate: (
+    template: TemplateChain,
+    selectedActionTitles?: ReadonlyArray<string>,
+  ) => Promise<void>;
   removeNode: (nodeId: string) => void;
   // #94 (SPEC §6/§8): モジュールの一括外し (該当 module の全ノードを draft から外す)。
   detachModule: (moduleId: string) => void;
@@ -395,14 +400,24 @@ export const useChainEdit = (
   // PR-Y1 (ADR-0023): テンプレチェーンを末尾追加。
   // 各アクションを新規 INSERT (= 重複名を許容、 「胸トレ」が複数生まれてもよい)
   // → 新規 EditableNode をまとめて末尾に追加。
+  // Issue #133: selectedActionTitles を渡すと title 完全一致でフィルタする
+  // (テンプレ順は保持)。 省略時は全アクション (後方互換)。
   const addNodesFromTemplate = useCallback(
-    async (template: TemplateChain) => {
+    async (
+      template: TemplateChain,
+      selectedActionTitles?: ReadonlyArray<string>,
+    ) => {
       try {
         const db = await getExpoSqliteClient();
+        const selectedSet =
+          selectedActionTitles !== undefined
+            ? new Set(selectedActionTitles)
+            : null;
         const newActions: Action[] = [];
         for (const actionTitle of template.actions) {
           const trimmed = actionTitle.trim();
           if (trimmed.length === 0) continue;
+          if (selectedSet && !selectedSet.has(actionTitle)) continue;
           const action: Action = {
             id: newActionId(),
             title: trimmed,
