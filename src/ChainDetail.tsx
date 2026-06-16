@@ -369,18 +369,17 @@ const NodeRow = ({
           <Text style={styles.nodeText}>{actionTitle}</Text>
         </Animated.View>
         {/* Issue #118: 定着済みノードはアクション名の右に小さく星を表示。
-            塗り (★) = 今日達成済み、 アウトライン (☆) = 今日未達 (Issue #113
-            のセマンティクスを維持: マイナスを指差さず「定着済みである」識別性は
-            残しつつ、 今日の達成状態を控えめに反映)。 */}
+            #118 追補 (Taku 2026-06-16): 今日の達成状態に関わらず常に塗り (★) で
+            表示する。 Issue #113 の「達成=★ / 未達=☆」塗り分けセマンティクスは
+            撤回 (= マイナス側 (☆) を指差さない / Celebrate 主、 DESIGN-SYSTEM §0)。
+            定着自体が祝福なので、 その日の達成状態で表現を薄めない。 */}
         {established && (
           <Text
             testID={`node-row-star-${nodeId}`}
             style={styles.nodeRowStar}
-            accessibilityLabel={
-              achieved ? '定着済み (今日達成)' : '定着済み (今日未達)'
-            }
+            accessibilityLabel="定着済み"
           >
-            {achieved ? '★' : '☆'}
+            ★
           </Text>
         )}
       </Pressable>
