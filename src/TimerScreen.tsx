@@ -20,7 +20,16 @@ import {
 } from './tokens';
 
 // PR-BB (ADR-0025): ノードタイマーのフルスクリーン Modal。
-// 起動 → カウントダウン → 完了で自動達成 + 通知音 + 振動 + 閉じる。
+// 起動 → カウントダウン → 完了で自動達成 + 通知音 + 振動。
+//
+// Issue #116: 完了 = 「すぐ閉じる」ではなく「完了表示のまま残る」+ 「閉じる」を明示操作に。
+//   加えて、 規定時間に到達していなくても押せる「完了」(早期完了) ボタンを追加。
+//   - 完了 (満了 or 早期完了) で onComplete を 1 回だけ呼び (= 親で達成記録 force set)、
+//     内部状態 isCompleted=true に遷移して「完了」表示 + 「閉じる」のみを描画。
+//   - 「閉じる」タップは onCancel を呼ぶ (= 親が setTimerState(null) で Modal を閉じる、
+//     達成記録は親側で既に記録済みのため変更しない)。 「キャンセル」と semantic を分けず、
+//     完了済みかどうかで親側の挙動も変わらないため onCancel を再利用する。
+//   - 早期完了は scheduled 通知をキャンセル (= 後で OS alarm が鳴らないように)。
 //
 // Issue #86: バックグラウンドでもタイマーが動くように修正。 旧実装は setInterval
 // ベースで background で JS が throttle されると残り時間が止まり alarm も鳴らない
@@ -95,6 +104,8 @@ export const TimerScreen = ({
   // now を state で持つことで setInterval tick / AppState 'active' のどちらからも
   // setNow(Date.now()) を呼ぶだけで残り時間表示が再評価される。
   const [now, setNow] = useState<number>(() => Date.now());
+  // Issue #116: 完了表示状態。 true で「完了」ラベル + 「閉じる」のみを描画。
+  const [isCompleted, setIsCompleted] = useState(false);
   const notifIdRef = useRef<string | null>(null);
   const completedRef = useRef(false);
   // 初期値は false 固定: 初回マウント時に visible=true なら init effect を発火させるため
@@ -112,6 +123,7 @@ export const TimerScreen = ({
       setEndTimeMs(start + durationSeconds * 1000);
       setPausedRemainingMs(null);
       setNow(start);
+      setIsCompleted(false);
       completedRef.current = false;
       scheduleCompletionNotification(durationSeconds, actionTitle).then((id) => {
         notifIdRef.current = id;
@@ -122,28 +134,29 @@ export const TimerScreen = ({
       notifIdRef.current = null;
       setEndTimeMs(null);
       setPausedRemainingMs(null);
+      setIsCompleted(false);
       completedRef.current = false;
     }
   }, [visible, durationSeconds, actionTitle]);
 
   // 1 秒間隔の tick: now を Date.now() で更新 → remaining が再計算される。
-  // dep を [visible, endTimeMs] に絞り、 paused 中は interval を回さない。
+  // dep を [visible, endTimeMs, isCompleted] に絞り、 paused / completed 中は interval を回さない。
   useEffect(() => {
-    if (!visible || endTimeMs == null) return;
+    if (!visible || endTimeMs == null || isCompleted) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [visible, endTimeMs]);
+  }, [visible, endTimeMs, isCompleted]);
 
   // Issue #86: AppState 'active' で foreground 復帰を検出 → now を再評価。
   // background 中に JS が止まっていても wall-clock で remaining が正しく更新される。
   // 復帰時点で remainingMs <= 0 なら下の完了 effect が onComplete を発火する。
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || isCompleted) return;
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') setNow(Date.now());
     });
     return () => sub.remove();
-  }, [visible]);
+  }, [visible, isCompleted]);
 
   const remainingMs =
     endTimeMs != null
@@ -165,6 +178,9 @@ export const TimerScreen = ({
     // 即時通知は再発しない。 cancel もしない (= 既に発火済みの想定で OS に委ねる)。
     notifIdRef.current = null;
     Vibration.vibrate([100, 50, 100]);
+    // Issue #116: Modal は閉じず完了表示に遷移。 onComplete は親側で達成記録 (force set true)
+    // を行うが、 setTimerState(null) は呼ばれなくなった (= Modal は閉じない)。
+    setIsCompleted(true);
     onComplete();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, endTimeMs, remainingMs]);
@@ -198,6 +214,19 @@ export const TimerScreen = ({
     onCancel();
   };
 
+  // Issue #116: 規定時間到達前の早期完了。 scheduled 通知をキャンセル + 自然完了と同じ
+  // 副作用 (= Vibration + isCompleted=true + onComplete) を発火。 completedRef ガードで
+  // 自然完了 effect の再発火を防ぐ。
+  const handleEarlyComplete = () => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    cancelNotification(notifIdRef.current);
+    notifIdRef.current = null;
+    Vibration.vibrate([100, 50, 100]);
+    setIsCompleted(true);
+    onComplete();
+  };
+
   const minutes = Math.floor(Math.max(remainingSec, 0) / 60);
   const seconds = Math.max(remainingSec, 0) % 60;
 
@@ -216,27 +245,51 @@ export const TimerScreen = ({
             {String(seconds).padStart(2, '0')}
           </Text>
           <Text style={styles.hint}>
-            {paused ? '一時停止中' : '実行中'}
+            {isCompleted ? '完了' : paused ? '一時停止中' : '実行中'}
           </Text>
         </View>
-        <View style={styles.actions}>
-          <Pressable
-            onPress={handleTogglePause}
-            accessibilityRole="button"
-            accessibilityLabel={paused ? 'タイマー再開' : 'タイマー一時停止'}
-            style={styles.actionBtn}
-          >
-            <Text style={styles.actionText}>{paused ? '再開' : '一時停止'}</Text>
-          </Pressable>
-          <Pressable
-            onPress={handleCancel}
-            accessibilityRole="button"
-            accessibilityLabel="タイマーキャンセル"
-            style={[styles.actionBtn, styles.actionBtnCancel]}
-          >
-            <Text style={styles.actionTextCancel}>キャンセル</Text>
-          </Pressable>
-        </View>
+        {/* Issue #116: 完了表示中は「閉じる」のみ。 それ以外は「一時停止 / 完了 / キャンセル」。 */}
+        {isCompleted ? (
+          <View style={styles.actions}>
+            <Pressable
+              onPress={handleCancel}
+              accessibilityRole="button"
+              accessibilityLabel="タイマー画面を閉じる"
+              style={styles.actionBtn}
+            >
+              <Text style={styles.actionText}>閉じる</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.actions}>
+            <Pressable
+              onPress={handleTogglePause}
+              accessibilityRole="button"
+              accessibilityLabel={paused ? 'タイマー再開' : 'タイマー一時停止'}
+              style={[styles.actionBtn, styles.actionBtnCancel]}
+            >
+              <Text style={styles.actionTextCancel}>
+                {paused ? '再開' : '一時停止'}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleEarlyComplete}
+              accessibilityRole="button"
+              accessibilityLabel="タイマー早期完了"
+              style={styles.actionBtn}
+            >
+              <Text style={styles.actionText}>完了</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleCancel}
+              accessibilityRole="button"
+              accessibilityLabel="タイマーキャンセル"
+              style={[styles.actionBtn, styles.actionBtnCancel]}
+            >
+              <Text style={styles.actionTextCancel}>キャンセル</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -263,15 +316,15 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 16,
+    gap: 12,
     paddingHorizontal: 24,
   },
   actionBtn: {
+    flex: 1,
     paddingVertical: 14,
-    paddingHorizontal: 24,
+    paddingHorizontal: 12,
     borderRadius: 999,
     backgroundColor: COLOR_GROW,
-    minWidth: 120,
     alignItems: 'center',
   },
   actionText: { color: COLOR_BG, fontSize: 15, fontWeight: '700' },
