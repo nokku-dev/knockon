@@ -377,87 +377,19 @@ describe('ChainDetail', () => {
     // 「Pressable role が存在しない」ことで確認する
   });
 
-  // Issue #103 comment: チェーン内のアクション毎の連続達成数も表示する。
-  describe('Issue #103: ノード単位の連続達成日数', () => {
-    test('nodeStreakDays に >=1 のエントリがあれば「N 日連続」が表示される', () => {
-      const { getByText } = render(
-        <ChainDetail
-          chain={chain}
-          anchor={anchor}
-          nodes={todayNodes}
-          achievements={{}}
-          onToggleNode={() => {}}
-          nodeStreakDays={{ n1: 3, n2: 0, n3: 7 }}
-        />,
-      );
-      expect(getByText('3 日連続')).toBeTruthy();
-      expect(getByText('7 日連続')).toBeTruthy();
-    });
-
-    test('nodeStreakDays が 0 のノードは表示しない (反 streak: 切れたら指差さない)', () => {
-      const { queryAllByText } = render(
-        <ChainDetail
-          chain={chain}
-          anchor={anchor}
-          nodes={todayNodes}
-          achievements={{}}
-          onToggleNode={() => {}}
-          nodeStreakDays={{ n1: 0, n2: 0, n3: 0 }}
-        />,
-      );
-      expect(queryAllByText(/日連続/).length).toBe(0);
-    });
-
-    test('nodeStreakDays が >=14 のノードは "14+ 日連続" (ウィンドウ上限 cap)', () => {
-      const { queryAllByText } = render(
-        <ChainDetail
-          chain={chain}
-          anchor={anchor}
-          nodes={todayNodes}
-          achievements={{}}
-          onToggleNode={() => {}}
-          nodeStreakDays={{ n1: 14, n2: 20, n3: 0 }}
-        />,
-      );
-      // n1 / n2 ともに 14+ 表記 → 2 個ヒット、 n3=0 は非表示
-      expect(queryAllByText('14+ 日連続').length).toBe(2);
-      expect(queryAllByText(/^\d+ 日連続$/).length).toBe(0);
-    });
-
-    test('nodeStreakDays 未指定なら streak は出ない (既存挙動)', () => {
-      const { queryAllByText } = render(
-        <ChainDetail
-          chain={chain}
-          anchor={anchor}
-          nodes={todayNodes}
-          achievements={{}}
-          onToggleNode={() => {}}
-        />,
-      );
-      expect(queryAllByText(/日連続/).length).toBe(0);
-    });
-
-    test('kind=skip のノードには streak を出さない (休む日にマイナスを指差さない)', () => {
-      const skipNodes: readonly TodayNode[] = [
-        {
-          node: buildNode('n-skip', 0, 'act-workout'),
-          action: buildAction('act-workout', '筋トレ'),
-          label: '筋トレ',
-          kind: 'skip',
-        },
-      ];
-      const { queryByText } = render(
-        <ChainDetail
-          chain={chain}
-          anchor={anchor}
-          nodes={skipNodes}
-          achievements={{}}
-          onToggleNode={() => {}}
-          nodeStreakDays={{ 'n-skip': 5 }}
-        />,
-      );
-      expect(queryByText(/日連続/)).toBeNull();
-    });
+  // Issue #123: 連続達成 (streak) は ChainDetail のノード行に表示しない
+  // (反 streak / Celebrate 主、 DESIGN-SYSTEM §0)。 #103 の表示は撤回。
+  test('Issue #123: ノード行に「N 日連続」を表示しない', () => {
+    const { queryAllByText } = render(
+      <ChainDetail
+        chain={chain}
+        anchor={anchor}
+        nodes={todayNodes}
+        achievements={{ n1: true, n2: true, n3: true }}
+        onToggleNode={() => {}}
+      />,
+    );
+    expect(queryAllByText(/日連続/).length).toBe(0);
   });
 
   // #74 (SPEC §8): 全ノード一時停止 (= 表示ノード 0) の空状態。

@@ -56,10 +56,6 @@ export type ChainDetailProps = {
   onToggleNode: (nodeId: string) => void;
   anchorFiredToday?: boolean;
   nodeIdsEstablished?: ReadonlySet<string>;
-  // Issue #103 (comment): ノード単位の連続達成日数 (14D ウィンドウで cap)。
-  // 0 のノードは UI 非表示 (反 streak 原則: 切れたら指差さない)。
-  // 14 以上は呼び出し側で "14+" 表記。 kind='skip' のノードには出さない。
-  nodeStreakDays?: Readonly<Record<string, number>>;
   // PR-BB (ADR-0025): タイマー設定済みノードでタップされたとき呼ぶ。
   // 親 (TodayScreen) が TimerScreen Modal を制御する責務。 onStartTimer 未指定 → ボタン非表示。
   onStartTimer?: (nodeId: string, durationSeconds: number, actionTitle: string) => void;
@@ -94,7 +90,6 @@ export const ChainDetail = ({
   onToggleNode,
   anchorFiredToday = false,
   nodeIdsEstablished,
-  nodeStreakDays,
   onStartTimer,
 }: ChainDetailProps) => {
   const domainNodes = nodes.map((n) => n.node);
@@ -223,7 +218,6 @@ export const ChainDetail = ({
               established={nodeIdsEstablished?.has(node.id) ?? false}
               onPress={() => onToggleNode(node.id)}
               timerSeconds={action.timerSeconds}
-              streakDays={nodeStreakDays?.[node.id] ?? 0}
               onStartTimer={
                 onStartTimer &&
                 action.timerSeconds != null &&
@@ -241,8 +235,8 @@ export const ChainDetail = ({
   );
 };
 
-// Issue #118: 左マーカーは定着済みでも常に円のまま (星マークは連続回数の近くに
-// 小さく移動)。 達成 false→true 遷移時のバウンスは従来どおり円形で発火する
+// Issue #118: 左マーカーは定着済みでも常に円のまま (星マークはアクション名の右に
+// 小さく表示)。 達成 false→true 遷移時のバウンスは従来どおり円形で発火する
 // (達成ジェスチャの一部、 DESIGN-SYSTEM §4.3)。
 const NodeMarker = ({
   nodeId,
@@ -303,7 +297,6 @@ const NodeRow = ({
   established,
   onPress,
   timerSeconds,
-  streakDays,
   onStartTimer,
 }: {
   nodeId: string;
@@ -312,7 +305,6 @@ const NodeRow = ({
   established: boolean;
   onPress: () => void;
   timerSeconds: number | null;
-  streakDays: number;
   onStartTimer?: () => void;
 }) => {
   const scale = useSharedValue(1);
@@ -339,9 +331,6 @@ const NodeRow = ({
   }));
 
   const minutes = timerSeconds != null ? Math.round(timerSeconds / 60) : null;
-  // Issue #103 (comment): 0 は非表示 (反 streak 原則)、 14 以上は cap で "14+"
-  const streakLabel =
-    streakDays >= 14 ? '14+ 日連続' : streakDays >= 1 ? `${streakDays} 日連続` : null;
 
   return (
     <View style={[styles.contentRow, styles.nodeRowContainer, { height: NODE_ROW_HEIGHT }]}>
@@ -355,7 +344,7 @@ const NodeRow = ({
         <Animated.View style={[styles.nodeTextWrap, animatedStyle]}>
           <Text style={styles.nodeText}>{actionTitle}</Text>
         </Animated.View>
-        {/* Issue #118: 定着済みノードは連続回数の近くに小さく星を表示。
+        {/* Issue #118: 定着済みノードはアクション名の右に小さく星を表示。
             塗り (★) = 今日達成済み、 アウトライン (☆) = 今日未達 (Issue #113
             のセマンティクスを維持: マイナスを指差さず「定着済みである」識別性は
             残しつつ、 今日の達成状態を控えめに反映)。 */}
@@ -368,14 +357,6 @@ const NodeRow = ({
             }
           >
             {achieved ? '★' : '☆'}
-          </Text>
-        )}
-        {streakLabel && (
-          <Text
-            style={styles.nodeStreakText}
-            accessibilityLabel={`連続達成 ${streakLabel}`}
-          >
-            {streakLabel}
           </Text>
         )}
       </Pressable>
@@ -451,16 +432,8 @@ const styles = StyleSheet.create({
   },
   nodeTextWrap: { alignSelf: 'center' },
   nodeText: { color: COLOR_FG, fontSize: 16 },
-  // Issue #103 (comment): ノード単位の連続達成数を小さくニュートラルに。
-  // ChainCard.streakText と同じトーン (= 派手にしない、 Celebrate 主だが控えめ)。
-  nodeStreakText: {
-    color: COLOR_FG_FAINT,
-    fontSize: 11,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  // Issue #118: 連続回数の近くに置く小さな定着星。 streak text と同サイズの
-  // 控えめなトーン。 色は COLOR_STAR (定着のセレブレーション色) を維持。
+  // Issue #118: アクション名の右に置く小さな定着星。 控えめなサイズ・トーン。
+  // 色は COLOR_STAR (定着のセレブレーション色) を維持。
   nodeRowStar: {
     color: COLOR_STAR,
     fontSize: 12,
