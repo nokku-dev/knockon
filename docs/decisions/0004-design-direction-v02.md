@@ -60,3 +60,4 @@ knockon は If-Then / habit stacking の差別化を「streak（行為の連続�
 - **既存資産への波及**: 参照実装 `/reference/today.html` は v0.1 のままで v0.2 化が未了（[DESIGN-SYSTEM.md](../../DESIGN-SYSTEM.md) §0）。参照アプリは出荷物ではないので、必要になった時点で v0.2 化すればよく、本 ADR では強制しない。
 - **後で覆すコスト**: 方針レイヤーの転換なので、覆す場合は新規 ADR で本 ADR を `supersedes` に指定する。トークン値の調整・書体差し替え・個別画面のレイアウト変更は本 ADR を覆さずに実施可能（変更前提のレイヤー）。
 - **「弱い輪」復活の手順**: v1 出荷後に「弱い輪」相当の表現を再検討する場合、本 ADR を supersede する新規 ADR を作り、Celebrate 主との両立方法（指差しではない見せ方）を明示する。
+- **streak 表示の例外と撤回**: Issue #103 で「小さい数字の連続日数なら Celebrate として許容」と本 ADR の禁止条文を一度狭く解釈し Today に streak を出したが、[ADR-0036](./0036-rescind-today-streak-display.md)（Issue #123）で撤回し、本 ADR の反 streak を再確認した。
