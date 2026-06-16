@@ -3,12 +3,14 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnalyticsScreen } from '../../src/AnalyticsScreen';
+import { DateMatrixSection } from '../../src/DateMatrixSection';
 import { DayDetailSection } from '../../src/DayDetailSection';
 import { MetricKindsEditor } from '../../src/MetricKindsEditor';
 import { SettingsLauncher } from '../../src/SettingsLauncher';
 import { recentDateRange } from '../../src/domain';
 import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../../src/tokens';
 import { useAnalyticsData } from '../../src/useAnalyticsData';
+import { useDateMatrix } from '../../src/useDateMatrix';
 import { useDayDetail } from '../../src/useDayDetail';
 import { useMetricsData } from '../../src/useMetricsData';
 
@@ -21,7 +23,10 @@ import { useMetricsData } from '../../src/useMetricsData';
 export default function AnalyticsTab() {
   const { data, error, loading } = useAnalyticsData();
   const metrics = useMetricsData();
+  // #115 (ADR-0037): 達成マトリクス (60 日窓)。 日選択は dayDetail と共有 (セルタップで日を選ぶ)。
+  const matrix = useDateMatrix();
   // #63: 日々の詳細。全体 loading には含めない (日付切替で画面全体が再 loading しないため)。
+  // #115: 単独のチップ列は廃止。 マトリクスのセルタップで selectDate し、 1 日詳細を下に出す。
   const dayDetail = useDayDetail();
   const [kindsEditorOpen, setKindsEditorOpen] = useState(false);
 
@@ -54,13 +59,23 @@ export default function AnalyticsTab() {
               : undefined
           }
           footer={
-            <DayDetailSection
-              dates={dayDetail.dates}
-              selectedDate={dayDetail.selectedDate}
-              today={dayDetail.today}
-              detail={dayDetail.detail}
-              onSelectDate={dayDetail.selectDate}
-            />
+            <>
+              <DateMatrixSection
+                rows={matrix.rows}
+                dates={matrix.dates}
+                today={matrix.today}
+                selectedDate={dayDetail.selectedDate}
+                onSelectCell={dayDetail.selectDate}
+              />
+              <DayDetailSection
+                dates={dayDetail.dates}
+                selectedDate={dayDetail.selectedDate}
+                today={dayDetail.today}
+                detail={dayDetail.detail}
+                onSelectDate={dayDetail.selectDate}
+                showDateSelector={false}
+              />
+            </>
           }
         />
       ) : null}
