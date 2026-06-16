@@ -267,6 +267,56 @@ describe('ChainEditScreen', () => {
     expect(getByLabelText('テンプレから追加')).toBeTruthy();
   });
 
+  test('テンプレ選択 → 全件 追加 で onAddNodesFromTemplate が (template, 全アクション) で呼ばれる', () => {
+    // #305: TemplateChainPicker が 2-step 化されたため、 テンプレを開く → 「追加」を押す
+    // の 2 段階で onAddNodesFromTemplate が呼ばれる。 初期は全件選択なので「追加」即
+    // 押下の結果は旧 1-step (タップ即追加) と等価になる。
+    const onAddNodesFromTemplate = jest.fn();
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        onAddNodesFromTemplate={onAddNodesFromTemplate}
+      />,
+    );
+    fireEvent.press(getByLabelText('テンプレから追加'));
+    // BUILTIN_TEMPLATE_CHAINS[0] = morning-routine (アクション 6 件)
+    fireEvent.press(getByLabelText('テンプレ「朝のルーティン」を開く'));
+    fireEvent.press(getByLabelText('6件を追加'));
+    expect(onAddNodesFromTemplate).toHaveBeenCalledTimes(1);
+    const [template, titles] = onAddNodesFromTemplate.mock.calls[0];
+    expect(template.id).toBe('morning-routine');
+    expect(titles).toEqual(template.actions);
+  });
+
+  test('テンプレ選択 → 一部のみチェック → 追加 で選択 subset が渡る', () => {
+    // #305: 2-step picker の中核 = アクション個別選択。 picker の subset がそのまま
+    // onAddNodesFromTemplate に伝わることを ChainEditScreen レベルで担保する。
+    const onAddNodesFromTemplate = jest.fn();
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        onAddNodesFromTemplate={onAddNodesFromTemplate}
+      />,
+    );
+    fireEvent.press(getByLabelText('テンプレから追加'));
+    fireEvent.press(getByLabelText('テンプレ「朝のルーティン」を開く'));
+    // 「水を飲む」「朝食器を浸け置き」を外す → 残り 4 件
+    fireEvent.press(getByLabelText('アクション「水を飲む」'));
+    fireEvent.press(getByLabelText('アクション「朝食器を浸け置き」'));
+    fireEvent.press(getByLabelText('4件を追加'));
+    expect(onAddNodesFromTemplate).toHaveBeenCalledTimes(1);
+    const [template, titles] = onAddNodesFromTemplate.mock.calls[0];
+    expect(template.id).toBe('morning-routine');
+    expect(titles).toEqual([
+      '筋トレ',
+      'シャワー時に洗濯スタート',
+      'ロボ掃除機を起動',
+      'ウォーキング',
+    ]);
+  });
+
   test('既存アクションリストから選択で onAddExistingAction', () => {
     const onAddExistingAction = jest.fn();
     const existingActions: Action[] = [

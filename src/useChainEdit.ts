@@ -168,8 +168,10 @@ export type UseChainEditResult = {
   // PR-Y1 (ADR-0023): テンプレチェーンを選んで末尾にフラット追加。
   // 各アクションを新規 INSERT (= 既存 actions と重複しても別物として扱う) +
   // ノードを末尾に追加。
-  // Issue #133: selectedActionTitles を省略すると全アクション (後方互換)、
-  // 指定すると一致する title のみテンプレ順で追加する。
+  // #305 (knockon#133): 第 2 引数 = 取り込むアクションタイトル集合。 TemplateChainPicker
+  // が 2-step 化されアクション個別選択ができるようになったため、 picker 側で curate された
+  // subset (順序保持・重複は picker 側で index 単位に分解済み) を受け取る。 省略時は
+  // template.actions 全件 (旧 1-step 互換)。
   addNodesFromTemplate: (
     template: TemplateChain,
     selectedActionTitles?: ReadonlyArray<string>,
@@ -400,24 +402,24 @@ export const useChainEdit = (
   // PR-Y1 (ADR-0023): テンプレチェーンを末尾追加。
   // 各アクションを新規 INSERT (= 重複名を許容、 「胸トレ」が複数生まれてもよい)
   // → 新規 EditableNode をまとめて末尾に追加。
-  // Issue #133: selectedActionTitles を渡すと title 完全一致でフィルタする
-  // (テンプレ順は保持)。 省略時は全アクション (後方互換)。
+  // #305 (knockon#133): selectedActionTitles が渡れば、 そのリストだけを取り込む
+  // (省略時は template.actions 全件 = 旧 1-step 互換)。
+  // 追加順は常に **テンプレ順** を保つ (selectedActionTitles の並びには依存しない)。
+  // picker の選択順で渡ってきても template.actions の出現順でフィルタする (#133/#305 のテスト整合)。
   const addNodesFromTemplate = useCallback(
     async (
       template: TemplateChain,
       selectedActionTitles?: ReadonlyArray<string>,
     ) => {
+      const titles = selectedActionTitles
+        ? template.actions.filter((a) => selectedActionTitles.includes(a))
+        : template.actions;
       try {
         const db = await getExpoSqliteClient();
-        const selectedSet =
-          selectedActionTitles !== undefined
-            ? new Set(selectedActionTitles)
-            : null;
         const newActions: Action[] = [];
-        for (const actionTitle of template.actions) {
+        for (const actionTitle of titles) {
           const trimmed = actionTitle.trim();
           if (trimmed.length === 0) continue;
-          if (selectedSet && !selectedSet.has(actionTitle)) continue;
           const action: Action = {
             id: newActionId(),
             title: trimmed,
