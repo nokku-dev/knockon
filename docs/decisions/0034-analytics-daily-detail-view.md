@@ -3,10 +3,12 @@ id: 0034
 date: 2026-06-01
 project: knockon
 tags: [ux, scope, data-model]
-status: accepted
+status: superseded
 supersedes: []
-superseded-by: []
+superseded-by: [0037]
 ---
+
+> **superseded (#128)**: 本 ADR の「日付チップ列 + 1 日スナップショット」UI は、[ADR-0037](./0037-analytics-date-matrix.md) の達成マトリクスがノード状態の俯瞰を兼ねるため重複となり廃止した。UI (`DayDetailSection`) / hook (`useDayDetail`) / ドメイン (`dayNodeStatuses` / `metricsOnDate` / `listAllMetricsInRange`) は撤去済み。
 
 # 分析タブの「日々の詳細」ビュー (1 日スナップショット)
 

@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react-native';
+import { render } from '@testing-library/react-native';
 
 import { DateMatrixSection } from './DateMatrixSection';
 import type { DateMatrixChainGroup } from './analyticsDerivation';
@@ -36,7 +36,6 @@ const baseProps = {
   rows,
   dates,
   today: '2026-05-19',
-  onSelectCell: () => {},
 };
 
 describe('DateMatrixSection (#115 / ADR-0037)', () => {
@@ -53,15 +52,6 @@ describe('DateMatrixSection (#115 / ADR-0037)', () => {
     expect(getByLabelText('起きる 5/18 未達')).toBeTruthy();
     expect(getByLabelText('筋トレ 5/17 休む日')).toBeTruthy();
     expect(getByLabelText('筋トレ 5/18 達成')).toBeTruthy();
-  });
-
-  test('セルタップで onSelectCell が該当日で呼ばれる', () => {
-    const onSelectCell = jest.fn();
-    const { getByLabelText } = render(
-      <DateMatrixSection {...baseProps} onSelectCell={onSelectCell} />,
-    );
-    fireEvent.press(getByLabelText('起きる 5/19 達成'));
-    expect(onSelectCell).toHaveBeenCalledWith('2026-05-19');
   });
 
   test('今日の列ヘッダーに「今」が出る', () => {

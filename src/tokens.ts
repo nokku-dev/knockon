@@ -21,3 +21,7 @@ export const COLOR_FG_FAINT = '#8A8A90';
 export const COLOR_GROW = '#EAEAE8';
 export const COLOR_ACCENT = '#E0574C';
 export const COLOR_STAR = '#F2C14B';
+// #128: 分析マトリクスの達成セルの塗り (OK 感のあるグリーン)。
+// 反 streak / Celebrate 主の核に沿う「達成 = 前向きな塗り」専用。 マイナス (未達) は
+// 引き続き赤を使わず極淡アウトラインで指差さない。 用途は達成セルの塗りに限定する。
+export const COLOR_OK = '#4CB782';

@@ -4,9 +4,11 @@ date: 2026-06-16
 project: knockon
 tags: [ux, data-model, scope]
 status: accepted
-supersedes: []
+supersedes: [0034]
 superseded-by: []
 ---
+
+> #128 追記 (実機フィードバック後の調整): 当初はマトリクスのセルタップで [ADR-0034](./0034-analytics-daily-detail-view.md) の 1 日詳細をインライン表示する形だったが、 ノード状態がマトリクスと重複するため**「日々の詳細」セクションごと廃止**した。マトリクスは**表示専用 (タップ不可)** に変更。あわせて達成セルの塗りを `COLOR_GROW` (ニュートラル明色) → `COLOR_OK` (グリーン / OK 感) に変更し、 セル間隔を詰め角丸を控えめにした。この変更で ADR-0034 の UI/hook/ドメイン関数 (`dayNodeStatuses` / `metricsOnDate` / `listAllMetricsInRange`) は全廃され、 本 ADR が 0034 を **supersede** する。その日のメトリクス値の閲覧は無くなる (トレンドグラフ + 手入力の MetricsSection は存続)。
 
 # 分析タブの「日々の記録」を日付チップ列 → ノード × 日付の達成マトリクスにし、禁止 UI を二値マトリクスに限り再解釈する
 

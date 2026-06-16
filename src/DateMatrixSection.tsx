@@ -1,11 +1,5 @@
 import { useRef } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { DateMatrixCell, DateMatrixChainGroup } from './analyticsDerivation';
 import type { IsoDate } from './domain';
@@ -13,23 +7,24 @@ import {
   COLOR_FG,
   COLOR_FG_FAINT,
   COLOR_FG_SOFT,
-  COLOR_GROW,
   COLOR_LINE_BG,
+  COLOR_OK,
 } from './tokens';
 
 // #115 (ADR-0037): 分析タブの達成マトリクス。 縦 = チェーン/ノード、 横 = 日付 (過去 60 日)。
 // 反 streak / Celebrate 主 (DESIGN-SYSTEM §0) を守るため、 セルは **塗り四角の二値**:
-// - 達成 = COLOR_GROW で塗った四角 (■、 ここだけが目立つ = Celebrate 主)
+// - 達成 = COLOR_OK (グリーン) で塗った四角 (■、 ここだけが目立つ = Celebrate 主)
 // - 未達 (対象日) = 極淡のアウトライン四角 (□、 赤は使わない = マイナスを指差さない)
 // - 休む日 (variant null) = 空セル (対象外なので何も置かない)
 // 段階塗り率 (濃淡) も連続日数の数字/色強調も持たない。 左ラベル列は固定、 右の日付列のみ
-// 横スクロール (初期位置 = 右端 = 最新日)。 セルタップで 1 日詳細を親が開く。
+// 横スクロール (初期位置 = 右端 = 最新日)。 表示専用 (#128: タップ詳細は廃止、 ノード状態
+// はマトリクス自身が示すため)。
 
 const CELL_SIZE = 16; // セル四角の一辺
-const CELL_SLOT = 24; // 1 列の幅 (四角 + 左右余白)
-const NODE_ROW_HEIGHT = 28;
-const CHAIN_HEADER_HEIGHT = 30;
-const DATE_HEADER_HEIGHT = 20;
+const CELL_SLOT = 20; // 1 列の幅 (四角 + 左右余白 = 2px ずつ、 #128 で詰めた)
+const NODE_ROW_HEIGHT = 20; // 行高 (四角 + 上下余白 = 2px ずつ、 #128 で詰めた)
+const CHAIN_HEADER_HEIGHT = 28;
+const DATE_HEADER_HEIGHT = 18;
 const LABEL_WIDTH = 88; // 左固定ラベル列の幅
 const WEEK = 7;
 
@@ -57,16 +52,12 @@ export type DateMatrixSectionProps = {
   rows: readonly DateMatrixChainGroup[];
   dates: readonly IsoDate[]; // 昇順 (最新が末尾)
   today: IsoDate | null;
-  selectedDate?: IsoDate | null;
-  onSelectCell: (date: IsoDate) => void;
 };
 
 export const DateMatrixSection = ({
   rows,
   dates,
   today,
-  selectedDate,
-  onSelectCell,
 }: DateMatrixSectionProps) => {
   const scrollRef = useRef<ScrollView>(null);
 
@@ -133,30 +124,25 @@ export const DateMatrixSection = ({
                   <View style={{ height: CHAIN_HEADER_HEIGHT }} />
                   {chain.nodes.map((node) => (
                     <View key={node.nodeId} style={styles.cellRow}>
-                      {node.cells.map((cell) => {
-                        const selected = cell.date === selectedDate;
-                        return (
-                          <Pressable
-                            key={cell.date}
-                            onPress={() => onSelectCell(cell.date)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${node.label} ${monthDay(cell.date)} ${cellState(cell)}`}
-                            style={styles.slot}
-                          >
-                            <View
-                              style={[
-                                styles.cell,
-                                cell.achieved
-                                  ? styles.cellAchieved
-                                  : cell.skipped
-                                    ? styles.cellSkip
-                                    : styles.cellMiss,
-                                selected && styles.cellSelected,
-                              ]}
-                            />
-                          </Pressable>
-                        );
-                      })}
+                      {node.cells.map((cell) => (
+                        <View
+                          key={cell.date}
+                          accessible
+                          accessibilityLabel={`${node.label} ${monthDay(cell.date)} ${cellState(cell)}`}
+                          style={styles.slot}
+                        >
+                          <View
+                            style={[
+                              styles.cell,
+                              cell.achieved
+                                ? styles.cellAchieved
+                                : cell.skipped
+                                  ? styles.cellSkip
+                                  : styles.cellMiss,
+                            ]}
+                          />
+                        </View>
+                      ))}
                     </View>
                   ))}
                 </View>
@@ -203,19 +189,17 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontVariant: ['tabular-nums'],
   },
-  dateLabelToday: { color: COLOR_GROW, fontWeight: '700' },
+  dateLabelToday: { color: COLOR_FG, fontWeight: '700' },
   cellRow: { flexDirection: 'row', height: NODE_ROW_HEIGHT, alignItems: 'center' },
   cell: {
     width: CELL_SIZE,
     height: CELL_SIZE,
-    borderRadius: 4,
+    borderRadius: 2,
   },
-  // 達成: 唯一の「塗り」。 ここだけ目立たせる (Celebrate 主)。
-  cellAchieved: { backgroundColor: COLOR_GROW },
+  // 達成: 唯一の「塗り」。 グリーン (OK 感) でここだけ目立たせる (Celebrate 主)。
+  cellAchieved: { backgroundColor: COLOR_OK },
   // 未達 (対象日): 極淡のアウトラインのみ。 赤や濃色を使わない (マイナスを指差さない)。
   cellMiss: { borderWidth: 1, borderColor: COLOR_LINE_BG },
   // 休む日 (variant null): 対象外なので空セル (何も置かない)。
   cellSkip: {},
-  // 選択中 (= 詳細を開いている日) の弱いリング。
-  cellSelected: { borderWidth: 1, borderColor: COLOR_FG_FAINT },
 });
