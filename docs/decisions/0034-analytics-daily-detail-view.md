@@ -50,6 +50,7 @@ Issue #63: knockon の分析で「日々の詳細を追えるビュー」を作�
 
 ## 関連
 
+- [ADR-0037](./0037-analytics-date-matrix.md): 本 ADR の日付チップ列を達成マトリクスに置き換え、1 日詳細はマトリクスのセルタップで開くドリルダウン先として内包 (`DayDetailSection` はチップなしモードで存続)。
 - [ADR-0024](./0024-goal-view-analytics-phase-3-unified.md): 分析タブ (達成率) の統合方針。本 ADR はその詳細層を足す。
 - [ADR-0001](./0001-chain-data-model.md): 正準データ 3 軸 (時刻を持たない根拠)。
 - [DESIGN-SYSTEM.md §0](../../DESIGN-SYSTEM.md): 禁止 UI (格子/ヒートマップ/streak) と Celebrate 主。

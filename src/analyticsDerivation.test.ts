@@ -2,6 +2,7 @@ import type { Achievement, Action, Node } from './domain';
 import {
   chainAchievementStats,
   dailyChainAchievementSeries,
+  dateMatrixForWindow,
   dayNodeStatuses,
   metricsOnDate,
   nodeAchievementStats,
@@ -329,5 +330,97 @@ describe('metricsOnDate — 選んだ日のメトリクス (#63)', () => {
 
   test('該当日に記録なしは空配列', () => {
     expect(metricsOnDate([], kinds, '2026-05-18')).toEqual([]);
+  });
+});
+
+describe('dateMatrixForWindow (#115 / ADR-0037: ノード × 日付の達成マトリクス)', () => {
+  const dates = ['2026-05-17', '2026-05-18', '2026-05-19']; // 昇順 (最新が末尾)
+
+  test('チェーン単位でグループ化し、 各ノードの cells を windowDates と同順で返す', () => {
+    const chains = [
+      {
+        chainId: 'c1',
+        chainTitle: '朝のチェーン',
+        nodes: [buildNode('n1', 'a1'), buildNode('n2', 'a2')],
+      },
+    ];
+    const actionsById = { a1: buildAction('a1', '起きる'), a2: buildAction('a2', '水を飲む') };
+    const achievements: Achievement[] = [
+      { nodeId: 'n1', date: '2026-05-17', achieved: true },
+      { nodeId: 'n1', date: '2026-05-19', achieved: true },
+      { nodeId: 'n2', date: '2026-05-18', achieved: true },
+    ];
+    const result = dateMatrixForWindow(dates, chains, actionsById, achievements);
+    expect(result).toHaveLength(1);
+    expect(result[0].chainId).toBe('c1');
+    expect(result[0].chainTitle).toBe('朝のチェーン');
+    expect(result[0].nodes).toHaveLength(2);
+    // n1: 17達成 / 18未達 / 19達成
+    expect(result[0].nodes[0].cells.map((c) => c.achieved)).toEqual([
+      true,
+      false,
+      true,
+    ]);
+    // n2: 17未達 / 18達成 / 19未達
+    expect(result[0].nodes[1].cells.map((c) => c.achieved)).toEqual([
+      false,
+      true,
+      false,
+    ]);
+    // cells は windowDates と同順
+    expect(result[0].nodes[0].cells.map((c) => c.date)).toEqual(dates);
+  });
+
+  test('variant null の曜日は skipped=true (休む日は達成対象外)', () => {
+    // 2026-05-18 は月曜。 月のみ発火 variant → 火(19)・日(17) は skip。
+    const variantAction = buildVariantAction('a1', {
+      mon: '筋トレ',
+      tue: null,
+      wed: null,
+      thu: null,
+      fri: null,
+      sat: null,
+      sun: null,
+    });
+    const chains = [
+      { chainId: 'c1', chainTitle: 'C1', nodes: [buildNode('n1', 'a1')] },
+    ];
+    const result = dateMatrixForWindow(dates, chains, { a1: variantAction }, []);
+    const cells = result[0].nodes[0].cells;
+    // 17(日) skip, 18(月) fire, 19(火) skip
+    expect(cells.map((c) => c.skipped)).toEqual([true, false, true]);
+  });
+
+  test('行ラベルは最新日 (末尾) の variant 解決ラベルを使う', () => {
+    // 平日と週末でラベルが違う variant。 末尾 19 = 火曜のラベルを採用。
+    const variantAction = buildVariantAction('a1', {
+      mon: '月のラベル',
+      tue: '火のラベル',
+      wed: null,
+      thu: null,
+      fri: null,
+      sat: null,
+      sun: null,
+    });
+    const chains = [
+      { chainId: 'c1', chainTitle: 'C1', nodes: [buildNode('n1', 'a1')] },
+    ];
+    const result = dateMatrixForWindow(dates, chains, { a1: variantAction }, []);
+    expect(result[0].nodes[0].label).toBe('火のラベル');
+  });
+
+  test('action が見つからないノードは全セル未達・非skip (落ちない)', () => {
+    const chains = [
+      { chainId: 'c1', chainTitle: 'C1', nodes: [buildNode('n1', 'missing')] },
+    ];
+    const result = dateMatrixForWindow(dates, chains, {}, []);
+    expect(result[0].nodes[0].cells.every((c) => !c.achieved && !c.skipped)).toBe(
+      true,
+    );
+    expect(result[0].nodes[0].label).toBe('');
+  });
+
+  test('チェーン 0 件なら空配列', () => {
+    expect(dateMatrixForWindow(dates, [], {}, [])).toEqual([]);
   });
 });

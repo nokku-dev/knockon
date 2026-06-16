@@ -76,4 +76,27 @@ describe('DayDetailSection (#63)', () => {
     );
     expect(getByText('この日のチェーンはありません')).toBeTruthy();
   });
+
+  // #115 (ADR-0037): マトリクスからセルタップで開くときは日付チップ列を隠し、
+  // 選択日の見出しだけ出す (日選択はマトリクス側が担う)。
+  describe('showDateSelector={false} (マトリクスからの 1 日詳細)', () => {
+    test('日付チップ列を出さず、 選択日の見出しを出す', () => {
+      const { queryByLabelText, getByText } = render(
+        <DayDetailSection {...baseProps} showDateSelector={false} />,
+      );
+      // チップ (「M/D の記録を見る」) は無い
+      expect(queryByLabelText('5/16 の記録を見る')).toBeNull();
+      expect(queryByLabelText('5/18 の記録を見る')).toBeNull();
+      // 選択日の見出し (今日)
+      expect(getByText(/5\/18 \(月\).*今日.*の記録/)).toBeTruthy();
+    });
+
+    test('ノード状態・メトリクスは従来どおり表示される', () => {
+      const { getByLabelText, getByText } = render(
+        <DayDetailSection {...baseProps} showDateSelector={false} />,
+      );
+      expect(getByLabelText('歯磨き 達成')).toBeTruthy();
+      expect(getByText('62.5 kg')).toBeTruthy();
+    });
+  });
 });
