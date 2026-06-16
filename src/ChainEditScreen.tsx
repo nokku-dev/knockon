@@ -76,7 +76,13 @@ export type ChainEditScreenProps = {
   onUndoDismiss: () => void;
   // PR-Y1: テンプレチェーンを選んで末尾追加 (各アクションを新規 INSERT + ノード追加)。
   // 未指定なら Footer の「+ テンプレから追加」ボタンは表示されない。
-  onAddNodesFromTemplate?: (template: TemplateChain) => void;
+  // #134: 第 2 引数 = TemplateChainPicker で選ばれたアクションタイトル集合
+  // (現状 picker 側に個別選択 UI は無く template.actions 全件が渡る)。
+  // 受け側 (useChainEdit) で省略時に全件を取り込む形でも互換になる (knockon#133)。
+  onAddNodesFromTemplate?: (
+    template: TemplateChain,
+    selectedActionTitles: ReadonlyArray<string>,
+  ) => void;
   // react-native-reorderable-list の onReorder({from, to}) をそのまま受ける形。
   onReorderNodes: (from: number, to: number) => void;
   onCancel: () => void;
@@ -556,8 +562,8 @@ export const ChainEditScreen = ({
         {onAddNodesFromTemplate && (
           <TemplateChainPicker
             templates={BUILTIN_TEMPLATE_CHAINS}
-            onSelect={(t) => {
-              onAddNodesFromTemplate(t);
+            onSelect={(t, titles) => {
+              onAddNodesFromTemplate(t, titles);
               setTemplatePickerOpen(false);
             }}
             onCancel={() => setTemplatePickerOpen(false)}

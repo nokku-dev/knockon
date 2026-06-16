@@ -23,7 +23,9 @@ describe('TemplateChainPicker', () => {
     expect(getByText('3 ノード')).toBeTruthy();
   });
 
-  test('テンプレタップで onSelect が該当 template で呼ばれる', () => {
+  test('テンプレタップで onSelect が (template, 全アクション) で呼ばれる', () => {
+    // #134: onSelect 新シグネチャ (template, selectedActionTitles)。
+    // 現状アクション個別選択 UI は無いため、選択集合は template.actions (= 全件)。
     const onSelect = jest.fn();
     const { getByLabelText } = render(
       <TemplateChainPicker
@@ -33,7 +35,7 @@ describe('TemplateChainPicker', () => {
       />,
     );
     fireEvent.press(getByLabelText('テンプレ「筋トレ」を追加'));
-    expect(onSelect).toHaveBeenCalledWith(templates[1]);
+    expect(onSelect).toHaveBeenCalledWith(templates[1], templates[1].actions);
   });
 
   test('キャンセルで onCancel が呼ばれる', () => {
