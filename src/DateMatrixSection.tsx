@@ -7,14 +7,14 @@ import {
   COLOR_FG,
   COLOR_FG_FAINT,
   COLOR_FG_SOFT,
-  COLOR_LINE_BG,
   COLOR_OK,
 } from './tokens';
 
 // #115 (ADR-0037): 分析タブの達成マトリクス。 縦 = チェーン/ノード、 横 = 日付 (過去 60 日)。
 // 反 streak / Celebrate 主 (DESIGN-SYSTEM §0) を守るため、 セルは **塗り四角の二値**:
 // - 達成 = COLOR_OK (グリーン) で塗った四角 (■、 ここだけが目立つ = Celebrate 主)
-// - 未達 (対象日) = 極淡のアウトライン四角 (□、 赤は使わない = マイナスを指差さない)
+// - 未達 (対象日) = アウトライン四角 (□、 休む日の空セルと見分く程度の淡グレー。
+//   赤や塗りは使わない = マイナスを指差さない)
 // - 休む日 (variant null) = 空セル (対象外なので何も置かない)
 // 段階塗り率 (濃淡) も連続日数の数字/色強調も持たない。 左ラベル列は固定、 右の日付列のみ
 // 横スクロール (初期位置 = 右端 = 最新日)。 表示専用 (#128: タップ詳細は廃止、 ノード状態
@@ -198,8 +198,9 @@ const styles = StyleSheet.create({
   },
   // 達成: 唯一の「塗り」。 グリーン (OK 感) でここだけ目立たせる (Celebrate 主)。
   cellAchieved: { backgroundColor: COLOR_OK },
-  // 未達 (対象日): 極淡のアウトラインのみ。 赤や濃色を使わない (マイナスを指差さない)。
-  cellMiss: { borderWidth: 1, borderColor: COLOR_LINE_BG },
+  // 未達 (対象日): 淡グレーのアウトラインのみ (#130 で休む日の空セルと見分くため
+  // COLOR_LINE_BG → COLOR_FG_FAINT に上げた)。 赤や塗りは使わない (マイナスを指差さない)。
+  cellMiss: { borderWidth: 1, borderColor: COLOR_FG_FAINT },
   // 休む日 (variant null): 対象外なので空セル (何も置かない)。
   cellSkip: {},
 });
