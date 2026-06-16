@@ -259,7 +259,8 @@ describe('ChainDetail', () => {
   });
 
   // Issue #118: 定着済みノードの星マークを左マーカーから連続回数近くの小さな表示へ移す。
-  // Issue #113 の「達成状態で塗り分け」セマンティクスは維持: 達成=★、未達=☆。
+  // Issue #118 追補 (Taku コメント 2026-06-16): 今日の達成状態に関わらず常に ★ (塗り)
+  // で表示する (Issue #113 の「達成=★ / 未達=☆」塗り分けセマンティクスは撤回)。
   describe('Issue #118: 定着済みノードの星は連続回数の近くに小さく表示', () => {
     test('established + 達成済み → ★ (塗り) が node row に表示される', () => {
       const { getByTestId } = render(
@@ -276,7 +277,7 @@ describe('ChainDetail', () => {
       expect(star.props.children).toBe('★');
     });
 
-    test('established + 未達成 → ☆ (アウトライン) が node row に表示される', () => {
+    test('established + 未達成 → ★ (塗り) が node row に表示される (#118 追補)', () => {
       const { getByTestId } = render(
         <ChainDetail
           chain={chain}
@@ -288,10 +289,10 @@ describe('ChainDetail', () => {
         />,
       );
       const star = getByTestId('node-row-star-n1');
-      expect(star.props.children).toBe('☆');
+      expect(star.props.children).toBe('★');
     });
 
-    test('established で achievements マップにキー無し → ☆ (未達扱い)', () => {
+    test('established で achievements マップにキー無し → ★ (塗り、#118 追補)', () => {
       const { getByTestId } = render(
         <ChainDetail
           chain={chain}
@@ -303,7 +304,21 @@ describe('ChainDetail', () => {
         />,
       );
       const star = getByTestId('node-row-star-n1');
-      expect(star.props.children).toBe('☆');
+      expect(star.props.children).toBe('★');
+    });
+
+    test('白抜き星 (☆) は使わない (#118 追補)', () => {
+      const { queryByText } = render(
+        <ChainDetail
+          chain={chain}
+          anchor={anchor}
+          nodes={todayNodes}
+          achievements={{ n1: false, n2: false, n3: false }}
+          onToggleNode={() => {}}
+          nodeIdsEstablished={new Set(['n1', 'n2', 'n3'])}
+        />,
+      );
+      expect(queryByText('☆')).toBeNull();
     });
 
     test('未定着ノードには星を出さない', () => {
