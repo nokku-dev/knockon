@@ -147,10 +147,13 @@ export type DateMatrixChainGroup = {
   nodes: DateMatrixNodeRow[];
 };
 
-// #125: ノード単位の DateMatrixCell 列を返す純粋関数。 Today のアクション行右端に
-// 直近 7 日間の達成グリフマトリクスを描画する用途で抽出した。
-// dateMatrixForWindow (#115) と同じ語彙 (達成 / 未達 / 休む日 = variant null) を維持し、
-// チェーン単位のグループ化責務だけを上位に分離する形。
+// #125 / ADR-0038: ノード単位の DateMatrixCell 列を返す純粋関数。 Today ChainDetail
+// のアクション行右端に直近 7 日間 (ADR-0038 で正式化した「実行直前の振り返り窓」) の
+// 達成グリフマトリクスを描画する用途で抽出した。
+// dateMatrixForWindow (#115 / ADR-0037 の 60D 中期俯瞰窓) と同じ語彙 (達成 / 未達 / 休む日
+// = variant null) を維持し、 チェーン単位のグループ化責務だけを上位に分離する形。
+// 窓値 (= windowDates.length) は呼び出し側で固定する (ADR-0038 §決定 3「同じ目的に複数窓を
+// 持たない」 — 7D は Today ChainDetail 専用、 14D / 60D は別目的)。
 export const nodeDateMatrixCells = (
   windowDates: readonly IsoDate[],
   action: Action | undefined,
