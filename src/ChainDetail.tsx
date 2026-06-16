@@ -9,7 +9,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Line, Polygon } from 'react-native-svg';
+import Svg, { Circle, Line } from 'react-native-svg';
 
 import type {
   AchievementMap,
@@ -85,30 +85,6 @@ const TEXT_BOUNCE_DOWN_MS = 240;
 
 const AnimatedLine = Animated.createAnimatedComponent(Line);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
-
-// 5 角星の頂点を文字列で返す純粋ヘルパー (PR-Z1)。 outerR を渡すと scale 反映済みの
-// points 文字列を構成する。 reanimated worklet から毎フレーム呼ぶため (animatedProps
-// 経由) JS で軽量に保つ (ループ 10 回 / call)。 worklet 化のために関数内で
-// 'worklet' ディレクティブを宣言する。
-const STAR_INNER_RATIO = 0.382;
-const buildStarPoints = (
-  cx: number,
-  cy: number,
-  outerR: number,
-): string => {
-  'worklet';
-  const innerR = outerR * STAR_INNER_RATIO;
-  let result = '';
-  for (let i = 0; i < 10; i++) {
-    const r = i % 2 === 0 ? outerR : innerR;
-    const angle = (-90 + i * 36) * (Math.PI / 180);
-    const x = cx + r * Math.cos(angle);
-    const y = cy + r * Math.sin(angle);
-    result += `${x},${y} `;
-  }
-  return result.trim();
-};
 
 export const ChainDetail = ({
   chain,
@@ -224,7 +200,6 @@ export const ChainDetail = ({
                 nodeId={node.id}
                 cy={nodeMarkerCenterY(idx)}
                 achieved={achievements[node.id] ?? false}
-                established={nodeIdsEstablished?.has(node.id) ?? false}
               />
             ),
           )}
@@ -242,8 +217,10 @@ export const ChainDetail = ({
           ) : (
             <NodeRow
               key={node.id}
+              nodeId={node.id}
               actionTitle={label}
               achieved={achievements[node.id] ?? false}
+              established={nodeIdsEstablished?.has(node.id) ?? false}
               onPress={() => onToggleNode(node.id)}
               timerSeconds={action.timerSeconds}
               streakDays={nodeStreakDays?.[node.id] ?? 0}
@@ -264,20 +241,17 @@ export const ChainDetail = ({
   );
 };
 
-// PR-Z1 (ADR-0024): established (定着) なら塗り星、 そうでなければ円。
-// 達成 false→true 遷移時のバウンスは両形状で共通 (達成ジェスチャの一部、
-// DESIGN-SYSTEM §4.3)。 星 (定着) はバウンス時に頂点座標を毎フレーム再計算する
-// (10 頂点なのでコスト無視できる)。
+// Issue #118: 左マーカーは定着済みでも常に円のまま (星マークは連続回数の近くに
+// 小さく移動)。 達成 false→true 遷移時のバウンスは従来どおり円形で発火する
+// (達成ジェスチャの一部、 DESIGN-SYSTEM §4.3)。
 const NodeMarker = ({
   nodeId,
   cy,
   achieved,
-  established,
 }: {
   nodeId: string;
   cy: number;
   achieved: boolean;
-  established: boolean;
 }) => {
   const scale = useSharedValue(1);
   const prevAchievedRef = useRef(achieved);
@@ -298,25 +272,6 @@ const NodeMarker = ({
   const circleAnimatedProps = useAnimatedProps(() => ({
     r: MARKER_RADIUS * scale.value,
   }));
-
-  const starAnimatedProps = useAnimatedProps(() => ({
-    points: buildStarPoints(SPINE_X, cy, MARKER_RADIUS * scale.value),
-  }));
-
-  if (established) {
-    // Issue #113: 定着済みでも「今日の達成」状態を視覚区別する。 未達なら塗り
-    // つぶしなし (アウトライン)、 達成済みなら塗りつぶしあり。 stroke は常に
-    // COLOR_STAR に保ち、「定着済みノードである」識別性を残す。
-    return (
-      <AnimatedPolygon
-        testID={`node-marker-star-${nodeId}`}
-        animatedProps={starAnimatedProps}
-        fill={achieved ? COLOR_STAR : COLOR_BG}
-        stroke={COLOR_STAR}
-        strokeWidth={1.5}
-      />
-    );
-  }
 
   return (
     <AnimatedCircle
@@ -342,15 +297,19 @@ const SkipNodeRow = ({ actionTitle }: { actionTitle: string }) => (
 );
 
 const NodeRow = ({
+  nodeId,
   actionTitle,
   achieved,
+  established,
   onPress,
   timerSeconds,
   streakDays,
   onStartTimer,
 }: {
+  nodeId: string;
   actionTitle: string;
   achieved: boolean;
+  established: boolean;
   onPress: () => void;
   timerSeconds: number | null;
   streakDays: number;
@@ -396,6 +355,21 @@ const NodeRow = ({
         <Animated.View style={[styles.nodeTextWrap, animatedStyle]}>
           <Text style={styles.nodeText}>{actionTitle}</Text>
         </Animated.View>
+        {/* Issue #118: 定着済みノードは連続回数の近くに小さく星を表示。
+            塗り (★) = 今日達成済み、 アウトライン (☆) = 今日未達 (Issue #113
+            のセマンティクスを維持: マイナスを指差さず「定着済みである」識別性は
+            残しつつ、 今日の達成状態を控えめに反映)。 */}
+        {established && (
+          <Text
+            testID={`node-row-star-${nodeId}`}
+            style={styles.nodeRowStar}
+            accessibilityLabel={
+              achieved ? '定着済み (今日達成)' : '定着済み (今日未達)'
+            }
+          >
+            {achieved ? '★' : '☆'}
+          </Text>
+        )}
         {streakLabel && (
           <Text
             style={styles.nodeStreakText}
@@ -484,6 +458,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
+  },
+  // Issue #118: 連続回数の近くに置く小さな定着星。 streak text と同サイズの
+  // 控えめなトーン。 色は COLOR_STAR (定着のセレブレーション色) を維持。
+  nodeRowStar: {
+    color: COLOR_STAR,
+    fontSize: 12,
+    fontWeight: '600',
   },
   timerBtn: {
     paddingVertical: 6,

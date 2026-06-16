@@ -237,7 +237,8 @@ describe('ChainDetail', () => {
     expect(queryAllByText('100m').length).toBe(0);
   });
 
-  test('nodeIdsEstablished に含まれるノードは塗り星マーカー (Polygon) で描画', () => {
+  // Issue #118: 左の SVG マーカーは定着済みでも常に円 (星マークは連続回数の近くに小さく移動)
+  test('nodeIdsEstablished に含まれるノードでも左マーカーは円のまま (#118)', () => {
     const { getByTestId, queryByTestId } = render(
       <ChainDetail
         chain={chain}
@@ -248,40 +249,18 @@ describe('ChainDetail', () => {
         nodeIdsEstablished={new Set(['n1'])}
       />,
     );
-    // n1 は定着 → 星
-    expect(getByTestId('node-marker-star-n1')).toBeTruthy();
-    expect(queryByTestId('node-marker-circle-n1')).toBeNull();
+    // n1 は定着済みだが、 左マーカーは円のまま (SVG 星は出さない)
+    expect(getByTestId('node-marker-circle-n1')).toBeTruthy();
+    expect(queryByTestId('node-marker-star-n1')).toBeNull();
     // n2 / n3 は未定着 → 円
     expect(getByTestId('node-marker-circle-n2')).toBeTruthy();
     expect(getByTestId('node-marker-circle-n3')).toBeTruthy();
-    expect(queryByTestId('node-marker-star-n2')).toBeNull();
   });
 
-  // Issue #113: 定着済みノードでも、今日のアクションが未完了なら星を塗りつぶしなし
-  // (アウトライン) で表示し、完了したときに塗りつぶしに切り替える。
-  describe('Issue #113: 定着済みノードの星塗りつぶしは「今日の達成」に連動', () => {
-    // react-native-svg は fill/stroke を内部で processColor 経由の数値 payload に
-    // 変換するため、 文字列 hex で直接比較できない。 0xAARRGGBB 形式の数値で比較する。
-    const COLOR_BG_PAYLOAD = 0xff16161a; // #16161A
-    const COLOR_STAR_PAYLOAD = 0xfff2c14b; // #F2C14B
-
-    test('established かつ今日未達成 → 星は塗りつぶしなし (fill = COLOR_BG)', () => {
-      const { getByTestId } = render(
-        <ChainDetail
-          chain={chain}
-          anchor={anchor}
-          nodes={todayNodes}
-          achievements={{ n1: false }}
-          onToggleNode={() => {}}
-          nodeIdsEstablished={new Set(['n1'])}
-        />,
-      );
-      const star = getByTestId('node-marker-star-n1');
-      expect(star.props.fill.payload).toBe(COLOR_BG_PAYLOAD);
-      expect(star.props.stroke.payload).toBe(COLOR_STAR_PAYLOAD);
-    });
-
-    test('established かつ今日達成済み → 星は塗りつぶしあり (fill = COLOR_STAR)', () => {
+  // Issue #118: 定着済みノードの星マークを左マーカーから連続回数近くの小さな表示へ移す。
+  // Issue #113 の「達成状態で塗り分け」セマンティクスは維持: 達成=★、未達=☆。
+  describe('Issue #118: 定着済みノードの星は連続回数の近くに小さく表示', () => {
+    test('established + 達成済み → ★ (塗り) が node row に表示される', () => {
       const { getByTestId } = render(
         <ChainDetail
           chain={chain}
@@ -292,12 +271,26 @@ describe('ChainDetail', () => {
           nodeIdsEstablished={new Set(['n1'])}
         />,
       );
-      const star = getByTestId('node-marker-star-n1');
-      expect(star.props.fill.payload).toBe(COLOR_STAR_PAYLOAD);
-      expect(star.props.stroke.payload).toBe(COLOR_STAR_PAYLOAD);
+      const star = getByTestId('node-row-star-n1');
+      expect(star.props.children).toBe('★');
     });
 
-    test('established で achievements マップにキー無し → 星は塗りつぶしなし (未達扱い)', () => {
+    test('established + 未達成 → ☆ (アウトライン) が node row に表示される', () => {
+      const { getByTestId } = render(
+        <ChainDetail
+          chain={chain}
+          anchor={anchor}
+          nodes={todayNodes}
+          achievements={{ n1: false }}
+          onToggleNode={() => {}}
+          nodeIdsEstablished={new Set(['n1'])}
+        />,
+      );
+      const star = getByTestId('node-row-star-n1');
+      expect(star.props.children).toBe('☆');
+    });
+
+    test('established で achievements マップにキー無し → ☆ (未達扱い)', () => {
       const { getByTestId } = render(
         <ChainDetail
           chain={chain}
@@ -308,8 +301,37 @@ describe('ChainDetail', () => {
           nodeIdsEstablished={new Set(['n1'])}
         />,
       );
-      const star = getByTestId('node-marker-star-n1');
-      expect(star.props.fill.payload).toBe(COLOR_BG_PAYLOAD);
+      const star = getByTestId('node-row-star-n1');
+      expect(star.props.children).toBe('☆');
+    });
+
+    test('未定着ノードには星を出さない', () => {
+      const { queryByTestId } = render(
+        <ChainDetail
+          chain={chain}
+          anchor={anchor}
+          nodes={todayNodes}
+          achievements={{ n1: true }}
+          onToggleNode={() => {}}
+          nodeIdsEstablished={new Set(['n1'])}
+        />,
+      );
+      // n2 / n3 は未定着 → 星なし
+      expect(queryByTestId('node-row-star-n2')).toBeNull();
+      expect(queryByTestId('node-row-star-n3')).toBeNull();
+    });
+
+    test('nodeIdsEstablished 未指定なら星なし', () => {
+      const { queryByTestId } = render(
+        <ChainDetail
+          chain={chain}
+          anchor={anchor}
+          nodes={todayNodes}
+          achievements={{ n1: true }}
+          onToggleNode={() => {}}
+        />,
+      );
+      expect(queryByTestId('node-row-star-n1')).toBeNull();
     });
   });
 
