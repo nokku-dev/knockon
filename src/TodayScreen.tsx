@@ -200,8 +200,10 @@ export const TodayScreen = ({
       </BottomSheet>
 
       {/* PR-BB (ADR-0025): タイマー Modal。 timerState=null なら非表示。
-          完了で onToggleNode (= 自動達成、 ADR-0025 案 X) + Modal 閉じる。
-          キャンセル時は達成記録なしで閉じる。 */}
+          Issue #116: 完了 (満了 or 早期完了) でも Modal は閉じず、 TimerScreen 内部で
+          「完了表示」に遷移する。 onComplete = 達成記録 (force set true) + トースト state
+          のみで setTimerState(null) は呼ばない。 Modal を閉じるのは onCancel
+          (= ユーザー明示の「閉じる / キャンセル」操作) のみ。 */}
       <TimerScreen
         visible={timerState != null}
         durationSeconds={timerState?.durationSeconds ?? 0}
@@ -214,12 +216,11 @@ export const TodayScreen = ({
             if (onMarkNodeAchieved) {
               onMarkNodeAchieved(timerState.chainId, timerState.nodeId, true);
             }
-            // Issue #102: 完了 feedback トーストを表示。 Modal は閉じる
-            // (= 順序的にトースト state を先にセットしてから Modal を閉じる、
-            // 万一どちらかの setState が drop されても feedback は残る)。
+            // Issue #102: 完了 feedback トーストを表示。 Issue #116 で Modal は閉じない
+            // ようにしたため、 Modal の上にトーストは描画されない (RN Modal は別 window)
+            // が、 ユーザーが「閉じる」を押して Modal を抜けた後に背景の Today で表示される。
             setTimerCompletionToast({ actionTitle: timerState.actionTitle });
           }
-          setTimerState(null);
         }}
       />
 
