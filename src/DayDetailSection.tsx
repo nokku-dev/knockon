@@ -23,6 +23,9 @@ export type DayDetailSectionProps = {
   today: IsoDate | null;
   detail: DayDetail | null;
   onSelectDate: (date: IsoDate) => void;
+  // #115 (ADR-0037): 達成マトリクスからセルタップで開くときは false。 日付選択チップ列を
+  // 隠し、 選択日の見出しだけ出す (日選択はマトリクス側が担う)。 既定 true (単独利用時)。
+  showDateSelector?: boolean;
 };
 
 const WEEKDAY_JP: Record<WeekdayKey, string> = {
@@ -47,40 +50,53 @@ export const DayDetailSection = ({
   today,
   detail,
   onSelectDate,
+  showDateSelector = true,
 }: DayDetailSectionProps) => (
   <View style={styles.root}>
-    <Text style={styles.sectionTitle}>日々の記録</Text>
+    {showDateSelector ? (
+      <Text style={styles.sectionTitle}>日々の記録</Text>
+    ) : (
+      selectedDate && (
+        <Text style={styles.sectionTitle}>
+          {monthDay(selectedDate)} ({WEEKDAY_JP[getWeekdayKey(selectedDate)]})
+          {selectedDate === today ? ' · 今日' : ''} の記録
+        </Text>
+      )
+    )}
 
-    {/* 日付チップ列 (横 1 行・最新が右)。格子/ヒートマップではない単純なセレクタ。 */}
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.dateRow}
-    >
-      {dates.map((date) => {
-        const selected = date === selectedDate;
-        const isToday = date === today;
-        return (
-          <Pressable
-            key={date}
-            onPress={() => onSelectDate(date)}
-            accessibilityRole="button"
-            accessibilityLabel={`${monthDay(date)} の記録を見る`}
-            accessibilityState={{ selected }}
-            style={[styles.dateChip, selected && styles.dateChipSelected]}
-          >
-            <Text
-              style={[styles.dateWeekday, selected && styles.dateTextSelected]}
+    {/* 日付チップ列 (横 1 行・最新が右)。格子/ヒートマップではない単純なセレクタ。
+        #115: マトリクスからの 1 日詳細では日選択はマトリクス側が担うため非表示。 */}
+    {showDateSelector && (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.dateRow}
+      >
+        {dates.map((date) => {
+          const selected = date === selectedDate;
+          const isToday = date === today;
+          return (
+            <Pressable
+              key={date}
+              onPress={() => onSelectDate(date)}
+              accessibilityRole="button"
+              accessibilityLabel={`${monthDay(date)} の記録を見る`}
+              accessibilityState={{ selected }}
+              style={[styles.dateChip, selected && styles.dateChipSelected]}
             >
-              {isToday ? '今日' : WEEKDAY_JP[getWeekdayKey(date)]}
-            </Text>
-            <Text style={[styles.dateMd, selected && styles.dateTextSelected]}>
-              {monthDay(date)}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+              <Text
+                style={[styles.dateWeekday, selected && styles.dateTextSelected]}
+              >
+                {isToday ? '今日' : WEEKDAY_JP[getWeekdayKey(date)]}
+              </Text>
+              <Text style={[styles.dateMd, selected && styles.dateTextSelected]}>
+                {monthDay(date)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    )}
 
     {detail && detail.chains.length === 0 && (
       <Text style={styles.empty}>この日のチェーンはありません</Text>

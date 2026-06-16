@@ -184,3 +184,61 @@ export const metricsOnDate = (
       };
     });
 };
+
+// ── #115 (ADR-0037): 達成マトリクス (ノード × 日付の俯瞰) ──
+// 分析タブの「日付チップで 1 日ずつ」を、複数日を一度に俯瞰できるマトリクスに置き換える。
+// 反 streak / Celebrate 主 (DESIGN-SYSTEM §0 / ADR-0004 / ADR-0037) を守るため、 セルは
+// **二値** (達成 / 未達 / 休む日) のみ。 段階塗り率・連続日数の数字や色強調・赤は持たない。
+// 派生のみ (ADR-0001) — windowDates 分を毎回計算し保存しない。dayNodeStatuses と同じ
+// variant 解決 (resolveActionForDate) を日付ごとに適用する。
+
+export type DateMatrixCell = {
+  date: IsoDate;
+  achieved: boolean;
+  skipped: boolean; // variant null の休む日 (= 達成対象外)
+};
+
+export type DateMatrixNodeRow = {
+  nodeId: string;
+  label: string; // 行見出し用。 最新日の variant 解決ラベル (variant で揺れても代表 1 つ)
+  cells: DateMatrixCell[]; // windowDates と同順 (= 昇順、 最新が末尾)
+};
+
+export type DateMatrixChainGroup = {
+  chainId: string;
+  chainTitle: string;
+  nodes: DateMatrixNodeRow[];
+};
+
+export const dateMatrixForWindow = (
+  windowDates: readonly IsoDate[],
+  chains: readonly {
+    chainId: string;
+    chainTitle: string;
+    nodes: readonly Pick<Node, 'id' | 'actionId'>[];
+  }[],
+  actionsById: Readonly<Record<string, Action>>,
+  achievements: readonly Achievement[],
+): DateMatrixChainGroup[] =>
+  chains.map((chain) => ({
+    chainId: chain.chainId,
+    chainTitle: chain.chainTitle,
+    nodes: chain.nodes.map((node) => {
+      const action = actionsById[node.actionId];
+      const cells = windowDates.map((date): DateMatrixCell => {
+        if (!action) return { date, achieved: false, skipped: false };
+        const resolved = resolveActionForDate(action, date);
+        return {
+          date,
+          achieved: isNodeAchievedOn(achievements, node.id, date),
+          skipped: resolved.kind === 'skip',
+        };
+      });
+      const lastDate = windowDates[windowDates.length - 1];
+      const label =
+        action && lastDate
+          ? resolveActionForDate(action, lastDate).label
+          : (action?.title ?? '');
+      return { nodeId: node.id, label, cells };
+    }),
+  }));
