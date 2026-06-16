@@ -5,7 +5,6 @@ import { ProgressRing } from './ProgressRing';
 import {
   COLOR_ACCENT,
   COLOR_FG,
-  COLOR_FG_FAINT,
   COLOR_FG_SOFT,
   COLOR_GROW,
   COLOR_LINE_BG,
@@ -22,10 +21,6 @@ export type ChainCardProps = {
   fireTotal: number;
   fireCompleted: number;
   anchorFiredToday: boolean;
-  // Issue #103: チェーンの連続達成日数 (14D ウィンドウで cap)。
-  // 0 は呼ばれてもこのコンポーネント内で非表示にする (反 streak 原則: 切れたら指差さない)。
-  // 14 以上はウィンドウ上限なので "14+" で表現。
-  streakDays?: number;
   onPress: () => void;
 };
 
@@ -35,12 +30,9 @@ export const ChainCard = ({
   fireTotal,
   fireCompleted,
   anchorFiredToday,
-  streakDays = 0,
   onPress,
 }: ChainCardProps) => {
   const done = fireTotal > 0 && fireCompleted === fireTotal;
-  const streakLabel =
-    streakDays >= 14 ? '14+ 日連続' : streakDays >= 1 ? `${streakDays} 日連続` : null;
   return (
     <Pressable
       onPress={onPress}
@@ -83,14 +75,6 @@ export const ChainCard = ({
           )}
         {anchor.kind === 'behavior' && (
           <Text style={styles.metaText}>アンカーなし</Text>
-        )}
-        {streakLabel && (
-          <Text
-            style={styles.streakText}
-            accessibilityLabel={`連続達成 ${streakLabel}`}
-          >
-            {streakLabel}
-          </Text>
         )}
       </View>
     </Pressable>
@@ -157,13 +141,6 @@ const styles = StyleSheet.create({
   metaText: {
     color: COLOR_FG_SOFT,
     fontSize: 13,
-    fontVariant: ['tabular-nums'],
-  },
-  // Issue #103: 小さくニュートラルに。accent や star は使わず Celebrate を控えめに。
-  streakText: {
-    color: COLOR_FG_FAINT,
-    fontSize: 11,
-    fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
 });

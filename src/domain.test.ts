@@ -7,7 +7,6 @@ import type {
   Node,
 } from './domain';
 import {
-  chainCompletionStreakDays,
   countAchievedDaysInWindow,
   countAchievedNodesOn,
   distanceMeters,
@@ -20,7 +19,6 @@ import {
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
   lastAchievedNodeIndex,
-  nodeCompletionStreakDays,
   recentDateRange,
   resolveActionForDate,
   shouldSeed,
@@ -809,178 +807,5 @@ describe('isNodeEstablished (定着判定: ADR-0024 PR-Z1 / 14D 中 10 日以上
       return { nodeId: 'n1', date: `2026-04-${day}`, achieved: true };
     });
     expect(isNodeEstablished(records, 'n1', '2026-05-19')).toBe(false);
-  });
-});
-
-describe('chainCompletionStreakDays (Issue #103: Today カード連続達成日数)', () => {
-  // helper: 連続した日付に対して fire ノード全達成を作る
-  const allDoneOn = (
-    nodeIds: readonly string[],
-    dates: readonly string[],
-  ): Achievement[] =>
-    dates.flatMap((date) =>
-      nodeIds.map((nodeId) => ({ nodeId, date, achieved: true })),
-    );
-
-  test('fire ノードが空なら 0', () => {
-    expect(chainCompletionStreakDays([], [], '2026-05-19')).toBe(0);
-  });
-
-  test('全達成の日が連続 → 日数を返す (今日含む)', () => {
-    const records = allDoneOn(['n1', 'n2'], [
-      '2026-05-17',
-      '2026-05-18',
-      '2026-05-19',
-    ]);
-    expect(
-      chainCompletionStreakDays(records, ['n1', 'n2'], '2026-05-19'),
-    ).toBe(3);
-  });
-
-  test('今日が未完成でも昨日まで連続なら昨日基点で数える', () => {
-    // 今日 (5/19) は n2 だけ達成、 n1 は未達成 → 今日は incomplete。
-    // 昨日 / 一昨日は全達成 → streak=2 (昨日から数える)。
-    const records: Achievement[] = [
-      ...allDoneOn(['n1', 'n2'], ['2026-05-17', '2026-05-18']),
-      { nodeId: 'n2', date: '2026-05-19', achieved: true },
-    ];
-    expect(
-      chainCompletionStreakDays(records, ['n1', 'n2'], '2026-05-19'),
-    ).toBe(2);
-  });
-
-  test('連続が途切れたら streak は切れる', () => {
-    // 5/19 全達成、 5/18 全達成、 5/17 部分達成 (n1 のみ)、 5/16 全達成
-    // → streak=2 (5/18, 5/19)、 5/17 で break
-    const records: Achievement[] = [
-      ...allDoneOn(['n1', 'n2'], ['2026-05-16', '2026-05-18', '2026-05-19']),
-      { nodeId: 'n1', date: '2026-05-17', achieved: true },
-    ];
-    expect(
-      chainCompletionStreakDays(records, ['n1', 'n2'], '2026-05-19'),
-    ).toBe(2);
-  });
-
-  test('全日未達成 → 0', () => {
-    expect(
-      chainCompletionStreakDays([], ['n1'], '2026-05-19'),
-    ).toBe(0);
-  });
-
-  test('14D ウィンドウで上限キャップ (全日達成でも 14 で止まる)', () => {
-    const dates = Array.from({ length: 20 }, (_, i) => {
-      const dayNum = i + 1; // 5/1 .. 5/20
-      const day = String(dayNum).padStart(2, '0');
-      return `2026-05-${day}`;
-    });
-    const records = allDoneOn(['n1'], dates);
-    expect(
-      chainCompletionStreakDays(records, ['n1'], '2026-05-20'),
-    ).toBe(14);
-  });
-
-  test('windowDays=7 を指定するとそのウィンドウ内でキャップ', () => {
-    const dates = Array.from({ length: 14 }, (_, i) => {
-      const dayNum = i + 6; // 5/6 .. 5/19
-      const day = String(dayNum).padStart(2, '0');
-      return `2026-05-${day}`;
-    });
-    const records = allDoneOn(['n1'], dates);
-    expect(
-      chainCompletionStreakDays(records, ['n1'], '2026-05-19', 7),
-    ).toBe(7);
-  });
-
-  test('1 日全達成 (今日のみ) → 1', () => {
-    const records = allDoneOn(['n1', 'n2'], ['2026-05-19']);
-    expect(
-      chainCompletionStreakDays(records, ['n1', 'n2'], '2026-05-19'),
-    ).toBe(1);
-  });
-
-  test('昨日も今日も部分達成 → 0 (= 表示しない)', () => {
-    const records: Achievement[] = [
-      { nodeId: 'n1', date: '2026-05-18', achieved: true },
-      { nodeId: 'n1', date: '2026-05-19', achieved: true },
-    ];
-    expect(
-      chainCompletionStreakDays(records, ['n1', 'n2'], '2026-05-19'),
-    ).toBe(0);
-  });
-});
-
-describe('nodeCompletionStreakDays (Issue #103: アクション単位の連続達成日数)', () => {
-  // helper: 指定日付に該当ノードを achieved=true で記録する
-  const doneOn = (nodeId: string, dates: readonly string[]): Achievement[] =>
-    dates.map((date) => ({ nodeId, date, achieved: true }));
-
-  test('該当ノードの記録が無い → 0', () => {
-    expect(nodeCompletionStreakDays([], 'n1', '2026-05-19')).toBe(0);
-  });
-
-  test('連続達成 → 日数を返す (今日含む)', () => {
-    const records = doneOn('n1', ['2026-05-17', '2026-05-18', '2026-05-19']);
-    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19')).toBe(3);
-  });
-
-  test('今日が未達でも昨日まで連続なら昨日基点で数える', () => {
-    // 今日 (5/19) は未達、 昨日 / 一昨日は達成済 → streak=2 (昨日から数える)
-    const records = doneOn('n1', ['2026-05-17', '2026-05-18']);
-    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19')).toBe(2);
-  });
-
-  test('途中で未達があったら streak は切れる', () => {
-    // 5/19 達成, 5/18 達成, 5/17 未達 (記録なし), 5/16 達成 → streak=2
-    const records = doneOn('n1', ['2026-05-16', '2026-05-18', '2026-05-19']);
-    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19')).toBe(2);
-  });
-
-  test('全日未達 → 0', () => {
-    expect(nodeCompletionStreakDays([], 'n1', '2026-05-19')).toBe(0);
-  });
-
-  test('14D ウィンドウで上限キャップ', () => {
-    const dates = Array.from({ length: 20 }, (_, i) => {
-      const dayNum = i + 1;
-      const day = String(dayNum).padStart(2, '0');
-      return `2026-05-${day}`;
-    });
-    const records = doneOn('n1', dates);
-    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-20')).toBe(14);
-  });
-
-  test('windowDays=7 を指定するとそのウィンドウ内でキャップ', () => {
-    const dates = Array.from({ length: 14 }, (_, i) => {
-      const dayNum = i + 6;
-      const day = String(dayNum).padStart(2, '0');
-      return `2026-05-${day}`;
-    });
-    const records = doneOn('n1', dates);
-    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19', 7)).toBe(7);
-  });
-
-  test('今日のみ達成 → 1', () => {
-    const records = doneOn('n1', ['2026-05-19']);
-    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19')).toBe(1);
-  });
-
-  test('別ノードの記録は無視する', () => {
-    // n2 は 5/17-19 全達成、 n1 は 5/19 のみ達成 → n1 の streak=1
-    const records: Achievement[] = [
-      ...doneOn('n2', ['2026-05-17', '2026-05-18', '2026-05-19']),
-      ...doneOn('n1', ['2026-05-19']),
-    ];
-    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19')).toBe(1);
-  });
-
-  test('achieved=false の記録は達成と数えない', () => {
-    // 5/17, 5/18 は achieved=true、 5/19 は achieved=false → 今日基点なら incomplete →
-    // 昨日基点で 2 日連続
-    const records: Achievement[] = [
-      { nodeId: 'n1', date: '2026-05-17', achieved: true },
-      { nodeId: 'n1', date: '2026-05-18', achieved: true },
-      { nodeId: 'n1', date: '2026-05-19', achieved: false },
-    ];
-    expect(nodeCompletionStreakDays(records, 'n1', '2026-05-19')).toBe(2);
   });
 });
