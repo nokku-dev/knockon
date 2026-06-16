@@ -1,6 +1,8 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
+import { nodeDateMatrixCells } from './analyticsDerivation';
+import type { DateMatrixCell } from './analyticsDerivation';
 import { getExpoSqliteClient } from './db.expo';
 import {
   effectiveTodayIsoDate,
@@ -38,6 +40,12 @@ import {
 import { getAppSettings } from './settingsRepository';
 import type { TodayNode } from './ChainDetail';
 
+// #125: Today のアクション行右端に直近 7 日間の達成グリフマトリクスを描画する。
+// 14D ウィンドウ (定着判定用) の中から 7D 分だけ slice すれば足りる
+// (recentDateRange の末尾 7 件 = 直近 7 日)。 マトリクス自体の派生値計算 (variant 解決等)
+// は nodeDateMatrixCells に集約。
+const TODAY_RECENT_WINDOW_DAYS = 7;
+
 // 1 つの active チェーン分の Today データ。
 export type TodayChainData = {
   chain: Chain;
@@ -52,6 +60,9 @@ export type TodayChainData = {
   // PR-Z1 (ADR-0024 §3a): 定着判定済みノード ID の集合 (派生値)。 14D ウィンドウで
   // 10 日以上達成しているノードを派生計算。 楽観更新時は recentAchievements 経由で再計算。
   nodeIdsEstablished: ReadonlySet<string>;
+  // #125: ノード行右端の直近 7 日間グリフマトリクス用セル列 (派生値)。 楽観更新時は
+  // recentAchievements 経由で再計算 (今日のセルがタップで即時反映される)。
+  nodeRecentCells: ReadonlyMap<string, readonly DateMatrixCell[]>;
 };
 
 // Today 画面全体の状態。 ADR-0020 で「手動発火」概念を廃止、 active な全チェーンを
@@ -59,6 +70,26 @@ export type TodayChainData = {
 export type TodayData = {
   today: IsoDate;
   chains: TodayChainData[];
+};
+
+// #125: 1 ノードの達成 toggle / markAchieved 後に、 そのノードのマトリクスセル列だけを
+// 再計算した Map を返す純粋ヘルパー。 他ノードの cells は元の参照をそのまま使う
+// (= 楽観更新のコピー量を最小化、 K-010 の計算量明示と整合)。
+const recomputeNodeRecentCells = (
+  target: TodayChainData,
+  nodeId: string,
+  nextRecent: readonly Achievement[],
+  today: IsoDate,
+): ReadonlyMap<string, readonly DateMatrixCell[]> => {
+  const targetTodayNode = target.nodes.find((n) => n.node.id === nodeId);
+  if (!targetTodayNode) return target.nodeRecentCells;
+  const matrixDates = recentDateRange(today, TODAY_RECENT_WINDOW_DAYS);
+  const nextMap = new Map(target.nodeRecentCells);
+  nextMap.set(
+    nodeId,
+    nodeDateMatrixCells(matrixDates, targetTodayNode.action, nodeId, nextRecent),
+  );
+  return nextMap;
 };
 
 // 場所アンカーの「今日まだ発火していないとき」のみ呼ぶ GPS 経由の発火検出。
@@ -123,6 +154,15 @@ const loadChainForToday = async (
       nodeIdsEstablished.add(n.node.id);
     }
   }
+  // #125: 7D ウィンドウ (recentWindow の末尾 7 件) で各ノードのマトリクスセル列を派生。
+  const matrixDates = recentWindow.slice(-TODAY_RECENT_WINDOW_DAYS);
+  const nodeRecentCells = new Map<string, readonly DateMatrixCell[]>();
+  for (const n of validNodes) {
+    nodeRecentCells.set(
+      n.node.id,
+      nodeDateMatrixCells(matrixDates, n.action, n.node.id, records),
+    );
+  }
   // ADR-0012: 既存の発火 record があれば「今日発火済み」確定。
   const todayFirings = await listAnchorFiringsForDate(db, anchor.id, today);
   const alreadyFired = isAnchorFiringToday(todayFirings, anchor.id, today);
@@ -142,6 +182,7 @@ const loadChainForToday = async (
     anchorFiredToday,
     recentAchievements: records,
     nodeIdsEstablished,
+    nodeRecentCells,
   };
 };
 
@@ -282,6 +323,13 @@ export const useTodayData = (): UseTodayDataResult => {
       } else {
         nextEstablished.delete(nodeId);
       }
+      // #125: 直近 7 日間マトリクスを対象ノードのみ再計算 (他ノードは変化なし)。
+      const nextRecentCells = recomputeNodeRecentCells(
+        target,
+        nodeId,
+        nextRecent,
+        data.today,
+      );
       setData((prev) =>
         prev
           ? {
@@ -293,6 +341,7 @@ export const useTodayData = (): UseTodayDataResult => {
                       achievements: nextAchievements,
                       recentAchievements: nextRecent,
                       nodeIdsEstablished: nextEstablished,
+                      nodeRecentCells: nextRecentCells,
                     }
                   : c,
               ),
@@ -346,6 +395,13 @@ export const useTodayData = (): UseTodayDataResult => {
       } else {
         nextEstablished.delete(nodeId);
       }
+      // #125: 直近 7 日間マトリクスを対象ノードのみ再計算。
+      const nextRecentCells = recomputeNodeRecentCells(
+        target,
+        nodeId,
+        nextRecent,
+        data.today,
+      );
       setData((prev) =>
         prev
           ? {
@@ -357,6 +413,7 @@ export const useTodayData = (): UseTodayDataResult => {
                       achievements: nextAchievements,
                       recentAchievements: nextRecent,
                       nodeIdsEstablished: nextEstablished,
+                      nodeRecentCells: nextRecentCells,
                     }
                   : c,
               ),
