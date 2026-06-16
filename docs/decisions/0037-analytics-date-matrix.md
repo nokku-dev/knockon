@@ -70,6 +70,7 @@ ADR-0004 / DESIGN-SYSTEM §0/§5 / CLAUDE.md の「格子 / ヒートマップ�
 
 - [ADR-0034](./0034-analytics-daily-detail-view.md): 日付チップ列 + 1 日詳細。本 ADR がチップ列を廃し、1 日詳細をマトリクスのドリルダウン先に内包。
 - [ADR-0004](./0004-design-direction-v02.md) / [DESIGN-SYSTEM.md §0](../../DESIGN-SYSTEM.md): 禁止 UI。本 ADR が二値マトリクスを対象外と再解釈。
+- [ADR-0038](./0038-today-chaindetail-7d-matrix-axis-reinterpretation.md): SPEC §3「v1 単一窓 14D 固定」ルールの軸別再解釈 (Today ChainDetail ノード行 7D マトリクス / #125)。本 ADR と同じ K-015 パターンの 2 度目の適用 (= 全称ルールを軸別に分離して両者を共存させる)。本 ADR は窓ルールではなく禁止 UI ルールの再解釈だが、運用テンプレは共通。
 - [ADR-0036](./0036-rescind-today-streak-display.md): streak 撤回。本マトリクスも streak の数字を載せない前提を共有。
 - [ADR-0001](./0001-chain-data-model.md): 正準データ (派生のみ・保存しない根拠)。
 - [K-016](../../KNOWLEDGE.md): マイナスを指差さない表示。
