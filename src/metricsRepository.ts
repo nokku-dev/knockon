@@ -66,20 +66,6 @@ export const listMetricsInRange = async (
   return rows.map(rowToMetric);
 };
 
-// #63: 全 key の指定日時範囲を取得 (日別詳細ビュー用、 recorded_at 昇順)。
-// listMetricsInRange は key 単位だが、 こちらは 1 日分を 1 クエリで全種別まとめて取る。
-export const listAllMetricsInRange = async (
-  db: DbClient,
-  fromDate: string,
-  toDate: string,
-): Promise<Metric[]> => {
-  const rows = await db.all<MetricRow>(
-    `SELECT * FROM metrics WHERE recorded_at >= ? AND recorded_at <= ? ORDER BY recorded_at`,
-    [fromDate, toDate],
-  );
-  return rows.map(rowToMetric);
-};
-
 // id 指定で削除 (手入力ミスのやり直し用)。
 export const deleteMetric = async (
   db: DbClient,

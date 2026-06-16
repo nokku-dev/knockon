@@ -4,8 +4,6 @@ import {
   recentDateRange,
   resolveActionForDate,
 } from './domain';
-import type { Metric } from './metricsRepository';
-import type { MetricKind } from './metricKindsRepository';
 
 // PR-Z2 (ADR-0024 §3b) 達成率ダッシュボード用の派生集計関数群。
 //
@@ -122,75 +120,14 @@ export const dailyChainAchievementSeries = (
   });
 };
 
-// ── #63: 日々の詳細ビュー (選んだ 1 日のスナップショット) ──
-// 集計 (達成率) ではなく「その日に何が起きたか」を表示時派生で組み立てる。
-// streak は出さない / マイナスは赤くしない (反 streak / Celebrate 主、 DESIGN-SYSTEM §0)。
-
-// 選んだ日における 1 ノードの状態。
-// - skipped: その日は variant null で「休む日」(達成対象外)
-// - achieved: 達成記録が true (skipped のときは無視して表示側で「—」)
-export type DayNodeStatus = {
-  nodeId: string;
-  label: string; // その日の variant 解決後ラベル
-  achieved: boolean;
-  skipped: boolean;
-};
-
-// チェーンのノード列を、選んだ日のステータス列に変換する (純粋)。
-export const dayNodeStatuses = (
-  date: IsoDate,
-  nodes: readonly Pick<Node, 'id' | 'actionId'>[],
-  actionsById: Readonly<Record<string, Action>>,
-  achievements: readonly Achievement[],
-): DayNodeStatus[] =>
-  nodes.map((node) => {
-    const action = actionsById[node.actionId];
-    if (!action) {
-      return { nodeId: node.id, label: '', achieved: false, skipped: false };
-    }
-    const resolved = resolveActionForDate(action, date);
-    return {
-      nodeId: node.id,
-      label: resolved.label,
-      achieved: isNodeAchievedOn(achievements, node.id, date),
-      skipped: resolved.kind === 'skip',
-    };
-  });
-
-// 選んだ日に記録されたメトリクス (key ごとにラベル/単位を付与)。
-// recorded_at は 'YYYY-MM-DDTHH:MM:SS' 前提で日付プレフィックス一致で抽出。
-export type DayMetricEntry = {
-  key: string;
-  label: string;
-  unit: string;
-  value: number;
-};
-
-export const metricsOnDate = (
-  metrics: readonly Metric[],
-  kinds: readonly MetricKind[],
-  date: IsoDate,
-): DayMetricEntry[] => {
-  const kindByKey = new Map(kinds.map((k) => [k.key, k]));
-  return metrics
-    .filter((m) => m.recordedAt.slice(0, 10) === date)
-    .map((m) => {
-      const kind = kindByKey.get(m.metricKey);
-      return {
-        key: m.metricKey,
-        label: kind?.label ?? m.metricKey,
-        unit: kind?.unit ?? '',
-        value: m.value,
-      };
-    });
-};
-
 // ── #115 (ADR-0037): 達成マトリクス (ノード × 日付の俯瞰) ──
-// 分析タブの「日付チップで 1 日ずつ」を、複数日を一度に俯瞰できるマトリクスに置き換える。
+// 分析タブの達成記録を、複数日を一度に俯瞰できるマトリクスで表示する。
+// (#128: 旧「日々の詳細」(#63 / ADR-0034) のチップ列 + 1 日スナップショットは、 マトリクスと
+//  ノード状態が重複するため廃止。 dayNodeStatuses / metricsOnDate もそれと共に撤去した。)
 // 反 streak / Celebrate 主 (DESIGN-SYSTEM §0 / ADR-0004 / ADR-0037) を守るため、 セルは
 // **二値** (達成 / 未達 / 休む日) のみ。 段階塗り率・連続日数の数字や色強調・赤は持たない。
-// 派生のみ (ADR-0001) — windowDates 分を毎回計算し保存しない。dayNodeStatuses と同じ
-// variant 解決 (resolveActionForDate) を日付ごとに適用する。
+// 派生のみ (ADR-0001) — windowDates 分を毎回計算し保存しない。 日付ごとに variant 解決
+// (resolveActionForDate) を適用する。
 
 export type DateMatrixCell = {
   date: IsoDate;
