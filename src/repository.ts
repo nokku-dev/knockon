@@ -4,13 +4,17 @@ import type {
   Action,
   Anchor,
   AnchorFiring,
+  CatalogAction,
   CatalogSource,
+  Category,
+  CategoryType,
   Chain,
   IsoDate,
   Link,
   Module,
   ModuleKind,
   Node,
+  RecommendedItem,
   VariantMap,
 } from './domain';
 
@@ -463,6 +467,189 @@ export const listLinksForModule = async (
     [moduleId],
   );
   return rows.map(rowToLink);
+};
+
+// ADR-0039 (#154): 新カテゴリカタログ (categories / catalog_actions / recommended_items)
+// の読み書き。旧 modules/links と並行 (catalog/live 分離は継承)。採用フロー・UI 移行は別トラック。
+// ここでは insert / seed (冪等) / list のみ (update/delete は後続トラックの編集 UI)。
+
+type CategoryRow = {
+  id: string;
+  name: string;
+  type: CategoryType;
+  color: string;
+  source: CatalogSource;
+  order_index: number;
+};
+
+type CatalogActionRow = {
+  id: string;
+  title: string;
+  category_id: string;
+  default_on: number;
+  position: number;
+  source: CatalogSource;
+  timer_seconds: number | null;
+};
+
+type RecommendedItemRow = {
+  id: string;
+  category_id: string;
+  action_id: string;
+  position: number;
+};
+
+const rowToCategory = (r: CategoryRow): Category => ({
+  id: r.id,
+  name: r.name,
+  type: r.type,
+  color: r.color,
+  source: r.source,
+  orderIndex: r.order_index,
+});
+
+const rowToCatalogAction = (r: CatalogActionRow): CatalogAction => ({
+  id: r.id,
+  title: r.title,
+  categoryId: r.category_id,
+  defaultOn: r.default_on === 1,
+  position: r.position,
+  source: r.source,
+  timerSeconds: r.timer_seconds,
+});
+
+const rowToRecommendedItem = (r: RecommendedItemRow): RecommendedItem => ({
+  id: r.id,
+  categoryId: r.category_id,
+  actionId: r.action_id,
+  position: r.position,
+});
+
+export const insertCategory = (db: DbClient, category: Category): Promise<void> =>
+  db.run(
+    `INSERT INTO categories (id, name, type, color, source, order_index)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      category.id,
+      category.name,
+      category.type,
+      category.color,
+      category.source,
+      category.orderIndex,
+    ],
+  );
+
+export const insertCatalogAction = (
+  db: DbClient,
+  action: CatalogAction,
+): Promise<void> =>
+  db.run(
+    `INSERT INTO catalog_actions (id, title, category_id, default_on, position, source, timer_seconds)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      action.id,
+      action.title,
+      action.categoryId,
+      action.defaultOn ? 1 : 0,
+      action.position,
+      action.source,
+      action.timerSeconds,
+    ],
+  );
+
+export const insertRecommendedItem = (
+  db: DbClient,
+  item: RecommendedItem,
+): Promise<void> =>
+  db.run(
+    `INSERT INTO recommended_items (id, category_id, action_id, position)
+     VALUES (?, ?, ?, ?)`,
+    [item.id, item.categoryId, item.actionId, item.position],
+  );
+
+// seed 用の冪等版 (INSERT OR IGNORE)。固定 ID + 毎起動投入で 2 回目以降は PK 衝突を握り潰す
+// (seedModule / seedLink と同じ精神。official 削除後の復活挙動も同じ Phase 1 受容 / K-024)。
+export const seedCategory = (db: DbClient, category: Category): Promise<void> =>
+  db.run(
+    `INSERT OR IGNORE INTO categories (id, name, type, color, source, order_index)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      category.id,
+      category.name,
+      category.type,
+      category.color,
+      category.source,
+      category.orderIndex,
+    ],
+  );
+
+export const seedCatalogAction = (
+  db: DbClient,
+  action: CatalogAction,
+): Promise<void> =>
+  db.run(
+    `INSERT OR IGNORE INTO catalog_actions (id, title, category_id, default_on, position, source, timer_seconds)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      action.id,
+      action.title,
+      action.categoryId,
+      action.defaultOn ? 1 : 0,
+      action.position,
+      action.source,
+      action.timerSeconds,
+    ],
+  );
+
+export const seedRecommendedItem = (
+  db: DbClient,
+  item: RecommendedItem,
+): Promise<void> =>
+  db.run(
+    `INSERT OR IGNORE INTO recommended_items (id, category_id, action_id, position)
+     VALUES (?, ?, ?, ?)`,
+    [item.id, item.categoryId, item.actionId, item.position],
+  );
+
+export const listCategories = async (db: DbClient): Promise<Category[]> => {
+  const rows = await db.all<CategoryRow>(
+    `SELECT * FROM categories ORDER BY order_index`,
+  );
+  return rows.map(rowToCategory);
+};
+
+// 全アクションを「カテゴリ順 → カテゴリ内 position 順」で返す (= category_id, position)。
+// 全体を通した単一 position 昇順ではない (K-022: コメントの保証を実装と一致させる)。
+export const listCatalogActions = async (
+  db: DbClient,
+): Promise<CatalogAction[]> => {
+  const rows = await db.all<CatalogActionRow>(
+    `SELECT * FROM catalog_actions ORDER BY category_id, position`,
+  );
+  return rows.map(rowToCatalogAction);
+};
+
+export const listCatalogActionsForCategory = async (
+  db: DbClient,
+  categoryId: string,
+): Promise<CatalogAction[]> => {
+  const rows = await db.all<CatalogActionRow>(
+    `SELECT * FROM catalog_actions WHERE category_id = ? ORDER BY position`,
+    [categoryId],
+  );
+  return rows.map(rowToCatalogAction);
+};
+
+// recommended カテゴリの順序つきアイテムを position 昇順で返す。
+export const listRecommendedItemsForCategory = async (
+  db: DbClient,
+  categoryId: string,
+): Promise<RecommendedItem[]> => {
+  const rows = await db.all<RecommendedItemRow>(
+    `SELECT * FROM recommended_items WHERE category_id = ? ORDER BY position`,
+    [categoryId],
+  );
+  return rows.map(rowToRecommendedItem);
 };
 
 export const recordAchievement = (
