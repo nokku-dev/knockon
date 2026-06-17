@@ -10,6 +10,8 @@ superseded-by: []
 
 # 編集UI のチップあり2層化 (ON/OFF・source 別削除・カスタム所属) と active 列の導入
 
+> **部分置換 ([ADR-0040](0040-remove-edit-ui-module-concept.md) / K-005)**: 本 ADR の **チップ層 (モジュールロスター) / source 別削除 / カスタム所属 / 振り分け** は ADR-0040 で廃止された (旧 module 概念の撤去)。一方 **ON/OFF (active 列による一時停止)** は存続する。本 ADR を単体で読むときは「2 層チップ・module 関連の UI は実在しない / active 列だけが生きている」と解釈すること。
+
 ## 文脈
 
 Issue #73: テンプレ編集UI (チップあり2層・並べ替え・ON/OFF・削除・カスタム)。SPEC [docs/template-modules-spec.md](../template-modules-spec.md) §6。

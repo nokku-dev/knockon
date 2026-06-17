@@ -16,15 +16,13 @@ jest.mock('./db.expo', () => ({
 
 jest.mock('./repository', () => ({
   // 新規モード (chainId = null) では loadExisting は呼ばれないが、
-  // 初期 useEffect で listActions / listModules は呼ばれる。
+  // 初期 useEffect で listActions は呼ばれる。
   listActions: jest.fn(async () => []),
-  listModules: jest.fn(async () => []),
   listChains: jest.fn(async () => []),
   listNodes: jest.fn(async () => []),
   getAction: jest.fn(async () => null),
   getAnchor: jest.fn(async () => null),
   insertAction: jest.fn(async () => undefined),
-  insertModule: jest.fn(async () => undefined),
   updateAction: jest.fn(async () => undefined),
   deleteAction: jest.fn(async () => undefined),
   deleteChain: jest.fn(async () => undefined),

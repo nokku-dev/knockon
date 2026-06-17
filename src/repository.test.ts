@@ -11,12 +11,7 @@ import {
   insertAction,
   insertAnchor,
   insertChain,
-  insertLink,
-  insertModule,
   insertNode,
-  listLinks,
-  listLinksForModule,
-  listModules,
   listAchievementsForNodes,
   listActions,
   listAnchorFiringsForDate,
@@ -307,26 +302,17 @@ describe('スキーマの不変条件', () => {
     await teardown(db);
   });
 
-  test('旧「リンク=アンカー×アクション」結合テーブルが存在しない / 正準データ + catalog テーブルのみ', async () => {
+  test('旧「リンク=アンカー×アクション」結合テーブル + 旧 modules/links が存在しない / 正準データ + 新 catalog テーブルのみ', async () => {
     const db = await setup();
     type TableRow = { name: string };
     const tables = await db.all<TableRow>(
       `SELECT name FROM sqlite_master WHERE type='table'`,
     );
     const tableNames = tables.map((t) => t.name);
-    // ADR-0030: links テーブルは存在するが、これは「テンプレ catalog のリンク
-    // (module 所属)」であり、旧「リンク=アンカー×アクション」結合モデルとは別物。
-    // ガードレールの真意は「アンカー×アクション結合テーブルが無いこと」なので、
-    // links が anchor_id + action_id の結合形でないことを形で検証する (名前ではなく)。
-    type ColumnRow = { name: string };
-    const linkCols = await db.all<ColumnRow>(`PRAGMA table_info(links)`);
-    const linkColNames = linkCols.map((c) => c.name);
-    expect(linkColNames).toContain('module_id'); // catalog 形 (module 所属)
-    expect(linkColNames).not.toContain('anchor_id'); // 旧結合モデルでない
-    expect(linkColNames).not.toContain('action_id'); // 旧結合モデルでない
-    // テーブル集合は「正準データ + app config + テンプレ catalog」に固定 (派生値テーブル禁止)
-    // ADR-0039 (#154): 新カテゴリカタログ (categories / catalog_actions / recommended_items)
-    // を並行追加。旧 modules/links も移行完了まで残す (consumer 移行は別トラック)。
+    // ADR-0040 (#160): 旧 modules / links テーブルは撤去済み (新カテゴリモデルに一本化)。
+    expect(tableNames).not.toContain('modules');
+    expect(tableNames).not.toContain('links');
+    // テーブル集合は「正準データ + app config + 新カテゴリ catalog」に固定 (派生値テーブル禁止)。
     expect(tableNames.sort()).toEqual(
       [
         'achievements',
@@ -337,10 +323,8 @@ describe('スキーマの不変条件', () => {
         'catalog_actions',
         'categories',
         'chains',
-        'links',
         'metric_kinds',
         'metrics',
-        'modules',
         'nodes',
         'recommended_items',
       ].sort(),
@@ -635,68 +619,23 @@ describe('スキーマの不変条件', () => {
     await teardown(db);
   });
 
-  // ADR-0030 (#68): テンプレ catalog (modules / links) と live nodes.module_id。
-  // catalog は採用前のテンプレ定義専用。live への混入 (default_on / starter 等) を
-  // 禁じるため、テーブルのカラム集合を K-006 スタイルで機械固定する。
-  test('modules テーブル (ADR-0030): カラムは 8 固定 (catalog 専用・派生値カラム禁止)', async () => {
+  // ADR-0040 (#160): 旧 modules / links テーブルと nodes.module_id は撤去済み。
+  // 「不在」を K-006 スタイルで機械固定する (再導入の防止)。
+  test('modules / links テーブルが存在しない (ADR-0040 で撤去)', async () => {
+    const db = await setup();
+    type TableRow = { name: string };
+    const tables = await db.all<TableRow>(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name IN ('modules','links')`,
+    );
+    expect(tables).toEqual([]);
+    await teardown(db);
+  });
+
+  test('nodes に module_id 列が存在しない (ADR-0040 で撤去)', async () => {
     const db = await setup();
     type ColumnRow = { name: string };
-    const cols = await db.all<ColumnRow>(`PRAGMA table_info(modules)`);
-    expect(cols.map((c) => c.name).sort()).toEqual([
-      'color',
-      'goal_json',
-      'id',
-      'kind',
-      'moment_json',
-      'name',
-      'order_index',
-      'source',
-    ]);
-    await teardown(db);
-  });
-
-  test('links テーブル (ADR-0030): カラムは 8 固定 (default_on / starter は catalog のみ)', async () => {
-    const db = await setup();
-    type ColumnRow = { name: string };
-    const cols = await db.all<ColumnRow>(`PRAGMA table_info(links)`);
-    expect(cols.map((c) => c.name).sort()).toEqual([
-      'default_on',
-      'id',
-      'module_id',
-      'position',
-      'source',
-      'starter',
-      'timer_seconds',
-      'title',
-    ]);
-    await teardown(db);
-  });
-
-  test('links.module_id は NOT NULL + FK→modules (orphan link を物理禁止)', async () => {
-    const db = await setup();
-    type ColumnRow = { name: string; notnull: number };
-    const cols = await db.all<ColumnRow>(`PRAGMA table_info(links)`);
-    const moduleIdCol = cols.find((c) => c.name === 'module_id');
-    expect(moduleIdCol?.notnull).toBe(1); // NOT NULL
-    type FkRow = { table: string; from: string; on_delete: string };
-    const fks = await db.all<FkRow>(`PRAGMA foreign_key_list(links)`);
-    const moduleFk = fks.find((f) => f.from === 'module_id');
-    expect(moduleFk?.table).toBe('modules');
-    expect(moduleFk?.on_delete).toBe('CASCADE');
-    await teardown(db);
-  });
-
-  test('nodes に module_id 列が追加されている (NULL 許容・FK→modules / 編集UI用の所属参照)', async () => {
-    const db = await setup();
-    type ColumnRow = { name: string; notnull: number };
     const cols = await db.all<ColumnRow>(`PRAGMA table_info(nodes)`);
-    const moduleIdCol = cols.find((c) => c.name === 'module_id');
-    expect(moduleIdCol).toBeTruthy();
-    expect(moduleIdCol?.notnull).toBe(0); // NULL 許容 (= テンプレ未経由ノード)
-    type FkRow = { table: string; from: string };
-    const fks = await db.all<FkRow>(`PRAGMA foreign_key_list(nodes)`);
-    const moduleFk = fks.find((f) => f.from === 'module_id');
-    expect(moduleFk?.table).toBe('modules');
+    expect(cols.map((c) => c.name)).not.toContain('module_id');
     await teardown(db);
   });
 
@@ -876,6 +815,71 @@ describe('スキーマの不変条件', () => {
     type ModRow = { id: string };
     const mods = await db.all<ModRow>(`SELECT id FROM modules`);
     expect(mods).toEqual([{ id: 'mod-1' }]);
+    await teardown(db);
+  });
+
+  test('ADR-0040: MIGRATIONS[11] が nodes.module_id を撤去し modules/links を drop (既存チェーン/達成を保全)', async () => {
+    // v10 相当 (nodes.module_id あり + modules/links あり) を直接構築し、
+    // 既存ユーザーの代理データ (chain/node/achievement) を入れてから MIGRATIONS[11]。
+    const db = createBetterSqliteClient(':memory:');
+    await db.exec(`
+      CREATE TABLE actions (id TEXT PRIMARY KEY, title TEXT NOT NULL, variants_json TEXT, timer_seconds INTEGER);
+      CREATE TABLE anchors (id TEXT PRIMARY KEY, title TEXT NOT NULL, kind TEXT NOT NULL, time TEXT, latitude REAL, longitude REAL, radius_meters REAL);
+      CREATE TABLE chains (id TEXT PRIMARY KEY, title TEXT NOT NULL, anchor_id TEXT NOT NULL REFERENCES anchors(id), status TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE modules (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT NOT NULL, moment_json TEXT NOT NULL, goal_json TEXT NOT NULL, source TEXT NOT NULL, kind TEXT NOT NULL, order_index INTEGER NOT NULL);
+      CREATE TABLE links (id TEXT PRIMARY KEY, title TEXT NOT NULL, module_id TEXT NOT NULL REFERENCES modules(id) ON DELETE CASCADE, default_on INTEGER NOT NULL, position INTEGER NOT NULL, source TEXT NOT NULL, timer_seconds INTEGER, starter INTEGER NOT NULL);
+      CREATE TABLE nodes (
+        id TEXT PRIMARY KEY,
+        chain_id TEXT NOT NULL REFERENCES chains(id) ON DELETE CASCADE,
+        order_index INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        action_id TEXT NOT NULL REFERENCES actions(id),
+        module_id TEXT REFERENCES modules(id),
+        active INTEGER NOT NULL DEFAULT 1,
+        UNIQUE(chain_id, order_index)
+      );
+      CREATE TABLE achievements (
+        node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+        date TEXT NOT NULL,
+        achieved INTEGER NOT NULL,
+        PRIMARY KEY (node_id, date)
+      );
+    `);
+    await db.run(`INSERT INTO actions (id, title) VALUES ('act-1', '水を飲む')`);
+    await db.run(`INSERT INTO anchors (id, title, kind) VALUES ('anc-1', '起床', 'behavior')`);
+    await db.run(
+      `INSERT INTO chains (id, title, anchor_id, status, created_at) VALUES ('ch-1', '朝', 'anc-1', 'active', '2026-01-01')`,
+    );
+    await db.run(
+      `INSERT INTO modules (id, name, color, moment_json, goal_json, source, kind, order_index) VALUES ('mod-1', 'M', '#fff', '[]', '[]', 'official', 'normal', 0)`,
+    );
+    await db.run(
+      `INSERT INTO nodes (id, chain_id, order_index, kind, action_id, module_id, active) VALUES ('nd-1', 'ch-1', 0, 'action', 'act-1', 'mod-1', 1)`,
+    );
+    await db.run(
+      `INSERT INTO achievements (node_id, date, achieved) VALUES ('nd-1', '2026-01-02', 1)`,
+    );
+
+    await MIGRATIONS[11]!(db);
+
+    // modules / links が drop されている
+    type TableRow = { name: string };
+    const tables = await db.all<TableRow>(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name IN ('modules','links')`,
+    );
+    expect(tables).toEqual([]);
+    // nodes.module_id 列が消えている
+    type ColumnRow = { name: string };
+    const cols = await db.all<ColumnRow>(`PRAGMA table_info(nodes)`);
+    expect(cols.map((c) => c.name)).not.toContain('module_id');
+    // 既存ノードは保全 (id / action_id / active)
+    type NodeRow = { id: string; action_id: string; active: number };
+    const nodes = await db.all<NodeRow>(`SELECT id, action_id, active FROM nodes`);
+    expect(nodes).toEqual([{ id: 'nd-1', action_id: 'act-1', active: 1 }]);
+    // 達成記録も保全 (table-copy で CASCADE 誤発火していない)
+    type AchRow = { node_id: string; date: string; achieved: number };
+    const ach = await db.all<AchRow>(`SELECT node_id, date, achieved FROM achievements`);
+    expect(ach).toEqual([{ node_id: 'nd-1', date: '2026-01-02', achieved: 1 }]);
     await teardown(db);
   });
 });
@@ -1335,110 +1339,6 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
     const nodes = await listNodes(db, 'c1');
     expect(nodes[0]?.actionId).toBe('act2');
     expect(nodes[0]?.orderIndex).toBe(5);
-    await teardown(db);
-  });
-
-  test('ADR-0030 (#68): module / link のラウンドトリップ — 所属と位置が独立に動く', async () => {
-    const db = await setup();
-    // 注: initSchema は #69 で v0 catalog を seed する。本テストは catalog の存在に
-    // 依存せず検証するため、テスト専用 ID (t- プレフィックス) を使い、全件一致では
-    // なく「テスト専用 ID でフィルタ」してアサートする。
-    await insertModule(db, {
-      id: 't-mod-health',
-      name: '目覚め・水分',
-      color: '#4FB0AE',
-      moment: ['morning'],
-      goal: ['health'],
-      source: 'official',
-      kind: 'normal',
-      orderIndex: 1000,
-    });
-    await insertModule(db, {
-      id: 't-mod-meal',
-      name: '朝食',
-      color: '#E0A24C',
-      moment: ['morning'],
-      goal: ['meal'],
-      source: 'official',
-      kind: 'normal',
-      orderIndex: 1001,
-    });
-    // 所属 (moduleId) と位置 (position) を独立に設定:
-    // health のリンクが position 0 と 2、meal のリンクが position 1 に挟まる
-    // (= 同一モジュールのリンクがチェーン上で非連続でよい / ADR-0030 不変条件)。
-    await insertLink(db, {
-      id: 't-lnk-brush',
-      title: '歯磨き',
-      moduleId: 't-mod-health',
-      defaultOn: true,
-      position: 0,
-      source: 'official',
-      timerSeconds: null,
-      starter: true,
-    });
-    await insertLink(db, {
-      id: 't-lnk-breakfast',
-      title: '朝食',
-      moduleId: 't-mod-meal',
-      defaultOn: true,
-      position: 1,
-      source: 'official',
-      timerSeconds: null,
-      starter: true,
-    });
-    await insertLink(db, {
-      id: 't-lnk-water',
-      title: '白湯',
-      moduleId: 't-mod-health',
-      defaultOn: true,
-      position: 2,
-      source: 'official',
-      timerSeconds: null,
-      starter: true,
-    });
-
-    // moment/goal の JSON 往復が成立する (テスト専用モジュールを取得)
-    const modules = await listModules(db);
-    const tModules = modules.filter((m) => m.id.startsWith('t-mod-'));
-    expect(tModules.map((m) => m.id)).toEqual(['t-mod-health', 't-mod-meal']);
-    const health = tModules.find((m) => m.id === 't-mod-health')!;
-    expect(health.moment).toEqual(['morning']);
-    expect(health.goal).toEqual(['health']);
-
-    // listLinksForModule は所属 (論理クラスタ) で絞る — position が非連続でも両方取れる
-    // (catalog の他モジュールに影響されない = ID 指定取得なので安定)。
-    const healthLinks = await listLinksForModule(db, 't-mod-health');
-    expect(healthLinks.map((l) => l.id)).toEqual(['t-lnk-brush', 't-lnk-water']);
-    expect(healthLinks.map((l) => l.position)).toEqual([0, 2]); // 非連続
-    expect(healthLinks[0]?.defaultOn).toBe(true);
-    expect(healthLinks[0]?.starter).toBe(true);
-
-    // listLinks (全件 position 順) でも、テスト専用リンクが所属に関係なく
-    // position 順に並ぶことを確認 (catalog 由来を除外してアサート)。
-    const links = await listLinks(db);
-    const tLinks = links.filter((l) => l.id.startsWith('t-lnk-'));
-    expect(tLinks.map((l) => l.id)).toEqual([
-      't-lnk-brush',
-      't-lnk-breakfast',
-      't-lnk-water',
-    ]);
-    await teardown(db);
-  });
-
-  test('ADR-0030 (#68): orphan link (存在しない module_id) は FK 制約で reject される', async () => {
-    const db = await setup();
-    await expect(
-      insertLink(db, {
-        id: 'lnk-orphan',
-        title: '迷子リンク',
-        moduleId: 'nonexistent-module',
-        defaultOn: true,
-        position: 0,
-        source: 'user',
-        timerSeconds: null,
-        starter: false,
-      }),
-    ).rejects.toThrow(/FOREIGN KEY/);
     await teardown(db);
   });
 
