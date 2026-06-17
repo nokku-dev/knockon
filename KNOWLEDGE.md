@@ -287,3 +287,11 @@
 - **原因**: git の状態遷移は逐次依存 (commit → push → PR → merge) なのに、 結果確認を挟まず投機的に並べた。 「速く回す」ことを優先して各ステップの exit code / 出力を読まなかった。
 - **解決**: 状態を変える git / gh 操作は「1 コマンド実行 → 結果確認 → 次」を厳守。 特に **type-check / jest の exit code** と **mergeStateStatus = CLEAN** は次へ進む前に必ず目視する。 読み取り専用クエリ (grep / git log 等) の並列はよいが、 破壊的・逐次依存の操作は並べない。
 - **教訓**: 逐次依存の破壊的操作はバッチ化しない。 [K-032](#k-032) (CI green 確認) の運用は「並列実行しない」ことで初めて守れる。 物理ガード ([.claude/hooks/guard-pr-merge.sh](.claude/hooks/guard-pr-merge.sh)) を入れても、 投機的バッチ実行をやめなければ別の経路で事故る。 迷走検知ルール (同一ファイル 3 回編集 / エラー 3 サイクル) に該当したら即停止して状態を `git status` / `gh pr list` で棚卸しする。
+
+## K-036: FK 列の削除は table-copy 方式 — PRAGMA は TX 外、CASCADE 子テーブルは名前で追従する
+
+- **状況**: ADR-0040 (#160) で `nodes.module_id` (`REFERENCES modules(id)`) を撤去した。
+- **問題**: SQLite の `ALTER TABLE DROP COLUMN` は FK (REFERENCES) 列を落とせない。素直に DROP COLUMN すると reject される ([K-034](#k-034) の ADD 側と対称の制約)。
+- **原因**: FK 列は他テーブルとの関係制約を持つため、列単位の破壊的変更ができない。SQLite 公式の table-copy 手順 (新テーブル作成 → INSERT SELECT → 旧 drop → rename) が必要。
+- **解決**: `MIGRATIONS[11]` で次の順に実行: `PRAGMA foreign_keys=OFF` (TX **外**) → `BEGIN` → `CREATE nodes_new` (module_id を除いた定義) → `INSERT SELECT` → `DROP nodes` → `ALTER RENAME nodes_new → nodes` → index 再作成 → 依存テーブル (`links` → `modules`) drop → `COMMIT` → `PRAGMA foreign_keys=ON` (TX **外**)。
+- **教訓**: (1) `PRAGMA foreign_keys` は **トランザクション内では no-op** なので必ず `BEGIN` の外に置く。(2) CASCADE 子テーブル (`achievements.node_id ON DELETE CASCADE`) は、`foreign_keys=OFF` 中に親 `nodes` を DROP しても **CASCADE 誤発火せず**、rename 後に **名前ベースで親に追従**する (子データは保全される)。(3) test (better-sqlite3) / prod (expo-sqlite) 差 ([K-018](#k-018)) は接続スコープ PRAGMA で概ね吸収できるが、複文 `BEGIN;…COMMIT;` + PRAGMA トグルの実機挙動は最終的に実機確認が要る。(4) `nodes_new` の定義は SCHEMA_SQL の nodes 定義と値一致させる ([K-021](#k-021) の二重 truth source)。Phase 2 以降で別の FK 列を消すときに同型を再利用する。
