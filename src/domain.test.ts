@@ -8,6 +8,7 @@ import type {
 } from './domain';
 import {
   countAchievedDaysInWindow,
+  countAchievedInMap,
   countAchievedNodesOn,
   distanceMeters,
   effectiveTodayIsoDate,
@@ -19,6 +20,7 @@ import {
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
   lastAchievedNodeIndex,
+  nodeCumulativeCount,
   recentDateRange,
   resolveActionForDate,
   shouldSeed,
@@ -73,6 +75,34 @@ describe('countAchievedNodesOn (ゆるい連鎖判定の基礎: 各ノード独�
     expect(
       countAchievedNodesOn(achievements, ['n1', 'n2', 'n3'], '2026-05-17'),
     ).toBe(0);
+  });
+});
+
+describe('countAchievedInMap (#142: AchievementMap の達成ノード数)', () => {
+  test('true の数を数える (false は除外)', () => {
+    expect(countAchievedInMap({ n1: true, n2: false, n3: true })).toBe(2);
+  });
+
+  test('空マップで 0', () => {
+    expect(countAchievedInMap({})).toBe(0);
+  });
+
+  test('全 false で 0', () => {
+    expect(countAchievedInMap({ n1: false, n2: false })).toBe(0);
+  });
+});
+
+describe('nodeCumulativeCount (#142: 今日より前の累計 + 今日の達成状態)', () => {
+  test('今日未達成なら base のまま', () => {
+    expect(nodeCumulativeCount(41, false)).toBe(41);
+  });
+
+  test('今日達成済みなら base + 1 (やるだけ増える)', () => {
+    expect(nodeCumulativeCount(41, true)).toBe(42);
+  });
+
+  test('base=0 で今日達成すると 1 (最初の 1 回が起点)', () => {
+    expect(nodeCumulativeCount(0, true)).toBe(1);
   });
 });
 

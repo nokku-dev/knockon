@@ -8,6 +8,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ChainCard } from './ChainCard';
 import { ChainDetail } from './ChainDetail';
+import { countAchievedInMap } from './domain';
 import { InAppNotificationToast } from './InAppNotificationToast';
 import { TimerScreen } from './TimerScreen';
 import {
@@ -24,6 +25,9 @@ import type { TodayChainData } from './useTodayData';
 // 旧 TodayScreen の中身 (スパイン / ノードリスト) は ChainDetail.tsx に移動。
 export type TodayScreenProps = {
   chains: readonly TodayChainData[];
+  // #142: アプリ全体の「今日より前の累計達成ノード数」(SQL COUNT のベース)。 見出し右に
+  // 「累計 N 回 (+今日)」を出すため。 今日の達成数は chains の achievements から合算する。
+  achievedBeforeToday?: number;
   onToggleNode: (chainId: string, nodeId: string) => void;
   // PR-1.5b-3: 通知タップから遷移してきたとき、 自動で開きたい chainId。
   // 変化のたびに対応するチェーンの Bottom Sheet を expand する。
@@ -39,6 +43,7 @@ export type TodayScreenProps = {
 
 export const TodayScreen = ({
   chains,
+  achievedBeforeToday = 0,
   onToggleNode,
   initialOpenChainId = null,
   onEditChain,
@@ -99,6 +104,15 @@ export const TodayScreen = ({
     if (idx === -1) setOpenChainId(null);
   }, []);
 
+  // #142: アプリ全体の累計達成ノード数「累計 N 回 (+今日)」。 今日の達成数は全チェーンの
+  // achievements を合算 (countAchievedInMap) し、 base (今日より前の累計) と足す。 今日分を
+  // base と分離しているので、 タップでの楽観更新 (achievements 変化) が即座に両方へ反映される。
+  const todayAchievedCount = useMemo(
+    () => chains.reduce((acc, c) => acc + countAchievedInMap(c.achievements), 0),
+    [chains],
+  );
+  const cumulativeTotal = achievedBeforeToday + todayAchievedCount;
+
   const snapPoints = useMemo(() => ['85%'], []);
 
   const renderBackdrop = useCallback(
@@ -117,7 +131,21 @@ export const TodayScreen = ({
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.heading}>Today</Text>
+        <View style={styles.headingRow}>
+          <Text style={styles.heading}>Today</Text>
+          {/* #142: 見出し右横にアプリ全体の累計達成ノード数。 cumulativeTotal=0
+              (= まだ一度も達成なし) は非表示で、 最初の 1 回から現れる。 「累計 N 回 (+今日M)」
+              形式 (Taku 指定)。 控えめなトーンで前進感だけを出す (Celebrate 主)。 */}
+          {cumulativeTotal > 0 && (
+            <Text
+              testID="today-cumulative-total"
+              style={styles.cumulativeTotal}
+              accessibilityLabel={`累計 ${cumulativeTotal} 回達成、 うち今日 ${todayAchievedCount} 回`}
+            >
+              累計 {cumulativeTotal.toLocaleString()} 回 (+{todayAchievedCount})
+            </Text>
+          )}
+        </View>
         {chains.length === 0 ? (
           <Text style={styles.empty}>
             アクティブなチェーンがありません。 {'\n'}
@@ -183,6 +211,7 @@ export const TodayScreen = ({
                 anchorFiredToday={openChain.anchorFiredToday}
                 nodeIdsEstablished={openChain.nodeIdsEstablished}
                 nodeRecentCells={openChain.nodeRecentCells}
+                nodeAchievedBase={openChain.nodeAchievedBase}
                 onToggleNode={(nodeId) => onToggleNode(openChain.chain.id, nodeId)}
                 onStartTimer={(nodeId, durationSeconds, actionTitle) => {
                   setTimerState({
@@ -243,12 +272,27 @@ export const TodayScreen = ({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLOR_BG },
   scroll: { padding: 24 },
+  // #142: 見出し「Today」と累計表示を同じ行に並べる。 baseline 揃えで大見出しの
+  // ベースラインに小さい累計テキストを乗せる。 marginBottom は行側に移動。
+  headingRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
   heading: {
     color: COLOR_FG,
     fontSize: 28,
     fontWeight: '700',
     letterSpacing: -0.5,
-    marginBottom: 24,
+  },
+  // #142: 控えめなトーン (COLOR_FG_FAINT / tabular-nums)。 定着星や達成マーカーより
+  // 目立たせない (DESIGN-SYSTEM §0 / §4.2)。 数字が伸びても揃うよう tabular-nums。
+  cumulativeTotal: {
+    color: COLOR_FG_FAINT,
+    fontSize: 13,
+    fontVariant: ['tabular-nums'],
+    marginLeft: 12,
   },
   empty: {
     color: COLOR_FG_FAINT,

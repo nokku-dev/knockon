@@ -630,4 +630,52 @@ describe('ChainDetail', () => {
     // チェーンタイトルは残る (カードは消さない)
     expect(queryByText(chain.title)).toBeTruthy();
   });
+
+  describe('#142: ノード行右端の累計達成回数「N 回」', () => {
+    const renderWithBase = (
+      base: Readonly<Record<string, number>>,
+      achievements: AchievementMap = {},
+    ) =>
+      render(
+        <ChainDetail
+          chain={chain}
+          anchor={anchor}
+          nodes={todayNodes}
+          achievements={achievements}
+          nodeAchievedBase={base}
+          onToggleNode={() => {}}
+        />,
+      );
+
+    test('base がそのまま「N 回」で出る (今日未達成)', () => {
+      const { getByTestId } = renderWithBase({ n1: 41, n2: 3 });
+      expect(getByTestId('node-row-cumulative-n1').props.children).toEqual([41, ' 回']);
+      expect(getByTestId('node-row-cumulative-n2').props.children).toEqual([3, ' 回']);
+    });
+
+    test('今日達成済みなら base + 1 (やるだけ増える)', () => {
+      const { getByTestId } = renderWithBase({ n1: 41 }, { n1: true });
+      expect(getByTestId('node-row-cumulative-n1').props.children).toEqual([42, ' 回']);
+    });
+
+    test('累計 0 回 (base 無し・今日未達成) は非表示', () => {
+      const { queryByTestId } = renderWithBase({}, {});
+      expect(queryByTestId('node-row-cumulative-n1')).toBeNull();
+    });
+
+    test('base 0 でも今日達成すれば 1 回が現れる (最初の 1 回が起点)', () => {
+      const { getByTestId } = renderWithBase({}, { n2: true });
+      expect(getByTestId('node-row-cumulative-n2').props.children).toEqual([1, ' 回']);
+    });
+
+    test('nodeAchievedBase 未指定なら base=0 扱い: 今日未達成は非表示', () => {
+      const { queryByTestId } = renderScreen({});
+      expect(queryByTestId('node-row-cumulative-n1')).toBeNull();
+    });
+
+    test('nodeAchievedBase 未指定でも今日達成なら「1 回」(base=0 + 今日)', () => {
+      const { getByTestId } = renderScreen({ n1: true });
+      expect(getByTestId('node-row-cumulative-n1').props.children).toEqual([1, ' 回']);
+    });
+  });
 });

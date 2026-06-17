@@ -69,6 +69,7 @@ export default function TodayTab() {
       ) : (
         <TodayScreen
           chains={data.chains}
+          achievedBeforeToday={data.achievedBeforeToday}
           onToggleNode={handleToggle}
           initialOpenChainId={initialOpen}
           onEditChain={(chainId) => router.push(`/chain/${chainId}`)}
