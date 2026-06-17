@@ -618,7 +618,8 @@ export const listCategories = async (db: DbClient): Promise<Category[]> => {
   return rows.map(rowToCategory);
 };
 
-// position 昇順で全アクションを返す (所属カテゴリとは独立した一覧)。
+// 全アクションを「カテゴリ順 → カテゴリ内 position 順」で返す (= category_id, position)。
+// 全体を通した単一 position 昇順ではない (K-022: コメントの保証を実装と一致させる)。
 export const listCatalogActions = async (
   db: DbClient,
 ): Promise<CatalogAction[]> => {
