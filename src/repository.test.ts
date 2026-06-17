@@ -325,6 +325,8 @@ describe('スキーマの不変条件', () => {
     expect(linkColNames).not.toContain('anchor_id'); // 旧結合モデルでない
     expect(linkColNames).not.toContain('action_id'); // 旧結合モデルでない
     // テーブル集合は「正準データ + app config + テンプレ catalog」に固定 (派生値テーブル禁止)
+    // ADR-0039 (#154): 新カテゴリカタログ (categories / catalog_actions / recommended_items)
+    // を並行追加。旧 modules/links も移行完了まで残す (consumer 移行は別トラック)。
     expect(tableNames.sort()).toEqual(
       [
         'achievements',
@@ -332,12 +334,15 @@ describe('スキーマの不変条件', () => {
         'anchor_firings',
         'anchors',
         'app_settings',
+        'catalog_actions',
+        'categories',
         'chains',
         'links',
         'metric_kinds',
         'metrics',
         'modules',
         'nodes',
+        'recommended_items',
       ].sort(),
     );
     await teardown(db);
@@ -779,6 +784,98 @@ describe('スキーマの不変条件', () => {
     type NodeRow = { id: string; module_id: string | null };
     const nodes = await db.all<NodeRow>(`SELECT id, module_id FROM nodes`);
     expect(nodes).toEqual([{ id: 'nd-1', module_id: null }]);
+    await teardown(db);
+  });
+
+  // ADR-0039 (#154): 新カテゴリカタログのスキーマ不変条件を K-006 スタイルで機械固定する。
+  test('categories テーブル (ADR-0039): カラムは 6 固定 (catalog 専用・採用前メタは別テーブル)', async () => {
+    const db = await setup();
+    type ColumnRow = { name: string };
+    const cols = await db.all<ColumnRow>(`PRAGMA table_info(categories)`);
+    expect(cols.map((c) => c.name).sort()).toEqual([
+      'color',
+      'id',
+      'name',
+      'order_index',
+      'source',
+      'type',
+    ]);
+    await teardown(db);
+  });
+
+  test('catalog_actions テーブル (ADR-0039): カラムは 7 固定 / category_id NOT NULL + FK→categories CASCADE (orphan 物理禁止)', async () => {
+    const db = await setup();
+    type ColumnRow = { name: string; notnull: number };
+    const cols = await db.all<ColumnRow>(`PRAGMA table_info(catalog_actions)`);
+    expect(cols.map((c) => c.name).sort()).toEqual([
+      'category_id',
+      'default_on',
+      'id',
+      'position',
+      'source',
+      'timer_seconds',
+      'title',
+    ]);
+    expect(cols.find((c) => c.name === 'category_id')?.notnull).toBe(1);
+    type FkRow = { table: string; from: string; on_delete: string };
+    const fks = await db.all<FkRow>(`PRAGMA foreign_key_list(catalog_actions)`);
+    const categoryFk = fks.find((f) => f.from === 'category_id');
+    expect(categoryFk?.table).toBe('categories');
+    expect(categoryFk?.on_delete).toBe('CASCADE');
+    await teardown(db);
+  });
+
+  test('recommended_items テーブル (ADR-0039): category_id + action_id 共に NOT NULL + FK CASCADE (順序つき重複参照)', async () => {
+    const db = await setup();
+    type ColumnRow = { name: string; notnull: number };
+    const cols = await db.all<ColumnRow>(`PRAGMA table_info(recommended_items)`);
+    expect(cols.map((c) => c.name).sort()).toEqual([
+      'action_id',
+      'category_id',
+      'id',
+      'position',
+    ]);
+    expect(cols.find((c) => c.name === 'category_id')?.notnull).toBe(1);
+    expect(cols.find((c) => c.name === 'action_id')?.notnull).toBe(1);
+    type FkRow = { table: string; from: string; on_delete: string };
+    const fks = await db.all<FkRow>(
+      `PRAGMA foreign_key_list(recommended_items)`,
+    );
+    expect(fks.find((f) => f.from === 'category_id')?.table).toBe('categories');
+    expect(fks.find((f) => f.from === 'action_id')?.table).toBe(
+      'catalog_actions',
+    );
+    expect(fks.every((f) => f.on_delete === 'CASCADE')).toBe(true);
+    await teardown(db);
+  });
+
+  test('ADR-0039: MIGRATIONS[10] が v9 schema に新カテゴリカタログ 3 テーブルを追加する (既存データ保全)', async () => {
+    // v9 schema 相当 (新カテゴリテーブルなし) を直接構築し、既存ユーザーの代理データを
+    // 入れてから MIGRATIONS[10] を当てる (旧 catalog / live は触らない = 並行追加)。
+    const db = createBetterSqliteClient(':memory:');
+    await db.exec(`
+      CREATE TABLE modules (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT NOT NULL, moment_json TEXT NOT NULL, goal_json TEXT NOT NULL, source TEXT NOT NULL, kind TEXT NOT NULL, order_index INTEGER NOT NULL);
+    `);
+    await db.run(
+      `INSERT INTO modules (id, name, color, moment_json, goal_json, source, kind, order_index) VALUES ('mod-1', '既存モジュール', '#fff', '["morning"]', '["health"]', 'official', 'normal', 0)`,
+    );
+
+    await MIGRATIONS[10]!(db);
+
+    // 新 3 テーブルが追加されている
+    type TableRow = { name: string };
+    const tables = await db.all<TableRow>(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name IN ('categories','catalog_actions','recommended_items')`,
+    );
+    expect(tables.map((t) => t.name).sort()).toEqual([
+      'catalog_actions',
+      'categories',
+      'recommended_items',
+    ]);
+    // 旧 modules は触られず保全されている (並行追加)
+    type ModRow = { id: string };
+    const mods = await db.all<ModRow>(`SELECT id FROM modules`);
+    expect(mods).toEqual([{ id: 'mod-1' }]);
     await teardown(db);
   });
 });

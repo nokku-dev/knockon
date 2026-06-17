@@ -110,6 +110,50 @@ export type Link = {
   starter: boolean;
 };
 
+// ADR-0039 (#154): 新カタログモデル (module 廃止 → カテゴリ2型)。
+// 旧 Module / Link (ADR-0030) と並行追加 (catalog/live 分離は継承)。consumer
+// (discovery / onboarding / edit) の移行は別トラックのため、旧型はまだ残す。
+//
+// カテゴリ2型:
+// - 'genre'        ジャンル別カテゴリ。個別アクション (CatalogAction) を genre で束ねる。
+//                  各アクションは 1 つの genre カテゴリにのみ属す (一意)。moment は持たない
+//                  (moment は採用後にチェーン側で決まる、ADR-0039)。
+// - 'recommended'  おすすめカテゴリ (朝/夜の完成ルーティン束)。genre アクションを順序つきで
+//                  重複参照する (RecommendedItem)。プレビュー = ゴール提示。
+export type CategoryType = 'genre' | 'recommended';
+
+export type Category = {
+  id: string;
+  name: string;
+  type: CategoryType;
+  color: string; // 暫定パレット (a11y 最終調整は後続トラック)。
+  source: CatalogSource;
+  orderIndex: number;
+};
+
+// ジャンル別カテゴリ内の 1 アクション定義 (採用単位)。
+// categoryId: 所属 genre カテゴリ (必ず 1 つ・一意)。
+// defaultOn: 採用時の既定 ON (●=true / 「(任意)」=false)。「初期全選択」の既定集合判定に使う。
+// position: カテゴリ内の表示順 (採用後のチェーン物理順は採用フロー側で決まる)。
+export type CatalogAction = {
+  id: string;
+  title: string;
+  categoryId: string;
+  defaultOn: boolean;
+  position: number;
+  source: CatalogSource;
+  timerSeconds: number | null;
+};
+
+// おすすめカテゴリの順序つきアイテム。genre アクション (CatalogAction) を重複可で参照する。
+// 同じ actionId を複数の recommended カテゴリ / 同カテゴリ内で参照してよい (重複参照 OK)。
+export type RecommendedItem = {
+  id: string;
+  categoryId: string; // 所属 recommended カテゴリ。
+  actionId: string; // 参照する genre アクション。
+  position: number; // recommended カテゴリ内の順序。
+};
+
 // #70 (ADR-0030): 束採用ドラフト。catalog (modules/links) → live (chain/nodes) 変換の中間表現。
 // 純粋関数で生成し (DB/UI 非依存、K-007)、永続化は bundleAdoption.adoptChainDraft が担う。
 export type ChainDraftNode = {
