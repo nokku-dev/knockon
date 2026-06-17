@@ -403,12 +403,10 @@ export const initSchema = async (client: DbClient): Promise<void> => {
     }
   }
 
-  // #69 (ADR-0030): v0 catalog の seed を全経路の最後で投入。
-  // INSERT OR IGNORE で冪等なので毎起動・全経路 (初回 / legacy fallback / ALTER) で安全。
-  // この時点で modules/links テーブルは全経路で存在する (初回・legacy は SCHEMA_SQL、
-  // ADR-0039 (#154): 新カテゴリカタログを全経路の最後で投入。INSERT OR IGNORE で冪等。
-  // この時点で categories / catalog_actions / recommended_items は全経路で存在する
-  // (初回・legacy は SCHEMA_SQL、ALTER 経路は MIGRATIONS[10] が作成済み)。
+  // ADR-0039 (#154): v0 カテゴリカタログを全経路の最後で投入。INSERT OR IGNORE で冪等なので
+  // 毎起動・全経路 (初回 / legacy fallback / ALTER) で安全。この時点で categories /
+  // catalog_actions / recommended_items は全経路で存在する (初回・legacy は SCHEMA_SQL、
+  // ALTER 経路は MIGRATIONS[10] が作成済み)。
   await seedCategoryCatalog(client);
 };
 
