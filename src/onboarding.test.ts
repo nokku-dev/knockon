@@ -103,9 +103,13 @@ describe('buildOnboardingAdoption — おすすめ全採用 + 時刻アンカー
     expect(anchor).toEqual({ kind: 'time', time: '07:30' });
   });
 
-  test('採用ノードは由来参照 (moduleId) を持たない (ADR-0039)', () => {
+  test('採用ノードは actionTitle / timerSeconds のみ (由来参照なし、ADR-0040)', () => {
     const { draft } = buildOnboardingAdoption(previewFixture(), '07:30', '朝');
-    expect(draft.nodes.every((n) => n.moduleId === undefined)).toBe(true);
+    expect(
+      draft.nodes.every(
+        (n) => Object.keys(n).sort().join() === 'actionTitle,timerSeconds',
+      ),
+    ).toBe(true);
   });
 });
 

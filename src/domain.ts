@@ -45,10 +45,6 @@ export type Node = {
   orderIndex: number;
   kind: NodeKind;
   actionId: string;
-  // ADR-0030 (#68/#70): テンプレ採用元モジュール参照 (NULL/undefined = 手作り / テンプレ未経由)。
-  // 編集 UI (#73) のチップ表示用。optional は既存 Node リテラルの非破壊追加のため
-  // (Phase 1 受容: 厳密な必須化は call site 整理コストが見合うまで保留)。
-  moduleId?: string | null;
   // #73 (SPEC §6): ON/OFF = 一時停止。true/undefined = 通常 (Today に出る) /
   // false = 停止 (チェーンから外すが残す)。optional は既存 Node リテラルの非破壊追加。
   active?: boolean;
@@ -75,40 +71,10 @@ export type AnchorFiring = {
   date: IsoDate;
 };
 
-// ADR-0030 (#68): テンプレートカタログ。採用前のテンプレ定義専用 (live と分離)。
-// source: 'official' = seed 由来 / 'user' = ユーザー作成・カスタム昇格。
+// テンプレートカタログの source。'official' = seed 由来 / 'user' = ユーザー作成。
+// ADR-0040 (#160): 旧 Module / Link / ModuleKind 型は撤去。CatalogSource は新カテゴリ
+// モデル (Category / CatalogAction) で継続利用する。
 export type CatalogSource = 'official' | 'user';
-// kind: 'normal' = 通常モジュール / 'custom' = 単一の中立インボックス (振り分け先)。
-export type ModuleKind = 'normal' | 'custom';
-
-// moment / goal は語彙が #69 (v0 カタログ) で確定するため、ここでは string[] に留める
-// (朝/昼/夜 等の moment、運動/スキンケア 等の goal を JSON 配列で保持)。
-export type Module = {
-  id: string;
-  name: string;
-  color: string;
-  moment: string[];
-  goal: string[];
-  source: CatalogSource;
-  kind: ModuleKind;
-  orderIndex: number;
-};
-
-// リンク = テンプレ内の1アクション定義。
-// moduleId: 所属モジュール (論理クラスタ、必ず1つに属す)。
-// position: チェーン上の物理順 (所属とは独立 / 同一モジュールが非連続でよい)。
-// defaultOn: 採用時の既定 ON (●) / starter: スターターモジュール所属リンクか。
-//   採用で live に入るのは starter かつ defaultOn のリンクのみ (#70 束プレビュー)。
-export type Link = {
-  id: string;
-  title: string;
-  moduleId: string;
-  defaultOn: boolean;
-  position: number;
-  source: CatalogSource;
-  timerSeconds: number | null;
-  starter: boolean;
-};
 
 // ADR-0039 (#154): 新カタログモデル (module 廃止 → カテゴリ2型)。
 // 旧 Module / Link (ADR-0030) と並行追加 (catalog/live 分離は継承)。consumer
@@ -154,48 +120,17 @@ export type RecommendedItem = {
   position: number; // recommended カテゴリ内の順序。
 };
 
-// #70 (ADR-0030): 束採用ドラフト。catalog (modules/links) → live (chain/nodes) 変換の中間表現。
+// 採用ドラフト。catalog → live (chain/nodes) 変換の中間表現。
 // 純粋関数で生成し (DB/UI 非依存、K-007)、永続化は bundleAdoption.adoptChainDraft が担う。
+// ADR-0040 (#160): 採用ノードは由来参照 (moduleId) を持たない (旧 module モデル撤去)。
 export type ChainDraftNode = {
   actionTitle: string;
   timerSeconds: number | null;
-  // 採用元モジュール (旧モデル: live の nodes.module_id に入る)。
-  // ADR-0039 (#155): 新カテゴリモデルの採用ノードは由来参照を持たない (省略 = null)。
-  // 由来参照 (カテゴリ) を live に持たせるかは編集 UI 移行トラックで決定する。
-  moduleId?: string | null;
 };
 
 export type ChainDraft = {
   title: string;
   nodes: ChainDraftNode[];
-};
-
-// 束 = ある moment (朝/昼/夜) に属するモジュール群。
-// 採用で live に入るのは「starter かつ defaultOn」のリンクのみ (SPEC §4 束プレビュー)。
-// link.position 昇順 (物理順) に整列して ChainDraft を返す。所属モジュールが非連続でも
-// position 順に一列のチェーンになる (ADR-0030 の所属/位置独立モデル)。
-// 完成形プレビュー (全モジュール表示) は UI (#70b) の責務で、ここでは採用集合のみ扱う。
-export const buildChainDraftFromBundle = (
-  modules: readonly Module[],
-  links: readonly Link[],
-  moment: string,
-  title: string,
-): ChainDraft => {
-  const momentModuleIds = new Set(
-    modules.filter((m) => m.moment.includes(moment)).map((m) => m.id),
-  );
-  const adopted = links
-    .filter((l) => momentModuleIds.has(l.moduleId) && l.starter && l.defaultOn)
-    .slice()
-    .sort((a, b) => a.position - b.position);
-  return {
-    title,
-    nodes: adopted.map((l) => ({
-      actionTitle: l.title,
-      timerSeconds: l.timerSeconds,
-      moduleId: l.moduleId,
-    })),
-  };
 };
 
 export const isNodeAchievedOn = (

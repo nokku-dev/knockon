@@ -3,14 +3,16 @@ id: 0030
 date: 2026-05-31
 project: knockon
 tags: [architecture, data-model, scope]
-status: accepted
+status: superseded
 supersedes: []
-superseded-by: []
+superseded-by: [0040]
 ---
 
 # テンプレートの module / link を catalog 専用テーブルに分離し、live nodes に module_id を持たせる
 
-> **部分置換 ([ADR-0039](0039-catalog-restructure-modules-to-categories.md) / K-005・K-015)**: 本 ADR の **catalog/live 分離原則は ADR-0039 でも継承**される。ただし catalog 内部の **module(テーマ束) 概念と束ベースの採用単位は ADR-0039 で「カテゴリ2型 + 個別アクション採用」に置換**された。本 ADR 単体の `modules` / `links` スキーマと採用前メタ（`moment` / `starter` 等）の前提は ADR-0039 以降は無効。catalog/live 分離だけが生きている。
+> **superseded ([ADR-0040](0040-remove-edit-ui-module-concept.md))**: 本 ADR の `modules` / `links` テーブルと `nodes.module_id` は **ADR-0040 で完全撤去**された (編集 UI の module 概念廃止に伴う)。catalog/live 分離原則そのものは新カテゴリモデル ([ADR-0039](0039-catalog-restructure-modules-to-categories.md)) が継承している。本 ADR は歴史的経緯としてのみ残す (module/link スキーマは実在しない)。
+>
+> (旧注記) 部分置換 ([ADR-0039](0039-catalog-restructure-modules-to-categories.md) / K-005・K-015): catalog 内部の module(テーマ束) 概念と束ベースの採用単位は ADR-0039 で「カテゴリ2型 + 個別アクション採用」に置換され、その後 ADR-0040 で旧スキーマごと撤去された。
 
 ## 文脈
 
