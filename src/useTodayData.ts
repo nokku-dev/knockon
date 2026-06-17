@@ -29,7 +29,6 @@ import {
 } from './location';
 import {
   countAchievedBefore,
-  countAchievedBeforeByNode,
   getAction,
   getAnchor,
   listAchievementsForNodes,
@@ -68,10 +67,6 @@ export type TodayChainData = {
   // #125: ノード行右端の直近 7 日間グリフマトリクス用セル列 (派生値)。 楽観更新時は
   // recentAchievements 経由で再計算 (今日のセルがタップで即時反映される)。
   nodeRecentCells: ReadonlyMap<string, readonly DateMatrixCell[]>;
-  // #142: ノード (アクション) 単位の「今日より前の累計達成回数」(SQL COUNT のベース)。
-  // 表示時に今日の達成状態 (achievements) と合算して累計を出す (nodeCumulativeCount)。
-  // 今日分を含めないので楽観更新では変化せず、 タップ即時 +1 は achievements 側が担う。
-  nodeAchievedBase: Readonly<Record<string, number>>;
 };
 
 // Today 画面全体の状態。 ADR-0020 で「手動発火」概念を廃止、 active な全チェーンを
@@ -79,9 +74,10 @@ export type TodayChainData = {
 export type TodayData = {
   today: IsoDate;
   chains: TodayChainData[];
-  // #142: アプリ全体の「今日より前の累計達成ノード数」(SQL COUNT のベース)。 表示側で
-  // 今日の達成数 (全チェーン合算) を足して「累計 N (+今日)」を出す。 今日分を含めないので
-  // 楽観更新で base は変化せず、 タップ即時 +1 は各チェーンの achievements 合算が担う。
+  // #142 (ADR-0041): アプリ全体の「今日より前の累計達成ノード数」(SQL COUNT のベース)。
+  // 表示側で今日の達成数 (全チェーン合算) を足して「累計 N 個達成 (+今日M)」を出す。
+  // 今日分を含めないので楽観更新で base は変化せず、 タップ即時 +1 は各チェーンの
+  // achievements 合算が担う。
   achievedBeforeToday: number;
 };
 
@@ -176,13 +172,6 @@ const loadChainForToday = async (
       nodeDateMatrixCells(matrixDates, n.action, n.node.id, records),
     );
   }
-  // #142: ノード単位の「今日より前の累計達成回数」を全期間 SQL COUNT で取得。
-  // recentAchievements (14D) とは別クエリ — 累計は窓を持たず全期間が対象のため。
-  const nodeAchievedBase = await countAchievedBeforeByNode(
-    db,
-    validNodes.map((n) => n.node.id),
-    today,
-  );
   // ADR-0012: 既存の発火 record があれば「今日発火済み」確定。
   const todayFirings = await listAnchorFiringsForDate(db, anchor.id, today);
   const alreadyFired = isAnchorFiringToday(todayFirings, anchor.id, today);
@@ -203,7 +192,6 @@ const loadChainForToday = async (
     recentAchievements: records,
     nodeIdsEstablished,
     nodeRecentCells,
-    nodeAchievedBase,
   };
 };
 
@@ -219,7 +207,7 @@ const loadToday = async (): Promise<TodayData> => {
     chains.map((c) => loadChainForToday(c, today, now)),
   );
   const valid = loaded.filter((x): x is TodayChainData => x !== null);
-  // #142: アプリ全体の「今日より前の累計達成ノード数」。 ノード横断・全期間なので
+  // #142 (ADR-0041): アプリ全体の「今日より前の累計達成ノード数」。 ノード横断・全期間なので
   // チェーンごとの集計とは別に 1 回だけ SQL COUNT する (active/非 active 問わず全 record)。
   const achievedBeforeToday = await countAchievedBefore(db, today);
   // 表示順: 時刻アンカー (time 昇順) → place (createdAt 昇順) → behavior (createdAt 昇順)
