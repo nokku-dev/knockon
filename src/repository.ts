@@ -652,6 +652,18 @@ export const listRecommendedItemsForCategory = async (
   return rows.map(rowToRecommendedItem);
 };
 
+// 全 recommended_item を「カテゴリ順 → カテゴリ内 position 順」で返す
+// (= category_id, position)。useDiscovery が全カテゴリ分を一括ロードして
+// preview をメモ化するため (旧 listLinks と同型の一括ロード)。
+export const listRecommendedItems = async (
+  db: DbClient,
+): Promise<RecommendedItem[]> => {
+  const rows = await db.all<RecommendedItemRow>(
+    `SELECT * FROM recommended_items ORDER BY category_id, position`,
+  );
+  return rows.map(rowToRecommendedItem);
+};
+
 export const recordAchievement = (
   db: DbClient,
   achievement: Achievement,

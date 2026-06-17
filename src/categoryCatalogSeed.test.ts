@@ -11,6 +11,7 @@ import {
   listCatalogActions,
   listCatalogActionsForCategory,
   listCategories,
+  listRecommendedItems,
   listRecommendedItemsForCategory,
 } from './repository';
 
@@ -216,6 +217,18 @@ describe('seedCategoryCatalog — DB 投入 (#154)', () => {
     expect(actions.filter((a) => a.source === 'official')).toHaveLength(
       expected.actions.length,
     );
+    await db.close?.();
+  });
+
+  test('listRecommendedItems で全おすすめアイテムを取得できる (朝+夜の合計件数)', async () => {
+    const db = await setup();
+    const expected = buildV0CategoryCatalog();
+    const items = await listRecommendedItems(db);
+    expect(items).toHaveLength(expected.recommendedItems.length);
+    // 全アイテムが実在の genre アクションを指す (FK 整合)
+    const actions = await listCatalogActions(db);
+    const actionIds = new Set(actions.map((a) => a.id));
+    expect(items.every((i) => actionIds.has(i.actionId))).toBe(true);
     await db.close?.();
   });
 

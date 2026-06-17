@@ -189,7 +189,11 @@ describe('adoptChainDraft — ドラフトの live 永続化 (#70)', () => {
           links.some((l) => l.moduleId === id && l.starter && l.defaultOn),
         ),
     );
-    expect(draft.nodes.every((n) => starterMorningModuleIds.has(n.moduleId))).toBe(true);
+    // 旧モデル (buildChainDraftFromBundle) は moduleId を必ず設定する。
+    // ChainDraftNode.moduleId は #155 で optional 化したため null/undefined を narrow する。
+    expect(
+      draft.nodes.every((n) => n.moduleId != null && starterMorningModuleIds.has(n.moduleId)),
+    ).toBe(true);
 
     const chainId = await adoptChainDraft(db, draft, '2026-05-31T00:00:00Z', seqIdGen());
     const nodes = await listNodes(db, chainId);
