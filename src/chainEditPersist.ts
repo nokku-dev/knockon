@@ -11,7 +11,6 @@ import {
   updateChain,
   updateNodeAction,
   updateNodeActive,
-  updateNodeModule,
 } from './repository';
 import type { ChainEditDraft, EditableAnchor } from './useChainEdit';
 
@@ -83,9 +82,7 @@ export const persistChainDraft = async (
         orderIndex: i,
         kind: 'action',
         actionId: n.actionId,
-        // #70/#73: 採用元モジュール所属 + ON/OFF を live に保存する
-        // (これがないと編集保存でモジュールチップが消える / 停止状態が失われる)。
-        moduleId: n.moduleId,
+        // #73: ON/OFF を live に保存する (これがないと保存で停止状態が失われる)。
         active: n.active,
       });
     }
@@ -115,14 +112,11 @@ export const persistChainDraft = async (
     }
   }
 
-  // 既存ノードの action_id / ON-OFF (active) / 所属モジュール (module_id) を更新
-  // (order_index は触らない、衝突回避)。module_id は draft の値を反映する
-  // (= #93 昇格で既存ノードの所属が custom inbox → user モジュールに移った場合に永続化)。
+  // 既存ノードの action_id / ON-OFF (active) を更新 (order_index は触らない、衝突回避)。
   for (const n of draft.nodes) {
     if (!n.isNew) {
       await updateNodeAction(db, n.id, n.actionId);
       await updateNodeActive(db, n.id, n.active);
-      await updateNodeModule(db, n.id, n.moduleId ?? null);
     }
   }
 
@@ -136,7 +130,6 @@ export const persistChainDraft = async (
         orderIndex: -1000 - newCounter,
         kind: 'action',
         actionId: n.actionId,
-        moduleId: n.moduleId,
         active: n.active,
       });
       newCounter += 1;
