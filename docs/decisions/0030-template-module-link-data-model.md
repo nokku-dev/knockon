@@ -10,6 +10,8 @@ superseded-by: []
 
 # テンプレートの module / link を catalog 専用テーブルに分離し、live nodes に module_id を持たせる
 
+> **部分置換 ([ADR-0039](0039-catalog-restructure-modules-to-categories.md) / K-005・K-015)**: 本 ADR の **catalog/live 分離原則は ADR-0039 でも継承**される。ただし catalog 内部の **module(テーマ束) 概念と束ベースの採用単位は ADR-0039 で「カテゴリ2型 + 個別アクション採用」に置換**された。本 ADR 単体の `modules` / `links` スキーマと採用前メタ（`moment` / `starter` 等）の前提は ADR-0039 以降は無効。catalog/live 分離だけが生きている。
+
 ## 文脈
 
 Issue #62（テンプレート充実）の実装第一歩 Issue #68。テンプレート機能は「扉 → 束 → モジュール → リンク」の階層を持ち（[docs/template-modules-spec.md](../template-modules-spec.md) §2-§3）、`module { id, name, color, moment[], goal[], source, kind }` / `link { id, title, moduleId, default_on, position, source, timerSeconds? }` というデータモデルを要求する。
