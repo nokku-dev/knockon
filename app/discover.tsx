@@ -15,16 +15,15 @@ export default function DiscoverRoute() {
   const {
     loading,
     error,
-    moments,
-    goals,
+    recommendedCategories,
+    genreCategories,
     door,
     preview,
-    selectedLinkIds,
-    openMoment,
-    openGoal,
-    openOmakase,
-    closeBundle,
-    toggleLink,
+    selectedKeys,
+    selectedCount,
+    openCategory,
+    closeCategory,
+    toggleItem,
     selectedActionTitles,
     adopt,
     adopting,
@@ -53,25 +52,23 @@ export default function DiscoverRoute() {
         <Text style={styles.error}>{error}</Text>
       ) : !door || !preview ? (
         <DiscoveryIndexScreen
-          moments={moments}
-          goals={goals}
-          onOpenMoment={openMoment}
-          onOpenGoal={openGoal}
-          onOpenOmakase={openOmakase}
+          recommendedCategories={recommendedCategories}
+          genreCategories={genreCategories}
+          onOpenCategory={openCategory}
           onCancel={() => router.back()}
         />
       ) : !confirming ? (
         <BundlePreviewScreen
           preview={preview}
-          selectedLinkIds={selectedLinkIds}
-          selectedCount={selectedLinkIds.size}
-          onToggleLink={toggleLink}
-          onBack={closeBundle}
+          selectedKeys={selectedKeys}
+          selectedCount={selectedCount}
+          onToggleItem={toggleItem}
+          onBack={closeCategory}
           onNext={() => setConfirming(true)}
         />
       ) : (
         <AdoptConfirmScreen
-          title={preview.title}
+          title={preview.category.name}
           actionTitles={selectedActionTitles}
           adopting={adopting}
           onBack={() => setConfirming(false)}
