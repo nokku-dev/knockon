@@ -1,35 +1,30 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { goalLabel, momentLabel } from './discoveryLabels';
+import type { Category } from './domain';
 import {
   COLOR_BG,
   COLOR_FG,
   COLOR_FG_FAINT,
   COLOR_FG_SOFT,
-  COLOR_GROW,
   COLOR_SURFACE,
 } from './tokens';
 
-// #70b (#70/#71 SPEC §4): discovery 索引。2 つの扉 + おまかせ。
-// - 状態ゴール扉 (既定・主導線): 「いつを良くしたい?」→ moment (朝/夜)。
-// - 成果ゴール扉: 「何を達成したい?」→ goal で横断フィルタ。
-// - おまかせ: 目的の無い人向けの底 (既定 moment に着地)。
+// ADR-0039 (#155): discovery 索引 (新カテゴリモデル)。
+// - おすすめ (朝/夜): 完成ルーティン束。順序つきで全ノードが入る雛形。
+// - ジャンル別カテゴリ (9): 個別アクションを genre で探す。
+// 旧 moment/goal 扉・おまかせは廃止 (おすすめが役割を継ぐ)。
 export type DiscoveryIndexScreenProps = {
-  moments: string[];
-  goals: string[];
-  onOpenMoment: (moment: string) => void;
-  onOpenGoal: (goal: string) => void;
-  onOpenOmakase: () => void;
+  recommendedCategories: Category[];
+  genreCategories: Category[];
+  onOpenCategory: (category: Category) => void;
   onCancel: () => void;
 };
 
 export const DiscoveryIndexScreen = ({
-  moments,
-  goals,
-  onOpenMoment,
-  onOpenGoal,
-  onOpenOmakase,
+  recommendedCategories,
+  genreCategories,
+  onOpenCategory,
   onCancel,
 }: DiscoveryIndexScreenProps) => (
   <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
@@ -44,47 +39,44 @@ export const DiscoveryIndexScreen = ({
     </View>
 
     <ScrollView contentContainerStyle={styles.body}>
-      {/* 状態ゴール扉 — 主導線 */}
-      <Text style={styles.sectionLabel}>いつを良くしたい?</Text>
-      <View style={styles.chipRow}>
-        {moments.map((m) => (
-          <Pressable
-            key={m}
-            onPress={() => onOpenMoment(m)}
-            accessibilityRole="button"
-            accessibilityLabel={`${momentLabel(m)}の束を見る`}
-            style={styles.momentChip}
-          >
-            <Text style={styles.momentChipText}>{momentLabel(m)}</Text>
-          </Pressable>
-        ))}
-      </View>
+      {/* おすすめ — 完成ルーティン束 (主導線) */}
+      <Text style={styles.sectionLabel}>おすすめ</Text>
+      {recommendedCategories.map((c) => (
+        <Pressable
+          key={c.id}
+          onPress={() => onOpenCategory(c)}
+          accessibilityRole="button"
+          accessibilityLabel={`${c.name}を見る`}
+          style={styles.recommendCard}
+        >
+          {/* a11y: 色ストライプは名前ラベル併用で色のみ依存を避ける (#74 で仕上げ) */}
+          <View style={[styles.stripe, { backgroundColor: c.color }]} />
+          <View style={styles.recommendText}>
+            <Text style={styles.recommendTitle}>{c.name}</Text>
+            <Text style={styles.recommendHint}>
+              そのまま使える順序つきのルーティン
+            </Text>
+          </View>
+        </Pressable>
+      ))}
 
-      {/* おまかせ — 目的の無い人向けの底 */}
-      <Pressable
-        onPress={onOpenOmakase}
-        accessibilityRole="button"
-        accessibilityLabel="おまかせの束を見る"
-        style={styles.omakaseCard}
-      >
-        <Text style={styles.omakaseTitle}>おまかせ</Text>
-        <Text style={styles.omakaseHint}>迷ったらこれ。定番の朝の束から始める。</Text>
-      </Pressable>
-
-      {/* 成果ゴール扉 — 横断軸 */}
+      {/* ジャンル別カテゴリ — 個別アクションを genre で探す */}
       <Text style={[styles.sectionLabel, styles.sectionLabelGap]}>
-        何を達成したい?
+        ジャンルから選ぶ
       </Text>
       <View style={styles.chipRow}>
-        {goals.map((g) => (
+        {genreCategories.map((c) => (
           <Pressable
-            key={g}
-            onPress={() => onOpenGoal(g)}
+            key={c.id}
+            onPress={() => onOpenCategory(c)}
             accessibilityRole="button"
-            accessibilityLabel={`${goalLabel(g)}の束を見る`}
-            style={styles.goalChip}
+            accessibilityLabel={`${c.name}を見る`}
+            style={styles.genreChip}
           >
-            <Text style={styles.goalChipText}>{goalLabel(g)}</Text>
+            <View
+              style={[styles.chipDot, { backgroundColor: c.color }]}
+            />
+            <Text style={styles.genreChipText}>{c.name}</Text>
           </Pressable>
         ))}
       </View>
@@ -107,32 +99,30 @@ const styles = StyleSheet.create({
   body: { padding: 16, gap: 12 },
   sectionLabel: { color: COLOR_FG_SOFT, fontSize: 13, fontWeight: '600' },
   sectionLabelGap: { marginTop: 12 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  momentChip: {
-    backgroundColor: COLOR_GROW,
-    borderRadius: 999,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  momentChipText: { color: COLOR_BG, fontSize: 16, fontWeight: '700' },
-  omakaseCard: {
+  recommendCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     backgroundColor: COLOR_SURFACE,
     borderRadius: 14,
     padding: 16,
-    gap: 4,
     minHeight: 44,
   },
-  omakaseTitle: { color: COLOR_FG, fontSize: 16, fontWeight: '700' },
-  omakaseHint: { color: COLOR_FG_FAINT, fontSize: 12 },
-  goalChip: {
+  stripe: { width: 4, height: 36, borderRadius: 2 },
+  recommendText: { flex: 1, gap: 2 },
+  recommendTitle: { color: COLOR_FG, fontSize: 16, fontWeight: '700' },
+  recommendHint: { color: COLOR_FG_FAINT, fontSize: 12 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  genreChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: COLOR_SURFACE,
     borderRadius: 999,
     paddingVertical: 10,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     minHeight: 44,
-    justifyContent: 'center',
   },
-  goalChipText: { color: COLOR_FG, fontSize: 14, fontWeight: '600' },
+  chipDot: { width: 8, height: 8, borderRadius: 4 },
+  genreChipText: { color: COLOR_FG, fontSize: 14, fontWeight: '600' },
 });

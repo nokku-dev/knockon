@@ -159,7 +159,10 @@ export type RecommendedItem = {
 export type ChainDraftNode = {
   actionTitle: string;
   timerSeconds: number | null;
-  moduleId: string; // 採用元モジュール (live の nodes.module_id に入る)
+  // 採用元モジュール (旧モデル: live の nodes.module_id に入る)。
+  // ADR-0039 (#155): 新カテゴリモデルの採用ノードは由来参照を持たない (省略 = null)。
+  // 由来参照 (カテゴリ) を live に持たせるかは編集 UI 移行トラックで決定する。
+  moduleId?: string | null;
 };
 
 export type ChainDraft = {

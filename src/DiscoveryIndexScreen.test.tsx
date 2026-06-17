@@ -1,51 +1,65 @@
 import { fireEvent, render } from '@testing-library/react-native';
 
 import { DiscoveryIndexScreen } from './DiscoveryIndexScreen';
+import type { Category } from './domain';
+
+const cat = (
+  id: string,
+  name: string,
+  type: Category['type'],
+  orderIndex: number,
+): Category => ({
+  id,
+  name,
+  type,
+  color: '#888',
+  source: 'official',
+  orderIndex,
+});
 
 const baseProps = {
-  moments: ['morning', 'night'],
-  goals: ['health', 'exercise'],
-  onOpenMoment: () => {},
-  onOpenGoal: () => {},
-  onOpenOmakase: () => {},
+  recommendedCategories: [
+    cat('cat-rec-morning', '朝のおすすめ', 'recommended', 9),
+    cat('cat-rec-night', '夜のおすすめ', 'recommended', 10),
+  ],
+  genreCategories: [
+    cat('cat-hydration-health', '水分・健康', 'genre', 0),
+    cat('cat-exercise', '運動', 'genre', 2),
+  ],
+  onOpenCategory: () => {},
   onCancel: () => {},
 };
 
-describe('DiscoveryIndexScreen', () => {
-  test('moment / goal がラベルで表示される', () => {
+describe('DiscoveryIndexScreen (ADR-0039 新カテゴリモデル)', () => {
+  test('おすすめ / ジャンル別カテゴリ名が表示される', () => {
     const { getByText } = render(<DiscoveryIndexScreen {...baseProps} />);
-    expect(getByText('朝')).toBeTruthy();
-    expect(getByText('夜')).toBeTruthy();
-    expect(getByText('健康')).toBeTruthy();
+    expect(getByText('朝のおすすめ')).toBeTruthy();
+    expect(getByText('夜のおすすめ')).toBeTruthy();
+    expect(getByText('水分・健康')).toBeTruthy();
     expect(getByText('運動')).toBeTruthy();
-    expect(getByText('おまかせ')).toBeTruthy();
   });
 
-  test('moment チップタップで onOpenMoment が該当値で呼ばれる', () => {
-    const onOpenMoment = jest.fn();
-    const { getByLabelText } = render(
-      <DiscoveryIndexScreen {...baseProps} onOpenMoment={onOpenMoment} />,
-    );
-    fireEvent.press(getByLabelText('朝の束を見る'));
-    expect(onOpenMoment).toHaveBeenCalledWith('morning');
+  test('旧 moment/goal 扉・おまかせは表示しない', () => {
+    const { queryByText } = render(<DiscoveryIndexScreen {...baseProps} />);
+    expect(queryByText('おまかせ')).toBeNull();
   });
 
-  test('goal チップタップで onOpenGoal が該当値で呼ばれる', () => {
-    const onOpenGoal = jest.fn();
+  test('おすすめカテゴリタップで onOpenCategory が該当カテゴリで呼ばれる', () => {
+    const onOpenCategory = jest.fn();
     const { getByLabelText } = render(
-      <DiscoveryIndexScreen {...baseProps} onOpenGoal={onOpenGoal} />,
+      <DiscoveryIndexScreen {...baseProps} onOpenCategory={onOpenCategory} />,
     );
-    fireEvent.press(getByLabelText('運動の束を見る'));
-    expect(onOpenGoal).toHaveBeenCalledWith('exercise');
+    fireEvent.press(getByLabelText('朝のおすすめを見る'));
+    expect(onOpenCategory).toHaveBeenCalledWith(baseProps.recommendedCategories[0]);
   });
 
-  test('おまかせタップで onOpenOmakase が呼ばれる', () => {
-    const onOpenOmakase = jest.fn();
+  test('ジャンル別カテゴリタップで onOpenCategory が該当カテゴリで呼ばれる', () => {
+    const onOpenCategory = jest.fn();
     const { getByLabelText } = render(
-      <DiscoveryIndexScreen {...baseProps} onOpenOmakase={onOpenOmakase} />,
+      <DiscoveryIndexScreen {...baseProps} onOpenCategory={onOpenCategory} />,
     );
-    fireEvent.press(getByLabelText('おまかせの束を見る'));
-    expect(onOpenOmakase).toHaveBeenCalled();
+    fireEvent.press(getByLabelText('運動を見る'));
+    expect(onOpenCategory).toHaveBeenCalledWith(baseProps.genreCategories[1]);
   });
 
   test('キャンセルで onCancel が呼ばれる', () => {

@@ -1,96 +1,67 @@
 import { fireEvent, render } from '@testing-library/react-native';
 
 import { BundlePreviewScreen } from './BundlePreviewScreen';
-import type { BundlePreview } from './discovery';
-import type { Link, Module } from './domain';
+import type { CategoryPreview } from './categoryDiscovery';
 
-const mkModule = (id: string, name: string): Module => ({
-  id,
-  name,
-  color: '#4FB0AE',
-  moment: ['morning'],
-  goal: ['health'],
-  source: 'official',
-  kind: 'normal',
-  orderIndex: 0,
-});
-
-const mkLink = (id: string, title: string, moduleId: string, starter: boolean): Link => ({
-  id,
-  title,
-  moduleId,
-  defaultOn: true,
-  position: 0,
-  source: 'official',
-  timerSeconds: null,
-  starter,
-});
-
-const preview: BundlePreview = {
-  title: '朝',
-  starterModules: [
+const preview: CategoryPreview = {
+  category: {
+    id: 'cat-hydration-health',
+    name: '水分・健康',
+    type: 'genre',
+    color: '#4FB0AE',
+    source: 'official',
+    orderIndex: 0,
+  },
+  items: [
     {
-      module: mkModule('mod-s', '目覚め'),
-      links: [
-        mkLink('lnk-s1', '歯磨き', 'mod-s', true),
-        mkLink('lnk-s2', '白湯', 'mod-s', true),
-      ],
-      isStarter: true,
+      key: 'act-brush-teeth',
+      actionId: 'act-brush-teeth',
+      title: '歯磨き',
+      timerSeconds: null,
+      optional: false,
+    },
+    {
+      key: 'act-weigh',
+      actionId: 'act-weigh',
+      title: '体重計',
+      timerSeconds: null,
+      optional: true,
     },
   ],
-  additionalModules: [
-    {
-      module: mkModule('mod-a', '有酸素'),
-      links: [mkLink('lnk-a1', 'ウォーキング', 'mod-a', false)],
-      isStarter: false,
-    },
-  ],
-  defaultSelectedLinkIds: ['lnk-s1', 'lnk-s2'],
 };
 
 const baseProps = {
   preview,
-  selectedLinkIds: new Set(['lnk-s1', 'lnk-s2']),
+  selectedKeys: new Set(['act-brush-teeth', 'act-weigh']),
   selectedCount: 2,
-  onToggleLink: () => {},
+  onToggleItem: () => {},
   onBack: () => {},
   onNext: () => {},
 };
 
-describe('BundlePreviewScreen', () => {
-  test('スターターモジュールは展開されリンクが表示される', () => {
+describe('BundlePreviewScreen (ADR-0039 新カテゴリモデル)', () => {
+  test('カテゴリ名と全アイテムが flat に表示される', () => {
     const { getByText } = render(<BundlePreviewScreen {...baseProps} />);
-    expect(getByText('目覚め')).toBeTruthy();
+    expect(getByText('水分・健康')).toBeTruthy();
     expect(getByText('歯磨き')).toBeTruthy();
-    expect(getByText('白湯')).toBeTruthy();
+    expect(getByText('体重計')).toBeTruthy();
   });
 
-  test('追加モジュールは折りたたまれ、リンクは初期非表示', () => {
-    const { getByText, queryByText } = render(
-      <BundlePreviewScreen {...baseProps} />,
-    );
-    expect(getByText('有酸素')).toBeTruthy(); // ヘッダは見える
-    expect(queryByText('ウォーキング')).toBeNull(); // リンクは折りたたみ
+  test('optional アイテムは「任意」タグを持つ', () => {
+    const { getByText } = render(<BundlePreviewScreen {...baseProps} />);
+    expect(getByText('任意')).toBeTruthy();
   });
 
-  test('追加モジュールのヘッダタップでインライン展開しリンクが現れる', () => {
-    const { getByLabelText, getByText } = render(
-      <BundlePreviewScreen {...baseProps} />,
-    );
-    fireEvent.press(getByLabelText('モジュール「有酸素」を開く'));
-    expect(getByText('ウォーキング')).toBeTruthy();
-  });
-
-  test('リンクタップで onToggleLink が該当 linkId で呼ばれる', () => {
-    const onToggleLink = jest.fn();
+  test('アイテムタップで onToggleItem が該当 key で呼ばれる', () => {
+    const onToggleItem = jest.fn();
     const { getByLabelText } = render(
-      <BundlePreviewScreen {...baseProps} onToggleLink={onToggleLink} />,
+      <BundlePreviewScreen {...baseProps} onToggleItem={onToggleItem} />,
     );
     fireEvent.press(getByLabelText('歯磨き'));
-    expect(onToggleLink).toHaveBeenCalledWith('lnk-s1');
+    expect(onToggleItem).toHaveBeenCalledWith('act-brush-teeth');
   });
 
-  test('選択リンクは checkbox の checked 状態を持つ', () => {
+  test('選択アイテムは checkbox の checked 状態を持つ', () => {
     const { getByLabelText } = render(<BundlePreviewScreen {...baseProps} />);
     expect(getByLabelText('歯磨き').props.accessibilityState.checked).toBe(true);
   });
@@ -110,7 +81,7 @@ describe('BundlePreviewScreen', () => {
     const { getByLabelText } = render(
       <BundlePreviewScreen
         {...baseProps}
-        selectedLinkIds={new Set()}
+        selectedKeys={new Set()}
         selectedCount={0}
         onNext={onNext}
       />,

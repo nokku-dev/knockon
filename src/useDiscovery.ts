@@ -2,28 +2,31 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { adoptChainDraft } from './bundleAdoption';
 import type { IdGen } from './bundleAdoption';
-import { getExpoSqliteClient } from './db.expo';
 import {
-  buildBundleForGoal,
-  buildBundleForMoment,
-  buildChainDraftFromSelection,
-  listGoals,
-  listMoments,
-} from './discovery';
-import type { BundlePreview } from './discovery';
-import { goalLabel, momentLabel } from './discoveryLabels';
-import type { Link, Module } from './domain';
+  allItemKeys,
+  buildChainDraftFromCategorySelection,
+  buildGenrePreview,
+  buildRecommendedPreview,
+  listGenreCategories,
+  listRecommendedCategories,
+} from './categoryDiscovery';
+import type { CategoryPreview } from './categoryDiscovery';
+import { getExpoSqliteClient } from './db.expo';
+import type { Category, CatalogAction, RecommendedItem } from './domain';
 import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
-import { listLinks, listModules } from './repository';
+import {
+  listCatalogActions,
+  listCategories,
+  listRecommendedItems,
+} from './repository';
 
-// #70b (#70/#71): discovery フローの状態 hook。catalog をロードし、扉選択 (moment/goal/おまかせ)
-// → 束プレビュー → リンク選択トグル → 採用 (live 永続化) を駆動する。
+// ADR-0039 (#155): discovery フローの状態 hook (新カテゴリモデル)。catalog
+// (categories / catalog_actions / recommended_items) をロードし、扉選択
+// (genre / recommended カテゴリ) → アクションプレビュー → トグル → 採用 を駆動する。
 //
-// 純粋ロジックは discovery.ts (テスト済み) / 採用永続化は bundleAdoption.adoptChainDraft
-// (テスト済み) に委譲し、本 hook は React 状態とそれらの配線のみ持つ (codebase 規約:
-// hook は薄いラッパ、純粋部分を .ts に出して ts-jest でテスト)。
-//
-// idGen は bundleAdoption が必須化した受け皿 (ids.ts = expo-crypto を UI 層で注入、K-007)。
+// 純粋ロジックは categoryDiscovery.ts (テスト済み) / 採用永続化は
+// bundleAdoption.adoptChainDraft (テスト済み) に委譲し、本 hook は React 状態と
+// それらの配線のみ持つ (codebase 規約: hook は薄いラッパ)。
 const defaultIdGen: IdGen = {
   anchor: newAnchorId,
   chain: newChainId,
@@ -31,48 +34,43 @@ const defaultIdGen: IdGen = {
   node: newNodeId,
 };
 
-// 「おまかせ」が着地する既定 moment (目的の無い人向けの底、SPEC §4)。
-// 朝は最も普遍的な起点アンカー。
-const OMAKASE_MOMENT = 'morning';
-
-export type DiscoveryDoor =
-  | { kind: 'moment'; value: string }
-  | { kind: 'goal'; value: string };
+// 開いているカテゴリ (扉)。type は preview.category.type と一致するが、door だけで
+// preview を導出できるよう categoryId を保持する。
+export type DiscoveryDoor = { categoryId: string };
 
 export type UseDiscoveryResult = {
   loading: boolean;
   error: string | null;
   // 索引 (扉) の選択肢
-  moments: string[];
-  goals: string[];
-  // 現在開いている束 (扉未選択なら null)
+  recommendedCategories: Category[];
+  genreCategories: Category[];
+  // 現在開いているカテゴリ (扉未選択なら null)
   door: DiscoveryDoor | null;
-  preview: BundlePreview | null;
-  selectedLinkIds: Set<string>;
+  preview: CategoryPreview | null;
+  selectedKeys: Set<string>;
+  selectedCount: number;
   // 索引操作
-  openMoment: (moment: string) => void;
-  openGoal: (goal: string) => void;
-  openOmakase: () => void;
-  closeBundle: () => void;
+  openCategory: (category: Category) => void;
+  closeCategory: () => void;
   // 採用前トグル編集
-  toggleLink: (linkId: string) => void;
-  // 採用確認用: 現在の選択でできるチェーン (position 昇順のアクション名列)
+  toggleItem: (key: string) => void;
+  // 採用確認用: 現在の選択でできるチェーン (表示順のアクション名列)
   selectedActionTitles: string[];
   // 採用 (live 永続化)。成功時は新 chainId、失敗時は null。
   adopt: (now: string) => Promise<string | null>;
   adopting: boolean;
 };
 
-const titleForDoor = (door: DiscoveryDoor): string =>
-  door.kind === 'moment' ? momentLabel(door.value) : goalLabel(door.value);
-
 export const useDiscovery = (idGen: IdGen = defaultIdGen): UseDiscoveryResult => {
-  const [modules, setModules] = useState<Module[]>([]);
-  const [links, setLinks] = useState<Link[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [actions, setActions] = useState<CatalogAction[]>([]);
+  const [recommendedItems, setRecommendedItems] = useState<RecommendedItem[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [door, setDoor] = useState<DiscoveryDoor | null>(null);
-  const [selectedLinkIds, setSelectedLinkIds] = useState<Set<string>>(new Set());
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [adopting, setAdopting] = useState(false);
 
   useEffect(() => {
@@ -80,12 +78,18 @@ export const useDiscovery = (idGen: IdGen = defaultIdGen): UseDiscoveryResult =>
     (async () => {
       try {
         const db = await getExpoSqliteClient();
-        const [mods, lks] = await Promise.all([listModules(db), listLinks(db)]);
+        const [cats, acts, recs] = await Promise.all([
+          listCategories(db),
+          listCatalogActions(db),
+          listRecommendedItems(db),
+        ]);
         if (cancelled) return;
-        setModules(mods);
-        setLinks(lks);
+        setCategories(cats);
+        setActions(acts);
+        setRecommendedItems(recs);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : '読み込みに失敗しました');
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : '読み込みに失敗しました');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -95,82 +99,79 @@ export const useDiscovery = (idGen: IdGen = defaultIdGen): UseDiscoveryResult =>
     };
   }, []);
 
-  const moments = useMemo(() => listMoments(modules), [modules]);
-  const goals = useMemo(() => listGoals(modules), [modules]);
+  const recommendedCategories = useMemo(
+    () => listRecommendedCategories(categories),
+    [categories],
+  );
+  const genreCategories = useMemo(
+    () => listGenreCategories(categories),
+    [categories],
+  );
 
-  const preview = useMemo<BundlePreview | null>(() => {
-    if (!door) return null;
-    const title = titleForDoor(door);
-    return door.kind === 'moment'
-      ? buildBundleForMoment(modules, links, door.value, title)
-      : buildBundleForGoal(modules, links, door.value, title);
-  }, [door, modules, links]);
-
-  // 扉を開いたら既定選択集合 (starter×defaultOn) を初期選択にする。
-  const openBundle = useCallback(
-    (next: DiscoveryDoor) => {
-      const title = titleForDoor(next);
-      const p =
-        next.kind === 'moment'
-          ? buildBundleForMoment(modules, links, next.value, title)
-          : buildBundleForGoal(modules, links, next.value, title);
-      setSelectedLinkIds(new Set(p.defaultSelectedLinkIds));
-      setDoor(next);
+  // door (categoryId) からプレビューを導出する純粋計算。genre / recommended で
+  // builder を切り替える (category.type で判定)。
+  const buildPreview = useCallback(
+    (categoryId: string): CategoryPreview | null => {
+      const category = categories.find((c) => c.id === categoryId);
+      if (!category) return null;
+      return category.type === 'recommended'
+        ? buildRecommendedPreview(category, recommendedItems, actions)
+        : buildGenrePreview(category, actions);
     },
-    [modules, links],
+    [categories, actions, recommendedItems],
   );
 
-  const openMoment = useCallback(
-    (moment: string) => openBundle({ kind: 'moment', value: moment }),
-    [openBundle],
-  );
-  const openGoal = useCallback(
-    (goal: string) => openBundle({ kind: 'goal', value: goal }),
-    [openBundle],
-  );
-  const openOmakase = useCallback(
-    () => openBundle({ kind: 'moment', value: OMAKASE_MOMENT }),
-    [openBundle],
+  const preview = useMemo<CategoryPreview | null>(
+    () => (door ? buildPreview(door.categoryId) : null),
+    [door, buildPreview],
   );
 
-  const closeBundle = useCallback(() => {
+  // 扉を開いたら全アイテムを初期選択にする (ADR-0039「カテゴリ選択時は初期全選択」)。
+  const openCategory = useCallback(
+    (category: Category) => {
+      const p = buildPreview(category.id);
+      setSelectedKeys(new Set(p ? allItemKeys(p) : []));
+      setDoor({ categoryId: category.id });
+    },
+    [buildPreview],
+  );
+
+  const closeCategory = useCallback(() => {
     setDoor(null);
-    setSelectedLinkIds(new Set());
+    setSelectedKeys(new Set());
   }, []);
 
-  const toggleLink = useCallback((linkId: string) => {
-    setSelectedLinkIds((prev) => {
+  const toggleItem = useCallback((key: string) => {
+    setSelectedKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(linkId)) next.delete(linkId);
-      else next.add(linkId);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }, []);
 
   const selectedActionTitles = useMemo(
     () =>
-      buildChainDraftFromSelection(
-        links,
-        Array.from(selectedLinkIds),
-        door ? titleForDoor(door) : '',
-      ).nodes.map((n) => n.actionTitle),
-    [links, selectedLinkIds, door],
+      preview
+        ? preview.items
+            .filter((i) => selectedKeys.has(i.key))
+            .map((i) => i.title)
+        : [],
+    [preview, selectedKeys],
   );
 
   // adopt 中に door が変わっても安定参照するため最新値を ref に持つ。
-  const linksRef = useRef(links);
-  linksRef.current = links;
-  const doorRef = useRef(door);
-  doorRef.current = door;
+  const previewRef = useRef(preview);
+  previewRef.current = preview;
 
   const adopt = useCallback(
     async (now: string): Promise<string | null> => {
-      const currentDoor = doorRef.current;
-      if (!currentDoor) return null;
-      const draft = buildChainDraftFromSelection(
-        linksRef.current,
-        Array.from(selectedLinkIds),
-        titleForDoor(currentDoor),
+      const currentPreview = previewRef.current;
+      if (!currentPreview) return null;
+      const draft = buildChainDraftFromCategorySelection(
+        currentPreview,
+        selectedKeys,
+        currentPreview.category.name,
       );
       if (draft.nodes.length === 0) {
         setError('アクションを 1 つ以上選んでください');
@@ -188,22 +189,21 @@ export const useDiscovery = (idGen: IdGen = defaultIdGen): UseDiscoveryResult =>
         setAdopting(false);
       }
     },
-    [selectedLinkIds, idGen],
+    [selectedKeys, idGen],
   );
 
   return {
     loading,
     error,
-    moments,
-    goals,
+    recommendedCategories,
+    genreCategories,
     door,
     preview,
-    selectedLinkIds,
-    openMoment,
-    openGoal,
-    openOmakase,
-    closeBundle,
-    toggleLink,
+    selectedKeys,
+    selectedCount: selectedKeys.size,
+    openCategory,
+    closeCategory,
+    toggleItem,
     selectedActionTitles,
     adopt,
     adopting,
