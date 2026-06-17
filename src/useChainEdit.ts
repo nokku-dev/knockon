@@ -1,17 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { CUSTOM_INBOX_MODULE_ID } from './catalogSeed';
 import { getExpoSqliteClient } from './db.expo';
-import type { Action, Anchor, ChainStatus, Module, VariantMap } from './domain';
-import { reinsertByIndex, validatePromotion } from './editLayout';
+import type { Action, Anchor, ChainStatus, VariantMap } from './domain';
+import { reinsertByIndex } from './editLayout';
 import type { RemovedEntry } from './editLayout';
-import {
-  newActionId,
-  newAnchorId,
-  newChainId,
-  newModuleId,
-  newNodeId,
-} from './ids';
+import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
 import {
   getCurrentPosition,
   getLocationPermissionStatus,
@@ -30,10 +23,8 @@ import {
   getAction,
   getAnchor,
   insertAction,
-  insertModule,
   listActions,
   listChains,
-  listModules,
   listNodes,
   updateAction as updateActionRepo,
 } from './repository';
@@ -48,9 +39,6 @@ export type EditableNode = {
   // Phase 2 variant: NodeEditorRow にバッジ (例: 月火水) を出すために保持。
   // updateAction で同期更新される。
   actionVariants: VariantMap | null;
-  // #73 (SPEC §6): 所属モジュール (チップ層 / C 案ラベル / source 別削除に使う)。
-  // テンプレ採用ノードは catalog 由来、手作り/追加は custom inbox。null = 未所属。
-  moduleId: string | null;
   // #73 (SPEC §6): ON/OFF = 一時停止。true = 通常 (Today に出る) / false = 停止。
   active: boolean;
 };
@@ -115,7 +103,6 @@ const loadExisting = async (chainId: string): Promise<ChainEditDraft | null> => 
         actionId: n.actionId,
         actionTitle: act?.title ?? '',
         actionVariants: act?.variants ?? null,
-        moduleId: n.moduleId ?? null,
         active: n.active !== false, // 既存 (undefined) は通常表示
       };
     }),
@@ -141,8 +128,6 @@ const loadExisting = async (chainId: string): Promise<ChainEditDraft | null> => 
 export type UseChainEditResult = {
   draft: ChainEditDraft | null;
   availableActions: Action[];
-  // #73: モジュールメタ (チップ層 / 行のカラーストライプ / source 別削除に使う)。
-  modules: Module[];
   error: string | null;
   loading: boolean;
   saving: boolean;
@@ -158,13 +143,8 @@ export type UseChainEditResult = {
   locating: boolean;
   fetchCurrentLocation: () => Promise<CurrentPosition | null>;
   // ノード編集
-  // #95: moduleId = 追加先モジュール (振り分けピッカーで選択)。省略時は custom inbox。
-  addNodeFromExistingAction: (
-    actionId: string,
-    actionTitle: string,
-    moduleId?: string,
-  ) => void;
-  addNodeFromNewAction: (actionTitle: string, moduleId?: string) => Promise<void>;
+  addNodeFromExistingAction: (actionId: string, actionTitle: string) => void;
+  addNodeFromNewAction: (actionTitle: string) => Promise<void>;
   // PR-Y1 (ADR-0023): テンプレチェーンを選んで末尾にフラット追加。
   // 各アクションを新規 INSERT (= 既存 actions と重複しても別物として扱う) +
   // ノードを末尾に追加。
@@ -177,21 +157,12 @@ export type UseChainEditResult = {
     selectedActionTitles?: ReadonlyArray<string>,
   ) => Promise<void>;
   removeNode: (nodeId: string) => void;
-  // #94 (SPEC §6/§8): モジュールの一括外し (該当 module の全ノードを draft から外す)。
-  detachModule: (moduleId: string) => void;
-  // #94: 直近の削除/外し/一括外しを元に戻す。undoCount = 戻せるノード数 (0 = 戻せない)。
+  // #94: 直近の削除を元に戻す。undoCount = 戻せるノード数 (0 = 戻せない)。
   undoCount: number;
   undoRemoval: () => void;
   clearUndo: () => void;
   // #73 (SPEC §6): ノードの ON/OFF (一時停止) を切り替える (draft 上のトグル、保存で永続化)。
   toggleNodeActive: (nodeId: string) => void;
-  // #93 (SPEC §6): 選択ノード (custom inbox) を user モジュールに昇格。
-  // モジュールは即 DB INSERT、ノードの所属付替えは draft 反映 (保存で永続化)。
-  promoteToModule: (
-    nodeIds: readonly string[],
-    name: string,
-    color: string,
-  ) => Promise<void>;
   // react-native-reorderable-list の onReorder({from, to}) からそのまま受け取る形。
   // DnD ライブラリ依存度を最小にするため、from/to の単純な index 並び替えに限定。
   reorderNodes: (from: number, to: number) => void;
@@ -216,7 +187,6 @@ export const useChainEdit = (
 ): UseChainEditResult => {
   const [draft, setDraft] = useState<ChainEditDraft | null>(null);
   const [availableActions, setAvailableActions] = useState<Action[]>([]);
-  const [modules, setModules] = useState<Module[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -237,7 +207,6 @@ export const useChainEdit = (
       try {
         const db = await getExpoSqliteClient();
         const actions = await listActions(db);
-        const mods = await listModules(db);
         let next: ChainEditDraft | null = null;
         if (chainId == null) {
           next = newDraft();
@@ -252,7 +221,6 @@ export const useChainEdit = (
         if (!cancelled) {
           setDraft(next);
           setAvailableActions(actions);
-          setModules(mods);
           setLocationPermission(permission);
         }
       } catch (e: unknown) {
@@ -341,7 +309,7 @@ export const useChainEdit = (
   );
 
   const addNodeFromExistingAction = useCallback(
-    (actionId: string, actionTitle: string, moduleId: string = CUSTOM_INBOX_MODULE_ID) => {
+    (actionId: string, actionTitle: string) => {
       setDraft((prev) => {
         if (!prev) return prev;
         // availableActions から variant を引いて NodeEditorRow のバッジ表示に渡す
@@ -352,8 +320,6 @@ export const useChainEdit = (
           actionId,
           actionTitle,
           actionVariants: found?.variants ?? null,
-          // #73/#95: 「+追加」したノードの所属先。振り分けピッカーで選択 (省略時 custom inbox)。
-          moduleId,
           active: true,
         };
         return { ...prev, nodes: [...prev.nodes, next] };
@@ -363,7 +329,7 @@ export const useChainEdit = (
   );
 
   const addNodeFromNewAction = useCallback(
-    async (actionTitle: string, moduleId: string = CUSTOM_INBOX_MODULE_ID) => {
+    async (actionTitle: string) => {
       const trimmed = actionTitle.trim();
       if (trimmed.length === 0) return;
       try {
@@ -385,7 +351,6 @@ export const useChainEdit = (
             actionId: action.id,
             actionTitle: action.title,
             actionVariants: action.variants,
-            moduleId,
             active: true,
           };
           return { ...prev, nodes: [...prev.nodes, next] };
@@ -439,7 +404,6 @@ export const useChainEdit = (
             actionId: action.id,
             actionTitle: action.title,
             actionVariants: null,
-            moduleId: CUSTOM_INBOX_MODULE_ID,
             active: true,
           }));
           return { ...prev, nodes: [...prev.nodes, ...appended] };
@@ -465,27 +429,7 @@ export const useChainEdit = (
     );
   }, []);
 
-  // #94: モジュール一括外し。該当 module の全ノードを退避して draft から外す。
-  const detachModule = useCallback((moduleId: string) => {
-    const cur = draftRef.current;
-    if (!cur) return;
-    const entries: RemovedEntry<EditableNode>[] = [];
-    cur.nodes.forEach((n, index) => {
-      if ((n.moduleId ?? null) === moduleId) entries.push({ node: n, index });
-    });
-    if (entries.length === 0) return;
-    setUndo(entries);
-    setDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            nodes: prev.nodes.filter((n) => (n.moduleId ?? null) !== moduleId),
-          }
-        : prev,
-    );
-  }, []);
-
-  // #94: 直近の削除/外しを元の位置に復元 (reinsertByIndex)。
+  // #94: 直近の削除を元の位置に復元 (reinsertByIndex)。
   const undoRemoval = useCallback(() => {
     if (!undo) return;
     setDraft((prev) =>
@@ -508,53 +452,6 @@ export const useChainEdit = (
       };
     });
   }, []);
-
-  // #93: 選択ノードを user モジュールに昇格。モジュールを即 INSERT (FK + チップ表示のため)、
-  // ノードの module_id 付替えは draft に反映し保存で永続化 (新規ノードは insertNode、
-  // 既存ノードは updateNodeModule、 chainEditPersist 参照)。
-  // orderIndex は official(0..) と custom inbox(9999) の間に置く (5000)。
-  const promoteToModule = useCallback(
-    async (nodeIds: readonly string[], name: string, color: string) => {
-      const validationError = validatePromotion(name, nodeIds.length);
-      if (validationError) {
-        setError(validationError);
-        return;
-      }
-      const moduleId = newModuleId();
-      const module: Module = {
-        id: moduleId,
-        name: name.trim(),
-        color,
-        moment: [],
-        goal: [],
-        source: 'user',
-        kind: 'normal',
-        orderIndex: 5000,
-      };
-      try {
-        const db = await getExpoSqliteClient();
-        await insertModule(db, module);
-        if (!mountedRef.current) return;
-        setModules((prev) => [...prev, module]);
-        const idSet = new Set(nodeIds);
-        setDraft((prev) =>
-          prev
-            ? {
-                ...prev,
-                nodes: prev.nodes.map((n) =>
-                  idSet.has(n.id) ? { ...n, moduleId } : n,
-                ),
-              }
-            : prev,
-        );
-      } catch (e: unknown) {
-        if (mountedRef.current) {
-          setError(e instanceof Error ? e.message : String(e));
-        }
-      }
-    },
-    [],
-  );
 
   const reorderNodes = useCallback((from: number, to: number) => {
     setDraft((prev) => {
@@ -708,7 +605,6 @@ export const useChainEdit = (
   return {
     draft,
     availableActions,
-    modules,
     error,
     loading,
     saving,
@@ -725,12 +621,10 @@ export const useChainEdit = (
     addNodeFromNewAction,
     addNodesFromTemplate,
     removeNode,
-    detachModule,
     undoCount: undo?.length ?? 0,
     undoRemoval,
     clearUndo,
     toggleNodeActive,
-    promoteToModule,
     reorderNodes,
     save,
     deleteChain,

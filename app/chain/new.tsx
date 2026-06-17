@@ -16,7 +16,6 @@ export default function NewChainRoute() {
   const {
     draft,
     availableActions,
-    modules,
     error,
     loading,
     saving,
@@ -33,12 +32,10 @@ export default function NewChainRoute() {
     addNodeFromNewAction,
     addNodesFromTemplate,
     removeNode,
-    detachModule,
     undoCount,
     undoRemoval,
     clearUndo,
     toggleNodeActive,
-    promoteToModule,
     reorderNodes,
     save,
     updateAction,
@@ -63,7 +60,6 @@ export default function NewChainRoute() {
           <ChainEditScreen
             draft={draft}
             availableActions={availableActions}
-            modules={modules}
             saving={saving}
             locationPermission={locationPermission}
             locating={locating}
@@ -79,8 +75,6 @@ export default function NewChainRoute() {
             onAddNodesFromTemplate={addNodesFromTemplate}
             onRemoveNode={removeNode}
             onToggleNodeActive={toggleNodeActive}
-            onPromoteToModule={promoteToModule}
-            onDetachModule={detachModule}
             undoCount={undoCount}
             onUndo={undoRemoval}
             onUndoDismiss={clearUndo}
