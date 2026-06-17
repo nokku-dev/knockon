@@ -131,8 +131,8 @@ describe('allItemKeys / buildChainDraftFromCategorySelection', () => {
     );
     expect(draft.title).toBe('朝');
     expect(draft.nodes.map((n) => n.actionTitle)).toEqual(['a1-title', 'a3-title']);
-    // ADR-0039: 採用ノードは由来参照 (moduleId) を持たない
-    expect(draft.nodes.every((n) => n.moduleId === undefined)).toBe(true);
+    // ADR-0040: ChainDraftNode は actionTitle / timerSeconds のみ (由来参照なし)
+    expect(draft.nodes.every((n) => Object.keys(n).sort().join() === 'actionTitle,timerSeconds')).toBe(true);
   });
 
   test('recommended の重複アイテムは選択された分だけ順序つきでノードになる', () => {

@@ -10,9 +10,6 @@ import type {
   CategoryType,
   Chain,
   IsoDate,
-  Link,
-  Module,
-  ModuleKind,
   Node,
   RecommendedItem,
   VariantMap,
@@ -49,7 +46,6 @@ type NodeRow = {
   order_index: number;
   kind: 'action';
   action_id: string;
-  module_id: string | null;
   active: number; // #73: 0/1
 };
 
@@ -97,7 +93,6 @@ const rowToNode = (r: NodeRow): Node => ({
   orderIndex: r.order_index,
   kind: r.kind,
   actionId: r.action_id,
-  moduleId: r.module_id,
   active: r.active === 1,
 });
 
@@ -244,9 +239,8 @@ export const deleteChain = async (
 
 export const insertNode = (db: DbClient, node: Node): Promise<void> =>
   db.run(
-    `INSERT INTO nodes (id, chain_id, order_index, kind, action_id, module_id, active)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    // moduleId は optional (#70): テンプレ採用ノードのみ値を持ち、手作りは null。
+    `INSERT INTO nodes (id, chain_id, order_index, kind, action_id, active)
+     VALUES (?, ?, ?, ?, ?, ?)`,
     // active は #73: 未指定は 1 (通常表示) 既定。
     [
       node.id,
@@ -254,7 +248,6 @@ export const insertNode = (db: DbClient, node: Node): Promise<void> =>
       node.orderIndex,
       node.kind,
       node.actionId,
-      node.moduleId ?? null,
       node.active === false ? 0 : 1,
     ],
   );
@@ -267,15 +260,6 @@ export const updateNodeActive = (
   active: boolean,
 ): Promise<void> =>
   db.run(`UPDATE nodes SET active = ? WHERE id = ?`, [active ? 1 : 0, nodeId]);
-
-// #93: ノードの所属モジュールを更新 (カスタム→ユーザーモジュール昇格で使う)。
-// module_id は modules(id) への FK。昇格先モジュールは事前に insertModule 済みの前提。
-export const updateNodeModule = (
-  db: DbClient,
-  nodeId: string,
-  moduleId: string | null,
-): Promise<void> =>
-  db.run(`UPDATE nodes SET module_id = ? WHERE id = ?`, [moduleId, nodeId]);
 
 // ノード 1 つを物理削除。 関連 achievements は schema の ON DELETE CASCADE で
 // 自動削除 (PR-1.8a)。 nodes 削除に対応する CASCADE は actions/anchors と違い
@@ -329,149 +313,9 @@ export const listActions = async (db: DbClient): Promise<Action[]> => {
   return rows.map(rowToAction);
 };
 
-// ADR-0030 (#68): テンプレートカタログ (modules / links) の読み書き。
-// catalog は採用前のテンプレ定義専用。採用フロー (links → nodes/actions 変換) は #70。
-// v0 カタログ seed 投入は #69。ここでは基本の insert / list のみ (update/delete は編集 UI #73)。
-
-type ModuleRow = {
-  id: string;
-  name: string;
-  color: string;
-  moment_json: string;
-  goal_json: string;
-  source: CatalogSource;
-  kind: ModuleKind;
-  order_index: number;
-};
-
-type LinkRow = {
-  id: string;
-  title: string;
-  module_id: string;
-  default_on: number;
-  position: number;
-  source: CatalogSource;
-  timer_seconds: number | null;
-  starter: number;
-};
-
-const rowToModule = (r: ModuleRow): Module => ({
-  id: r.id,
-  name: r.name,
-  color: r.color,
-  moment: JSON.parse(r.moment_json) as string[],
-  goal: JSON.parse(r.goal_json) as string[],
-  source: r.source,
-  kind: r.kind,
-  orderIndex: r.order_index,
-});
-
-const rowToLink = (r: LinkRow): Link => ({
-  id: r.id,
-  title: r.title,
-  moduleId: r.module_id,
-  defaultOn: r.default_on === 1,
-  position: r.position,
-  source: r.source,
-  timerSeconds: r.timer_seconds,
-  starter: r.starter === 1,
-});
-
-export const insertModule = (db: DbClient, module: Module): Promise<void> =>
-  db.run(
-    `INSERT INTO modules (id, name, color, moment_json, goal_json, source, kind, order_index)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      module.id,
-      module.name,
-      module.color,
-      JSON.stringify(module.moment),
-      JSON.stringify(module.goal),
-      module.source,
-      module.kind,
-      module.orderIndex,
-    ],
-  );
-
-export const insertLink = (db: DbClient, link: Link): Promise<void> =>
-  db.run(
-    `INSERT INTO links (id, title, module_id, default_on, position, source, timer_seconds, starter)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      link.id,
-      link.title,
-      link.moduleId,
-      link.defaultOn ? 1 : 0,
-      link.position,
-      link.source,
-      link.timerSeconds,
-      link.starter ? 1 : 0,
-    ],
-  );
-
-// #69: catalog seed 用の冪等版 (INSERT OR IGNORE)。固定 ID + 毎起動投入で、
-// 2 回目以降は PK 衝突を握り潰す (= builtin metric kinds の seed と同じ精神)。
-// 注意: official リンクをユーザーが削除しても次回起動で「復活」しうる
-// (固定 ID なので新規 INSERT は走らないが、ユーザーが消した行は OR IGNORE では
-// 戻らない — 復活するのは「削除後に同 ID が無い場合」)。削除トラッキングは
-// 編集 UI #73 で再考する Phase 1 受容判断 (K-024 / K-028 と同型)。
-export const seedModule = (db: DbClient, module: Module): Promise<void> =>
-  db.run(
-    `INSERT OR IGNORE INTO modules (id, name, color, moment_json, goal_json, source, kind, order_index)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      module.id,
-      module.name,
-      module.color,
-      JSON.stringify(module.moment),
-      JSON.stringify(module.goal),
-      module.source,
-      module.kind,
-      module.orderIndex,
-    ],
-  );
-
-export const seedLink = (db: DbClient, link: Link): Promise<void> =>
-  db.run(
-    `INSERT OR IGNORE INTO links (id, title, module_id, default_on, position, source, timer_seconds, starter)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      link.id,
-      link.title,
-      link.moduleId,
-      link.defaultOn ? 1 : 0,
-      link.position,
-      link.source,
-      link.timerSeconds,
-      link.starter ? 1 : 0,
-    ],
-  );
-
-export const listModules = async (db: DbClient): Promise<Module[]> => {
-  const rows = await db.all<ModuleRow>(`SELECT * FROM modules ORDER BY order_index`);
-  return rows.map(rowToModule);
-};
-
-// position 昇順で全リンクを返す (所属モジュールとは独立した物理順)。
-export const listLinks = async (db: DbClient): Promise<Link[]> => {
-  const rows = await db.all<LinkRow>(`SELECT * FROM links ORDER BY position`);
-  return rows.map(rowToLink);
-};
-
-export const listLinksForModule = async (
-  db: DbClient,
-  moduleId: string,
-): Promise<Link[]> => {
-  const rows = await db.all<LinkRow>(
-    `SELECT * FROM links WHERE module_id = ? ORDER BY position`,
-    [moduleId],
-  );
-  return rows.map(rowToLink);
-};
-
-// ADR-0039 (#154): 新カテゴリカタログ (categories / catalog_actions / recommended_items)
-// の読み書き。旧 modules/links と並行 (catalog/live 分離は継承)。採用フロー・UI 移行は別トラック。
-// ここでは insert / seed (冪等) / list のみ (update/delete は後続トラックの編集 UI)。
+// ADR-0039 (#154) / ADR-0040 (#160): テンプレートカタログ (新カテゴリモデル) の読み書き。
+// 旧 modules/links テーブルと関連関数は ADR-0040 で撤去済み。catalog は採用前のテンプレ定義
+// 専用。ここでは insert / seed (冪等) / list のみ (update/delete は後続トラックの編集 UI)。
 
 type CategoryRow = {
   id: string;
@@ -568,7 +412,7 @@ export const insertRecommendedItem = (
   );
 
 // seed 用の冪等版 (INSERT OR IGNORE)。固定 ID + 毎起動投入で 2 回目以降は PK 衝突を握り潰す
-// (seedModule / seedLink と同じ精神。official 削除後の復活挙動も同じ Phase 1 受容 / K-024)。
+// (builtin metric kinds の seed と同じ精神。official 削除後の復活挙動も同じ Phase 1 受容 / K-024)。
 export const seedCategory = (db: DbClient, category: Category): Promise<void> =>
   db.run(
     `INSERT OR IGNORE INTO categories (id, name, type, color, source, order_index)
@@ -654,7 +498,7 @@ export const listRecommendedItemsForCategory = async (
 
 // 全 recommended_item を「カテゴリ順 → カテゴリ内 position 順」で返す
 // (= category_id, position)。useDiscovery が全カテゴリ分を一括ロードして
-// preview をメモ化するため (旧 listLinks と同型の一括ロード)。
+// preview をメモ化するため (catalog_actions と同型の一括ロード)。
 export const listRecommendedItems = async (
   db: DbClient,
 ): Promise<RecommendedItem[]> => {

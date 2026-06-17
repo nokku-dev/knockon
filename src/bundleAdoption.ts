@@ -17,14 +17,12 @@ export type IdGen = {
   node: () => string;
 };
 
-// #70 (ADR-0030): 束採用の永続化。buildChainDraftFromBundle が作った ChainDraft を
-// live (anchor + chain + actions + nodes) として書き込む。
+// 採用の永続化。ChainDraft を live (anchor + chain + actions + nodes) として書き込む。
 //
-// 純粋部分 (採用集合の決定) は domain.buildChainDraftFromBundle に分離済み (K-007)。
+// 純粋部分 (採用集合の決定) は categoryDiscovery / onboarding に分離済み (K-007)。
 // 本関数は副作用 (DB 書き込み) を持つが、now / idGen を注入してテスト容易性を確保する。
 //
-// 既存 createFromTemplate (ADR-0023 builtin チェーン取り込み) と同型だが、
-// 採用ノードに module_id を付与する点が異なる (= catalog 由来の所属を live に持ち込む)。
+// ADR-0040 (#160): 採用ノードは由来参照 (module_id) を持たない (旧 module モデル撤去)。
 // 採用時の並べ替えはさせない = ChainDraft.nodes の順序をそのまま orderIndex にする (SPEC §4)。
 //
 // anchorSpec: アンカーの種別/時刻。省略時は discovery と同じ「行動」起点 (時刻/場所は採用後に
@@ -77,7 +75,6 @@ export const adoptChainDraft = async (
       orderIndex,
       kind: 'action',
       actionId,
-      moduleId: node.moduleId,
     });
     orderIndex += 1;
   }

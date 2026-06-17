@@ -1,8 +1,8 @@
 // #69 (ADR-0030): v0 catalog の seed。initSchema 末尾で毎起動投入 (INSERT OR IGNORE で冪等)。
 // catalogSeed → repository → (db の型のみ) なので実行時循環なし (型 import は erase される)。
 // initSchema が全 seed (metric_kinds / app_settings / catalog) を担う一貫性を保つ。
-import { seedCatalog } from './catalogSeed';
-// ADR-0039 (#154): 新カテゴリカタログ seed。旧 seedCatalog と並行投入 (どちらも冪等)。
+// ADR-0039 (#154) / ADR-0040 (#160): カタログ seed は新カテゴリモデルのみ
+// (旧 module/link カタログ seedCatalog は撤去)。
 import { seedCategoryCatalog } from './categoryCatalogSeed';
 
 export interface DbClient {
@@ -59,10 +59,6 @@ CREATE TABLE IF NOT EXISTS nodes (
   order_index INTEGER NOT NULL,
   kind TEXT NOT NULL CHECK(kind IN ('action')),
   action_id TEXT NOT NULL REFERENCES actions(id),
-  -- ADR-0030 (#68): テンプレ採用で生成されたノードの「所属モジュール」参照。
-  -- NULL = テンプレ未経由 (手作り / 既存チェーン)。編集 UI のチップ表示用。
-  -- catalog (modules/links) と live (nodes) はライフサイクル分離 (採用 = 一方向変換)。
-  module_id TEXT REFERENCES modules(id),
   -- #73 (SPEC §6): ON/OFF = 一時停止。1 = 通常 (Today に出る) / 0 = 停止 (チェーンから
   -- 外すが残す)。「停止」と「削除/外す」を 2 系統に分ける (= 停止は非破壊・可逆)。
   active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0, 1)),
@@ -76,45 +72,8 @@ CREATE TABLE IF NOT EXISTS achievements (
   PRIMARY KEY (node_id, date)
 );
 
--- ADR-0030 (#68): テンプレートカタログ (modules / links)。採用前のテンプレ定義専用。
--- live (chains/nodes/actions) とは分離し、採用は「links を読んで nodes/actions を
--- 生成する一方向変換」(採用後は catalog を参照しない)。default_on / starter /
--- moment / goal といった「採用前の選択メタ」は catalog だけが持ち、live に混入させない
--- (ADR-0001 正準データ不変条件の保持 / K-002 / K-030)。
--- moment_json / goal_json: JSON 配列文字列 (actions.variants_json と同型)。
---   フィルタは読み出し後に domain 層の純粋関数で行う (カタログ規模が小さく中間テーブル過剰)。
--- source: 'official' (seed) / 'user' (ユーザー作成・カスタム昇格)。
--- kind: 'normal' (通常モジュール) / 'custom' (単一の中立インボックス、振り分け先)。
-CREATE TABLE IF NOT EXISTS modules (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  color TEXT NOT NULL,
-  moment_json TEXT NOT NULL,
-  goal_json TEXT NOT NULL,
-  source TEXT NOT NULL CHECK(source IN ('official', 'user')),
-  kind TEXT NOT NULL CHECK(kind IN ('normal', 'custom')),
-  order_index INTEGER NOT NULL
-);
-
--- ADR-0030 (#68): カタログのリンク (テンプレ内の1アクション定義)。
--- module_id NOT NULL + FK→modules: 全リンクは必ず1モジュールに属す (orphan 物理禁止)。
--- default_on: 採用時に既定 ON か (●=1 / ○=0)。starter: スターターモジュール所属リンクか。
---   採用で live に入るのは「starter=1 かつ default_on=1」のリンクのみ (束プレビュー、#70 で使用)。
--- position: チェーン上の物理順 (所属モジュールとは独立、同一モジュールが非連続でよい)。
--- timer_seconds: NULL = タイマーなし (actions.timer_seconds と同型)。
-CREATE TABLE IF NOT EXISTS links (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  module_id TEXT NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
-  default_on INTEGER NOT NULL CHECK(default_on IN (0, 1)),
-  position INTEGER NOT NULL,
-  source TEXT NOT NULL CHECK(source IN ('official', 'user')),
-  timer_seconds INTEGER,
-  starter INTEGER NOT NULL CHECK(starter IN (0, 1))
-);
-
--- ADR-0039 (#154): 新カタログモデル (module 廃止 → カテゴリ2型)。旧 modules/links と
--- 並行追加 (catalog/live 分離は継承)。consumer (discovery/onboarding/edit) 移行は別トラック。
+-- ADR-0039 (#154): 新カタログモデル (module 廃止 → カテゴリ2型)。
+-- ADR-0040 (#160): 旧 modules / links テーブルは撤去済み (編集 UI も新カテゴリ非依存に簡素化)。
 -- type: 'genre' (ジャンル別・個別アクション束) / 'recommended' (朝/夜の完成ルーティン束)。
 -- moment は持たない (採用後にチェーン側で決まる、ADR-0039)。採用前メタ (default_on) は
 -- catalog_actions が持ち live に混入させない (ADR-0001 維持 / K-002 / K-030)。
@@ -206,8 +165,6 @@ CREATE INDEX IF NOT EXISTS idx_achievements_date ON achievements(date);
 CREATE INDEX IF NOT EXISTS idx_anchor_firings_date ON anchor_firings(date);
 CREATE INDEX IF NOT EXISTS idx_metrics_key_date ON metrics(metric_key, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_metric_kinds_order ON metric_kinds(order_index);
-CREATE INDEX IF NOT EXISTS idx_links_module ON links(module_id, position);
-CREATE INDEX IF NOT EXISTS idx_modules_order ON modules(order_index);
 CREATE INDEX IF NOT EXISTS idx_categories_order ON categories(order_index);
 CREATE INDEX IF NOT EXISTS idx_catalog_actions_category ON catalog_actions(category_id, position);
 CREATE INDEX IF NOT EXISTS idx_recommended_items_category ON recommended_items(category_id, position);
@@ -223,7 +180,7 @@ CREATE INDEX IF NOT EXISTS idx_recommended_items_category ON recommended_items(c
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 const DROP_SQL = `
 DROP TABLE IF EXISTS recommended_items;
@@ -239,7 +196,6 @@ DROP TABLE IF EXISTS nodes;
 DROP TABLE IF EXISTS chains;
 DROP TABLE IF EXISTS anchors;
 DROP TABLE IF EXISTS actions;
-DROP TABLE IF EXISTS modules;
 `;
 
 // ADR-0027: schema migration を ALTER ベースに切替 (v4 → 以降)。
@@ -374,6 +330,36 @@ export const MIGRATIONS: Record<number, Migration> = {
       CREATE INDEX IF NOT EXISTS idx_recommended_items_category ON recommended_items(category_id, position);
     `);
   },
+  // ADR-0040 (#160): 旧 module/link モデルを撤去。
+  // (a) nodes.module_id 列を削除。FK 列 (REFERENCES modules) は DROP COLUMN 不可なため
+  //     SQLite 公式の table-copy 手順 (新テーブル作成 → INSERT SELECT → drop → rename)。
+  //     achievements.node_id (CASCADE) / nodes.chain_id (CASCADE) の関係は id を保つことで
+  //     名前ベースに維持される。foreign_keys=OFF + 単一 TX で原子的に行う (K-018 / K-021)。
+  // (b) links → modules の順で drop (links.module_id FK→modules を先に消す)。
+  11: async (client) => {
+    await client.exec(`PRAGMA foreign_keys=OFF;`);
+    await client.exec(`
+      BEGIN;
+      CREATE TABLE nodes_new (
+        id TEXT PRIMARY KEY,
+        chain_id TEXT NOT NULL REFERENCES chains(id) ON DELETE CASCADE,
+        order_index INTEGER NOT NULL,
+        kind TEXT NOT NULL CHECK(kind IN ('action')),
+        action_id TEXT NOT NULL REFERENCES actions(id),
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0, 1)),
+        UNIQUE(chain_id, order_index)
+      );
+      INSERT INTO nodes_new (id, chain_id, order_index, kind, action_id, active)
+        SELECT id, chain_id, order_index, kind, action_id, active FROM nodes;
+      DROP TABLE nodes;
+      ALTER TABLE nodes_new RENAME TO nodes;
+      CREATE INDEX IF NOT EXISTS idx_nodes_chain_order ON nodes(chain_id, order_index);
+      DROP TABLE IF EXISTS links;
+      DROP TABLE IF EXISTS modules;
+      COMMIT;
+    `);
+    await client.exec(`PRAGMA foreign_keys=ON;`);
+  },
 };
 
 // schema 構築済み状態 (= ADR-0026 PR-CC で確定した v4) の番号。
@@ -420,9 +406,6 @@ export const initSchema = async (client: DbClient): Promise<void> => {
   // #69 (ADR-0030): v0 catalog の seed を全経路の最後で投入。
   // INSERT OR IGNORE で冪等なので毎起動・全経路 (初回 / legacy fallback / ALTER) で安全。
   // この時点で modules/links テーブルは全経路で存在する (初回・legacy は SCHEMA_SQL、
-  // ALTER 経路は MIGRATIONS[7] が作成済み)。official カタログの更新も次回起動で反映される。
-  await seedCatalog(client);
-
   // ADR-0039 (#154): 新カテゴリカタログを全経路の最後で投入。INSERT OR IGNORE で冪等。
   // この時点で categories / catalog_actions / recommended_items は全経路で存在する
   // (初回・legacy は SCHEMA_SQL、ALTER 経路は MIGRATIONS[10] が作成済み)。
