@@ -175,6 +175,20 @@ export const countAchievedNodesOn = (
 export const shouldSeed = (existingChains: readonly Chain[]): boolean =>
   existingChains.length === 0;
 
+// #142: AchievementMap (今日分の nodeId→bool) の達成ノード数。 アプリ全体の
+// 「今日の達成数」を全チェーン合算するときに 1 チェーン分を数える純粋ヘルパー。
+export const countAchievedInMap = (map: AchievementMap): number =>
+  Object.values(map).filter(Boolean).length;
+
+// #142: ノード (アクション) 単位の全期間累計達成回数。 base = 今日より前の達成回数
+// (repository の SQL COUNT で算出)、 achievedToday = 今日の達成状態。 今日分を base と
+// 分離して表示時に合算するのは、 楽観更新 (タップで即時 +1) と整合させつつ
+// ADR-0001「派生値は永続化しない」を守るため (今日の record を二重計上しない)。
+export const nodeCumulativeCount = (
+  base: number,
+  achievedToday: boolean,
+): number => base + (achievedToday ? 1 : 0);
+
 export type AchievementMap = Readonly<Record<string, boolean>>;
 
 export const toAchievementMap = (

@@ -99,6 +99,7 @@ const buildChainData = (
   recentAchievements: [],
   nodeIdsEstablished: new Set<string>(),
   nodeRecentCells: new Map(),
+  nodeAchievedBase: {},
 });
 
 describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {
@@ -163,6 +164,75 @@ describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {
       <TodayScreen chains={chains} onToggleNode={() => {}} />,
     );
     expect(queryByText(/日連続/)).toBeNull();
+  });
+
+  describe('#142: 見出し右のアプリ全体累計「累計 N 回 (+今日)」', () => {
+    test('base + 今日の達成数 (全チェーン合算) を「累計 N 回 (+M)」で出す', () => {
+      const chains: TodayChainData[] = [
+        buildChainData('c1', '朝', [fireNode('n1', '水'), fireNode('n2', 'ストレッチ')], {
+          n1: true,
+          n2: false,
+        }),
+        buildChainData('c2', '夜', [fireNode('n3', '歯磨き')], { n3: true }),
+      ];
+      // base=1200, 今日の達成 = n1 + n3 = 2 → 累計 1,202 (+2)
+      const { getByTestId } = render(
+        <TodayScreen
+          chains={chains}
+          achievedBeforeToday={1200}
+          onToggleNode={() => {}}
+        />,
+      );
+      expect(getByTestId('today-cumulative-total').props.children).toEqual([
+        '累計 ',
+        '1,202',
+        ' 回 (+',
+        2,
+        ')',
+      ]);
+    });
+
+    test('累計 0 (base 0・今日も未達成) は非表示', () => {
+      const chains: TodayChainData[] = [
+        buildChainData('c1', '朝', [fireNode('n1', '水')], {}),
+      ];
+      const { queryByTestId } = render(
+        <TodayScreen chains={chains} achievedBeforeToday={0} onToggleNode={() => {}} />,
+      );
+      expect(queryByTestId('today-cumulative-total')).toBeNull();
+    });
+
+    test('base 0 でも今日 1 件達成すれば「累計 1 回 (+1)」が現れる', () => {
+      const chains: TodayChainData[] = [
+        buildChainData('c1', '朝', [fireNode('n1', '水')], { n1: true }),
+      ];
+      const { getByTestId } = render(
+        <TodayScreen chains={chains} achievedBeforeToday={0} onToggleNode={() => {}} />,
+      );
+      expect(getByTestId('today-cumulative-total').props.children).toEqual([
+        '累計 ',
+        '1',
+        ' 回 (+',
+        1,
+        ')',
+      ]);
+    });
+
+    test('achievedBeforeToday 未指定でも今日分だけで表示 (後方互換・デフォルト 0)', () => {
+      const chains: TodayChainData[] = [
+        buildChainData('c1', '朝', [fireNode('n1', '水')], { n1: true }),
+      ];
+      const { getByTestId } = render(
+        <TodayScreen chains={chains} onToggleNode={() => {}} />,
+      );
+      expect(getByTestId('today-cumulative-total').props.children).toEqual([
+        '累計 ',
+        '1',
+        ' 回 (+',
+        1,
+        ')',
+      ]);
+    });
   });
 
   // Issue #102: タイマーがバックグラウンドに行ったあと完了した時に、
