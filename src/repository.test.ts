@@ -3,7 +3,6 @@ import { initSchema, MIGRATIONS, SCHEMA_VERSION } from './db';
 import type { DbClient } from './db';
 import {
   countAchievedBefore,
-  countAchievedBeforeByNode,
   deleteAction,
   deleteChain,
   getAction,
@@ -204,7 +203,7 @@ describe('recordAchievement — 正準データ (ノード, 日付, bool) のみ
   });
 });
 
-describe('countAchievedBefore / countAchievedBeforeByNode (#142: 累計達成数のベース)', () => {
+describe('countAchievedBefore (#142 / ADR-0041: アプリ全体累計達成数のベース)', () => {
   let db: DbClient;
 
   beforeEach(async () => {
@@ -249,21 +248,6 @@ describe('countAchievedBefore / countAchievedBeforeByNode (#142: 累計達成数
   test('countAchievedBefore: 全期間を含む未来日付なら今日分も入る', async () => {
     // 5/19 より前で achieved=true: 上記 3 + n1@5/18 = 4
     expect(await countAchievedBefore(db, '2026-05-19')).toBe(4);
-  });
-
-  test('countAchievedBeforeByNode: ノード別に今日より前の達成数を返す', async () => {
-    const byNode = await countAchievedBeforeByNode(db, ['n1', 'n2'], '2026-05-18');
-    expect(byNode).toEqual({ n1: 2, n2: 1 });
-  });
-
-  test('countAchievedBeforeByNode: 達成 0 のノードはキーに出ない (?? 0 で扱う前提)', async () => {
-    const byNode = await countAchievedBeforeByNode(db, ['n1', 'n2'], '2026-05-16');
-    // 5/16 より前は何もない
-    expect(byNode).toEqual({});
-  });
-
-  test('countAchievedBeforeByNode: nodeIds 空で空オブジェクト', async () => {
-    expect(await countAchievedBeforeByNode(db, [], '2026-05-18')).toEqual({});
   });
 });
 

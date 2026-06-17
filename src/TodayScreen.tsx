@@ -133,16 +133,17 @@ export const TodayScreen = ({
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.headingRow}>
           <Text style={styles.heading}>Today</Text>
-          {/* #142: 見出し右横にアプリ全体の累計達成ノード数。 cumulativeTotal=0
-              (= まだ一度も達成なし) は非表示で、 最初の 1 回から現れる。 「累計 N 回 (+今日M)」
-              形式 (Taku 指定)。 控えめなトーンで前進感だけを出す (Celebrate 主)。 */}
+          {/* #142 (ADR-0041): 見出し右横にアプリ全体の累計達成ノード数。 cumulativeTotal=0
+              (= まだ一度も達成なし) は非表示で、 最初の 1 回から現れる。 単位は「個達成」
+              (Taku 指定 2026-06-17、 「回」だとノード単位の回数と混線するため)。 控えめな
+              トーンで前進感だけを出す (Celebrate 主 / DESIGN-SYSTEM §0)。 */}
           {cumulativeTotal > 0 && (
             <Text
               testID="today-cumulative-total"
               style={styles.cumulativeTotal}
-              accessibilityLabel={`累計 ${cumulativeTotal} 回達成、 うち今日 ${todayAchievedCount} 回`}
+              accessibilityLabel={`累計 ${cumulativeTotal} 個達成、 うち今日 ${todayAchievedCount} 個`}
             >
-              累計 {cumulativeTotal.toLocaleString()} 回 (+{todayAchievedCount})
+              累計 {cumulativeTotal.toLocaleString()} 個達成 (+{todayAchievedCount})
             </Text>
           )}
         </View>
@@ -211,7 +212,6 @@ export const TodayScreen = ({
                 anchorFiredToday={openChain.anchorFiredToday}
                 nodeIdsEstablished={openChain.nodeIdsEstablished}
                 nodeRecentCells={openChain.nodeRecentCells}
-                nodeAchievedBase={openChain.nodeAchievedBase}
                 onToggleNode={(nodeId) => onToggleNode(openChain.chain.id, nodeId)}
                 onStartTimer={(nodeId, durationSeconds, actionTitle) => {
                   setTimerState({

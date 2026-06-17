@@ -20,7 +20,6 @@ import {
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
   lastAchievedNodeIndex,
-  nodeCumulativeCount,
   recentDateRange,
   resolveActionForDate,
   shouldSeed,
@@ -89,20 +88,6 @@ describe('countAchievedInMap (#142: AchievementMap の達成ノード数)', () =
 
   test('全 false で 0', () => {
     expect(countAchievedInMap({ n1: false, n2: false })).toBe(0);
-  });
-});
-
-describe('nodeCumulativeCount (#142: 今日より前の累計 + 今日の達成状態)', () => {
-  test('今日未達成なら base のまま', () => {
-    expect(nodeCumulativeCount(41, false)).toBe(41);
-  });
-
-  test('今日達成済みなら base + 1 (やるだけ増える)', () => {
-    expect(nodeCumulativeCount(41, true)).toBe(42);
-  });
-
-  test('base=0 で今日達成すると 1 (最初の 1 回が起点)', () => {
-    expect(nodeCumulativeCount(0, true)).toBe(1);
   });
 });
 
