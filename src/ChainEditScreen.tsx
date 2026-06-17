@@ -17,18 +17,10 @@ import type {
 
 import { ActionEditor } from './ActionEditor';
 import { AnchorEditor } from './AnchorEditor';
-import { PromoteModulePanel } from './PromoteModulePanel';
-import { CUSTOM_INBOX_MODULE_ID } from './catalogSeed';
-import {
-  buildModuleRoster,
-  computeRunLeaders,
-  deleteKindForSource,
-} from './editLayout';
-import type { DeleteKind } from './editLayout';
 import { TemplateChainPicker } from './TemplateChainPicker';
 import { BUILTIN_TEMPLATE_CHAINS } from './templateChains';
 import type { TemplateChain } from './templateChains';
-import type { Action, Anchor, CatalogSource, ChainStatus, Module } from './domain';
+import type { Action, Anchor, ChainStatus } from './domain';
 import { summarizeVariantDays } from './domain';
 import type { CurrentPosition, LocationPermissionStatus } from './location';
 import {
@@ -46,11 +38,12 @@ import type { ChainEditDraft, EditableNode } from './useChainEdit';
 // #94 (SPEC §8): undo バーの表示時間。これを過ぎると削除が確定し undo 不可になる。
 const UNDO_TIMEOUT_MS = 5000;
 
+// ADR-0040 (#160): 編集 UI の module 概念 (チップ層 / カラーストライプ / run ラベル /
+// 絞り込み / 一括外し / promote-to-module / custom inbox / 追加先振り分け) を廃止。
+// 編集はノードの追加 / 削除 / 並び替え / ON-OFF / タイマーに簡素化した。
 export type ChainEditScreenProps = {
   draft: ChainEditDraft;
   availableActions: readonly Action[];
-  // #73: モジュールメタ (チップ層 / 行のカラーストライプ / source 別削除に使う)。
-  modules: readonly Module[];
   saving: boolean;
   locationPermission: LocationPermissionStatus;
   locating: boolean;
@@ -61,24 +54,17 @@ export type ChainEditScreenProps = {
   onSetAnchorLocation: (latitude: number, longitude: number) => void;
   onSetAnchorRadius: (radiusMeters: number) => void;
   onFetchLocation: () => Promise<CurrentPosition | null>;
-  // #95: moduleId = 追加先モジュール (振り分けピッカーで選択)。
-  onAddExistingAction: (actionId: string, actionTitle: string, moduleId: string) => void;
-  onAddNewAction: (actionTitle: string, moduleId: string) => void;
+  onAddExistingAction: (actionId: string, actionTitle: string) => void;
+  onAddNewAction: (actionTitle: string) => void;
   onRemoveNode: (nodeId: string) => void;
   // #73 (SPEC §6): ノードの ON/OFF (一時停止) トグル。
   onToggleNodeActive: (nodeId: string) => void;
-  // #93 (SPEC §6): custom inbox ノードを user モジュールに昇格。未指定なら昇格 UI 非表示。
-  onPromoteToModule?: (nodeIds: string[], name: string, color: string) => void;
-  // #94 (SPEC §6/§8): モジュール一括外し + undo。
-  onDetachModule: (moduleId: string) => void;
+  // #94 (SPEC §8): 削除 + undo。
   undoCount: number;
   onUndo: () => void;
   onUndoDismiss: () => void;
   // PR-Y1: テンプレチェーンを選んで末尾追加 (各アクションを新規 INSERT + ノード追加)。
   // 未指定なら Footer の「+ テンプレから追加」ボタンは表示されない。
-  // #134: 第 2 引数 = TemplateChainPicker で選ばれたアクションタイトル集合
-  // (現状 picker 側に個別選択 UI は無く template.actions 全件が渡る)。
-  // 受け側 (useChainEdit) で省略時に全件を取り込む形でも互換になる (knockon#133)。
   onAddNodesFromTemplate?: (
     template: TemplateChain,
     selectedActionTitles: ReadonlyArray<string>,
@@ -87,22 +73,17 @@ export type ChainEditScreenProps = {
   onReorderNodes: (from: number, to: number) => void;
   onCancel: () => void;
   onSave: () => void;
-  // 編集モードのみ渡す。新規モード (isNew=true) では未指定でよい。
-  // 指定があれば Footer 末尾に「このチェーンを削除」ボタンを表示。
+  // 編集モードのみ渡す。指定があれば Footer 末尾に「このチェーンを削除」ボタンを表示。
   onDelete?: () => void;
-  // 既存アクションを削除する。未指定なら ActionPicker のチップに × ボタンが
-  // 表示されない (新規モード / 削除非対応 UI のためのオプション)。
+  // 既存アクションを削除する。未指定なら ActionPicker のチップに × ボタンが出ない。
   onDeleteAction?: (action: Action) => void;
-  // 既存アクションを編集 (タイトル + variant) して保存。未指定なら ActionPicker の
-  // チップに鉛筆アイコンが表示されない (Phase 2 前倒し variant)。
-  // ChainEditScreen 内で ActionEditor モーダルを開き、 onSave 時に呼ぶ。
+  // 既存アクションを編集 (タイトル + variant)。未指定なら鉛筆アイコンが出ない。
   onSaveAction?: (action: Action) => Promise<boolean>;
 };
 
 export const ChainEditScreen = ({
   draft,
   availableActions,
-  modules,
   saving,
   locationPermission,
   locating,
@@ -118,8 +99,6 @@ export const ChainEditScreen = ({
   onAddNodesFromTemplate,
   onRemoveNode,
   onToggleNodeActive,
-  onPromoteToModule,
-  onDetachModule,
   undoCount,
   onUndo,
   onUndoDismiss,
@@ -131,48 +110,6 @@ export const ChainEditScreen = ({
   onSaveAction,
 }: ChainEditScreenProps) => {
   const [adderOpen, setAdderOpen] = useState(false);
-  // #93: 昇格パネル (Modal) の open 状態。
-  const [promoteOpen, setPromoteOpen] = useState(false);
-  // #95: チップタップで絞り込み中のモジュール (null = 絞り込みなし)。
-  const [filterModuleId, setFilterModuleId] = useState<string | null>(null);
-
-  // #73: モジュールメタ map + チップ層ロスター。ロスターは常に全ノードから算出。
-  const modulesById = useMemo(() => {
-    const map: Record<string, { name: string; color: string; source: CatalogSource }> = {};
-    for (const m of modules) map[m.id] = { name: m.name, color: m.color, source: m.source };
-    return map;
-  }, [modules]);
-  const allModuleIds = useMemo(
-    () => draft.nodes.map((n) => n.moduleId ?? null),
-    [draft.nodes],
-  );
-  const roster = useMemo(
-    () => buildModuleRoster(allModuleIds, modulesById),
-    [allModuleIds, modulesById],
-  );
-
-  // #95: 絞り込み中はそのモジュールのノードだけ表示。並び替えは無効化する
-  // (= 部分集合の index と全体 order_index が一致しないため、reorderNodes が壊れる)。
-  const filtering = filterModuleId !== null;
-  const visibleNodes = useMemo(
-    () =>
-      filterModuleId === null
-        ? draft.nodes
-        : draft.nodes.filter((n) => (n.moduleId ?? null) === filterModuleId),
-    [draft.nodes, filterModuleId],
-  );
-  // C 案ラベルの run leader は「表示中リスト」基準で算出 (renderItem の index は visibleNodes)。
-  const runLeaders = useMemo(
-    () => computeRunLeaders(visibleNodes.map((n) => n.moduleId ?? null)),
-    [visibleNodes],
-  );
-
-  // 絞り込み対象モジュールがロスターから消えたら絞り込み解除 (全ノード削除/外し対応)。
-  useEffect(() => {
-    if (filterModuleId !== null && !roster.some((r) => r.id === filterModuleId)) {
-      setFilterModuleId(null);
-    }
-  }, [filterModuleId, roster]);
 
   // #94: undo バーのタイムアウト (SPEC §8: 5 秒で自動的に確定 = undo 不可に)。
   // undoCount が変わるたびにタイマーを張り直す (新しい削除で延長)。
@@ -181,34 +118,6 @@ export const ChainEditScreen = ({
     const t = setTimeout(onUndoDismiss, UNDO_TIMEOUT_MS);
     return () => clearTimeout(t);
   }, [undoCount, onUndoDismiss]);
-
-  // #95: 「+追加」の振り分け先候補 = チェーンに既にあるモジュール (ロスター) + custom inbox。
-  // custom inbox は常に末尾に 1 つ含める (= デフォルト所属先)。
-  const assignableModules = useMemo(() => {
-    const out: { id: string; name: string; color: string }[] = roster.map((r) => ({
-      id: r.id,
-      name: r.name,
-      color: r.color,
-    }));
-    if (!out.some((m) => m.id === CUSTOM_INBOX_MODULE_ID)) {
-      const inbox = modulesById[CUSTOM_INBOX_MODULE_ID];
-      out.push({
-        id: CUSTOM_INBOX_MODULE_ID,
-        name: inbox?.name ?? 'カスタム',
-        color: inbox?.color ?? COLOR_FG_FAINT,
-      });
-    }
-    return out;
-  }, [roster, modulesById]);
-
-  // #93: custom inbox 所属ノード = 昇格候補。
-  const customCandidates = useMemo(
-    () =>
-      draft.nodes
-        .filter((n) => n.moduleId === CUSTOM_INBOX_MODULE_ID)
-        .map((n) => ({ nodeId: n.id, title: n.actionTitle })),
-    [draft.nodes],
-  );
 
   const [newActionDraft, setNewActionDraft] = useState('');
   // Phase 2 variant: 編集中のアクション (Modal で ActionEditor を表示)。
@@ -221,33 +130,21 @@ export const ChainEditScreen = ({
   // ReorderableList は ScrollView 内に置けないので画面 root として使う。
   // 編集 UI 全体は ListHeaderComponent / ListFooterComponent で吸収する。
   const renderItem = useCallback(
-    ({ item, index }: ReorderableListRenderItemInfo<EditableNode>) => {
-      const meta = item.moduleId ? modulesById[item.moduleId] : undefined;
-      // C 案ラベル: run 先頭 (= leader) かつモジュール所属ありのとき名前を出す。
-      const showModuleName = !!meta && runLeaders[index] === true;
-      const deleteKind = deleteKindForSource(meta?.source ?? null);
-      return (
-        <NodeEditorRow
-          node={item}
-          moduleColor={meta?.color}
-          moduleName={showModuleName ? meta!.name : undefined}
-          deleteKind={deleteKind}
-          dragEnabled={!filtering}
-          onRemove={onRemoveNode}
-          onToggleActive={onToggleNodeActive}
-        />
-      );
-    },
-    [modulesById, runLeaders, filtering, onRemoveNode, onToggleNodeActive],
+    ({ item }: ReorderableListRenderItemInfo<EditableNode>) => (
+      <NodeEditorRow
+        node={item}
+        onRemove={onRemoveNode}
+        onToggleActive={onToggleNodeActive}
+      />
+    ),
+    [onRemoveNode, onToggleNodeActive],
   );
 
   const handleReorder = useCallback(
     ({ from, to }: ReorderableListReorderEvent) => {
-      // 絞り込み中は並び替え無効 (部分集合の index が全体と一致しない)。
-      if (filtering) return;
       onReorderNodes(from, to);
     },
-    [filtering, onReorderNodes],
+    [onReorderNodes],
   );
 
   const Header = useMemo(
@@ -349,60 +246,10 @@ export const ChainEditScreen = ({
           />
         </View>
 
-        {/* #73/#95: チップ層 (採用中モジュールのロスター)。タップ=絞り込み (主)。
-            色 + ラベル併用で a11y 担保 (#74)。 */}
-        {roster.length > 0 && (
-          <View style={styles.rosterRow}>
-            {roster.map((r) => {
-              const selected = filterModuleId === r.id;
-              return (
-                <Pressable
-                  key={r.id}
-                  onPress={() =>
-                    setFilterModuleId((prev) => (prev === r.id ? null : r.id))
-                  }
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    selected
-                      ? `モジュール ${r.name} の絞り込みを解除`
-                      : `モジュール ${r.name} (${r.count}) で絞り込む`
-                  }
-                  accessibilityState={{ selected }}
-                  style={[styles.rosterChip, selected && styles.rosterChipSelected]}
-                >
-                  <View style={[styles.rosterDot, { backgroundColor: r.color }]} />
-                  <Text style={styles.rosterChipText}>{r.name}</Text>
-                  <Text style={styles.rosterChipCount}>{r.count}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-
         <View style={styles.nodesHeader}>
           <Text style={styles.sectionLabel}>ノード ({draft.nodes.length})</Text>
-          {filtering ? (
-            <View style={styles.filterActions}>
-              {/* 二次アクション: 絞り込み中のモジュールを一括で外す */}
-              <Pressable
-                onPress={() => filterModuleId && onDetachModule(filterModuleId)}
-                accessibilityRole="button"
-                accessibilityLabel="このモジュールをまとめて外す"
-              >
-                <Text style={styles.detachText}>まとめて外す</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setFilterModuleId(null)}
-                accessibilityRole="button"
-                accessibilityLabel="絞り込みを解除"
-              >
-                <Text style={styles.filterClear}>✕ 解除</Text>
-              </Pressable>
-            </View>
-          ) : (
-            draft.nodes.length > 0 && (
-              <Text style={styles.dragHint}>長押しで並び替え</Text>
-            )
+          {draft.nodes.length > 0 && (
+            <Text style={styles.dragHint}>長押しで並び替え</Text>
           )}
         </View>
         {draft.nodes.length === 0 && (
@@ -416,10 +263,6 @@ export const ChainEditScreen = ({
       draft.status,
       draft.anchor,
       draft.nodes.length,
-      roster,
-      filterModuleId,
-      filtering,
-      onDetachModule,
       saving,
       canSave,
       locationPermission,
@@ -459,31 +302,19 @@ export const ChainEditScreen = ({
                 <Text style={styles.addBtnText}>+ テンプレから追加</Text>
               </Pressable>
             )}
-            {/* #93: custom inbox に 1 件以上あれば「モジュール化」導線を出す */}
-            {onPromoteToModule && customCandidates.length > 0 && (
-              <Pressable
-                onPress={() => setPromoteOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel="カスタムをモジュール化"
-                style={styles.addBtn}
-              >
-                <Text style={styles.addBtnText}>カスタムをモジュール化</Text>
-              </Pressable>
-            )}
           </View>
         ) : (
           <ActionPicker
             actions={availableActions}
-            assignableModules={assignableModules}
             newActionDraft={newActionDraft}
             onNewActionDraftChange={setNewActionDraft}
-            onSelectExisting={(a, moduleId) => {
-              onAddExistingAction(a.id, a.title, moduleId);
+            onSelectExisting={(a) => {
+              onAddExistingAction(a.id, a.title);
               setAdderOpen(false);
             }}
-            onSubmitNew={(moduleId) => {
+            onSubmitNew={() => {
               if (newActionDraft.trim().length === 0) return;
-              onAddNewAction(newActionDraft.trim(), moduleId);
+              onAddNewAction(newActionDraft.trim());
               setNewActionDraft('');
               setAdderOpen(false);
             }}
@@ -512,9 +343,6 @@ export const ChainEditScreen = ({
     [
       adderOpen,
       availableActions,
-      assignableModules,
-      customCandidates.length,
-      onPromoteToModule,
       newActionDraft,
       onAddExistingAction,
       onAddNewAction,
@@ -529,7 +357,7 @@ export const ChainEditScreen = ({
   return (
     <>
       <ReorderableList
-        data={visibleNodes}
+        data={draft.nodes}
         onReorder={handleReorder}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
@@ -570,28 +398,10 @@ export const ChainEditScreen = ({
           />
         )}
       </Modal>
-      <Modal
-        visible={promoteOpen}
-        animationType="slide"
-        onRequestClose={() => setPromoteOpen(false)}
-      >
-        {onPromoteToModule && (
-          <PromoteModulePanel
-            candidates={customCandidates}
-            onPromote={(nodeIds, name, color) => {
-              onPromoteToModule(nodeIds, name, color);
-              setPromoteOpen(false);
-            }}
-            onCancel={() => setPromoteOpen(false)}
-          />
-        )}
-      </Modal>
       {/* #94: undo バー (直近 1 操作のみ・タイムアウトで自動確定) */}
       {undoCount > 0 && (
         <View style={styles.undoBar}>
-          <Text style={styles.undoText}>
-            {undoCount}件を外しました
-          </Text>
+          <Text style={styles.undoText}>{undoCount}件を削除しました</Text>
           <Pressable
             onPress={onUndo}
             accessibilityRole="button"
@@ -610,21 +420,12 @@ const keyExtractor = (item: EditableNode): string => item.id;
 
 type NodeEditorRowProps = {
   node: EditableNode;
-  // #73: モジュール由来の表示メタ。
-  moduleColor?: string; // 左カラーストライプ色 (C 案)。未所属なら undefined。
-  moduleName?: string; // run 先頭のときだけ渡る (C 案・自己修復)。
-  deleteKind: DeleteKind; // 'detach' (外す/非破壊) or 'delete' (削除/破壊的)。
-  dragEnabled: boolean; // #95: 絞り込み中は並び替え無効。
   onRemove: (nodeId: string) => void;
   onToggleActive: (nodeId: string) => void;
 };
 
 const NodeEditorRow = ({
   node,
-  moduleColor,
-  moduleName,
-  deleteKind,
-  dragEnabled,
   onRemove,
   onToggleActive,
 }: NodeEditorRowProps) => {
@@ -633,22 +434,10 @@ const NodeEditorRow = ({
   // にとどめる。子の Pressable (トグル/削除) はタッチを consume するため外側
   // (行) の長押しには bubble しない。
   const drag = useReorderableDrag();
-  const removeLabel = deleteKind === 'detach' ? '外す' : '削除';
-  const removeA11y =
-    deleteKind === 'detach'
-      ? `${node.actionTitle} をチェーンから外す`
-      : `${node.actionTitle} を削除`;
   return (
     <View style={styles.nodeRowWrap}>
-      {/* C 案: 左カラーストライプ (モジュール色)。未所属は無色。 */}
-      <View
-        style={[
-          styles.moduleStripe,
-          { backgroundColor: moduleColor ?? 'transparent' },
-        ]}
-      />
       <Pressable
-        onLongPress={dragEnabled ? drag : undefined}
+        onLongPress={drag}
         delayLongPress={500}
         accessibilityRole="button"
         accessibilityLabel={`${node.actionTitle} をドラッグして並び替え`}
@@ -658,8 +447,6 @@ const NodeEditorRow = ({
           <Text style={styles.dragHandleText}>≡</Text>
         </View>
         <View style={styles.nodeTitleCol}>
-          {/* run 先頭だけモジュール名 (C 案・自己修復) */}
-          {moduleName && <Text style={styles.nodeModuleName}>{moduleName}</Text>}
           <Text style={[styles.nodeTitle, !node.active && styles.nodeTitlePaused]}>
             {node.actionTitle}
           </Text>
@@ -693,39 +480,32 @@ const NodeEditorRow = ({
         <Pressable
           onPress={() => onRemove(node.id)}
           accessibilityRole="button"
-          accessibilityLabel={removeA11y}
+          accessibilityLabel={`${node.actionTitle} を削除`}
           style={styles.removeBtn}
           hitSlop={6}
         >
-          <Text style={styles.removeBtnText}>{removeLabel}</Text>
+          <Text style={styles.removeBtnText}>削除</Text>
         </Pressable>
       </Pressable>
     </View>
   );
 };
 
-type AssignableModule = { id: string; name: string; color: string };
-
 type ActionPickerProps = {
   actions: readonly Action[];
-  // #95: 追加先モジュール候補 (ロスター + custom inbox)。
-  assignableModules: readonly AssignableModule[];
   newActionDraft: string;
   onNewActionDraftChange: (s: string) => void;
-  onSelectExisting: (action: Action, moduleId: string) => void;
-  onSubmitNew: (moduleId: string) => void;
+  onSelectExisting: (action: Action) => void;
+  onSubmitNew: () => void;
   onCancel: () => void;
-  // 既存アクションの × ボタンが押されたときの確認 + 削除ハンドラ。
-  // 未指定なら × は表示されない。
+  // 既存アクションの × ボタンが押されたときの削除ハンドラ。未指定なら × は出ない。
   onDeleteExisting?: (action: Action) => void;
-  // 既存アクションの鉛筆ボタンが押されたときの編集ハンドラ。
-  // 未指定なら鉛筆は表示されない (Phase 2 variant)。
+  // 既存アクションの鉛筆ボタンが押されたときの編集ハンドラ。未指定なら鉛筆は出ない。
   onEditExisting?: (action: Action) => void;
 };
 
 const ActionPicker = ({
   actions,
-  assignableModules,
   newActionDraft,
   onNewActionDraftChange,
   onSelectExisting,
@@ -733,11 +513,7 @@ const ActionPicker = ({
   onCancel,
   onDeleteExisting,
   onEditExisting,
-}: ActionPickerProps) => {
-  // #95: 追加先モジュール。デフォルトは custom inbox (= 末尾候補)。候補があればその先頭か
-  // custom inbox を初期選択にする。
-  const [target, setTarget] = useState<string>(CUSTOM_INBOX_MODULE_ID);
-  return (
+}: ActionPickerProps) => (
   <View style={styles.picker}>
     <View style={styles.pickerHeader}>
       <Text style={styles.pickerLabel}>ノードを追加</Text>
@@ -745,31 +521,6 @@ const ActionPicker = ({
         <Text style={styles.pickerCancel}>閉じる</Text>
       </Pressable>
     </View>
-
-    {/* #95: 追加先 (既存モジュール or カスタム) の振り分け */}
-    {assignableModules.length > 0 && (
-      <>
-        <Text style={styles.pickerSubLabel}>追加先</Text>
-        <View style={styles.existingList}>
-          {assignableModules.map((m) => {
-            const selected = target === m.id;
-            return (
-              <Pressable
-                key={m.id}
-                onPress={() => setTarget(m.id)}
-                accessibilityRole="button"
-                accessibilityLabel={`追加先: ${m.name}`}
-                accessibilityState={{ selected }}
-                style={[styles.targetChip, selected && styles.targetChipSelected]}
-              >
-                <View style={[styles.rosterDot, { backgroundColor: m.color }]} />
-                <Text style={styles.targetChipText}>{m.name}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </>
-    )}
 
     <Text style={styles.pickerSubLabel}>新しいアクション</Text>
     <View style={styles.newActionRow}>
@@ -780,10 +531,10 @@ const ActionPicker = ({
         placeholderTextColor={COLOR_FG_FAINT}
         style={styles.newActionInput}
         accessibilityLabel="新しいアクション名"
-        onSubmitEditing={() => onSubmitNew(target)}
+        onSubmitEditing={onSubmitNew}
       />
       <Pressable
-        onPress={() => onSubmitNew(target)}
+        onPress={onSubmitNew}
         accessibilityRole="button"
         accessibilityLabel="新しいアクションを追加"
         style={[
@@ -803,7 +554,7 @@ const ActionPicker = ({
           {actions.map((a) => (
             <Pressable
               key={a.id}
-              onPress={() => onSelectExisting(a, target)}
+              onPress={() => onSelectExisting(a)}
               accessibilityRole="button"
               accessibilityLabel={`既存アクション: ${a.title}`}
               style={styles.existingChip}
@@ -845,8 +596,7 @@ const ActionPicker = ({
       </>
     )}
   </View>
-  );
-};
+);
 
 const styles = StyleSheet.create({
   listContent: { padding: 24, paddingBottom: 48 },
@@ -920,30 +670,6 @@ const styles = StyleSheet.create({
   },
   dragHint: { color: COLOR_FG_FAINT, fontSize: 11 },
   emptyHint: { color: COLOR_FG_FAINT, fontSize: 12, paddingHorizontal: 4 },
-  // #73 チップ層 (モジュールロスター)
-  rosterRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    paddingHorizontal: 4,
-  },
-  rosterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    backgroundColor: COLOR_SURFACE,
-    minHeight: 32,
-  },
-  rosterChipSelected: { backgroundColor: COLOR_LINE_BG, borderWidth: 1, borderColor: COLOR_GROW },
-  rosterDot: { width: 10, height: 10, borderRadius: 999 },
-  rosterChipText: { color: COLOR_FG, fontSize: 12, fontWeight: '600' },
-  rosterChipCount: { color: COLOR_FG_FAINT, fontSize: 11, fontWeight: '600' },
-  filterClear: { color: COLOR_GROW, fontSize: 11, fontWeight: '600' },
-  filterActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  detachText: { color: COLOR_ACCENT, fontSize: 11, fontWeight: '600' },
   undoBar: {
     position: 'absolute',
     left: 16,
@@ -959,19 +685,6 @@ const styles = StyleSheet.create({
   },
   undoText: { color: COLOR_FG, fontSize: 13 },
   undoAction: { color: COLOR_GROW, fontSize: 13, fontWeight: '700' },
-  targetChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    backgroundColor: COLOR_LINE_BG,
-    minHeight: 32,
-  },
-  targetChipSelected: { borderWidth: 1, borderColor: COLOR_GROW },
-  targetChipText: { color: COLOR_FG, fontSize: 12, fontWeight: '600' },
-  // #73 行 (左ストライプ + 行本体)
   nodeRowWrap: {
     flexDirection: 'row',
     alignItems: 'stretch',
@@ -980,7 +693,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: COLOR_SURFACE,
   },
-  moduleStripe: { width: 4 },
   nodeRow: {
     flex: 1,
     flexDirection: 'row',
@@ -991,12 +703,6 @@ const styles = StyleSheet.create({
   },
   nodeRowPaused: { opacity: 0.5 },
   nodeTitleCol: { flex: 1, gap: 2 },
-  nodeModuleName: {
-    color: COLOR_FG_FAINT,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
   nodeTitlePaused: { textDecorationLine: 'line-through' },
   toggleBtn: {
     minWidth: 40,
@@ -1023,7 +729,6 @@ const styles = StyleSheet.create({
   },
   nodeTitle: { color: COLOR_FG, fontSize: 16, flex: 1 },
   // variant 設定済みアクションのバッジ (ノード行)。
-  // 例: 「筋トレ 月火水 ×」のようにタイトルと削除の間に控えめに表示。
   nodeVariantHint: {
     color: COLOR_FG_FAINT,
     fontSize: 11,
@@ -1039,7 +744,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: COLOR_LINE_BG,
   },
-  // 削除/外すは destructive 寄り。文字色のみ accent (DESIGN-SYSTEM §1 / PR-1.8a と整合)。
+  // 削除は destructive 寄り。文字色のみ accent (DESIGN-SYSTEM §1 / PR-1.8a と整合)。
   removeBtnText: { color: COLOR_ACCENT, fontSize: 12, fontWeight: '600' },
   addRow: {
     flexDirection: 'row',
@@ -1055,9 +760,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLOR_LINE_BG,
   },
   addBtnText: { color: COLOR_FG, fontSize: 13, fontWeight: '600' },
-  // 削除ボタンは destructive action。DESIGN-SYSTEM §1 で accent の用途は
-  // 「今日発火中 / ノック」に限定しているが、destructive action は警告色が必要なため
-  // 文字色のみ accent を使い、背景は LINE_BG に抑えて派手さを避ける。
+  // 削除ボタンは destructive action。文字色のみ accent、背景は LINE_BG に抑える
   // (Augmentation 原則: 「マイナスを指差さない」を保ちつつ、操作の不可逆性は明示)。
   deleteBtn: {
     marginTop: 24,
@@ -1121,8 +824,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLOR_LINE_BG,
   },
   existingChipText: { color: COLOR_FG, fontSize: 12 },
-  // variant 設定済みアクションのバッジ。
-  // 例: 「筋トレ 月火水 ✎ ×」のように曜日を併記して「曜日切替あり」を示す。
   existingChipVariantHint: {
     color: COLOR_FG_FAINT,
     fontSize: 10,

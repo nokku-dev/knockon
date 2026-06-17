@@ -49,7 +49,6 @@ const node = (id: string, actionId: string, isNew = true): EditableNode => ({
   actionId,
   actionTitle: `action ${actionId}`,
   actionVariants: null,
-  moduleId: null,
   active: true,
 });
 
@@ -454,29 +453,6 @@ describe('persistChainDraft — 編集モード (PR #20 review C-1 リグレッ�
     );
     const chains = await listChains(db);
     expect(chains[0]?.title).toBe('夜のルーティン');
-    await teardown(db);
-  });
-
-  test('#93: 既存ノードの module_id 変更 (昇格) が編集保存で永続化される', async () => {
-    const db = await setup();
-    await seedChain(db);
-    // n1 の所属を seed 済みモジュール (mod-wake-water) に移した編集ドラフト。
-    // (実運用では昇格で生成した user モジュールだが、ここでは FK を満たす既存 ID を使う)
-    const moved: EditableNode = {
-      ...node('n1', 'act-water', false),
-      moduleId: 'mod-wake-water',
-    };
-    await persistChainDraft(
-      db,
-      buildDraft({
-        isNew: false,
-        nodes: [moved, node('n2', 'act-stretch', false), node('n3', 'act-desk', false)],
-      }),
-    );
-    const nodes = await listNodes(db, 'c1');
-    expect(nodes.find((n) => n.id === 'n1')?.moduleId).toBe('mod-wake-water');
-    // 他ノードは module_id=null のまま
-    expect(nodes.find((n) => n.id === 'n2')?.moduleId).toBeNull();
     await teardown(db);
   });
 });
