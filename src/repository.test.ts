@@ -2,6 +2,8 @@ import { createBetterSqliteClient } from './db.bettersqlite';
 import { initSchema, MIGRATIONS, SCHEMA_VERSION } from './db';
 import type { DbClient } from './db';
 import {
+  countAchievedBefore,
+  countAchievedBeforeByNode,
   deleteAction,
   deleteChain,
   getAction,
@@ -204,6 +206,69 @@ describe('recordAchievement — 正準データ (ノード, 日付, bool) のみ
       '2026-05-19',
     );
     expect(records.map((r) => r.date)).toEqual(['2026-05-17']);
+  });
+});
+
+describe('countAchievedBefore / countAchievedBeforeByNode (#142: 累計達成数のベース)', () => {
+  let db: DbClient;
+
+  beforeEach(async () => {
+    db = await setup();
+    await insertAnchor(db, {
+      id: 'a1',
+      title: '起床',
+      kind: 'behavior',
+      time: null,
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    await insertAction(db, { id: 'act1', title: 'A', variants: null, timerSeconds: null });
+    await insertChain(db, {
+      id: 'c1',
+      title: 'C',
+      anchorId: 'a1',
+      status: 'active',
+      createdAt: '2026-05-18T00:00:00Z',
+    });
+    await insertNode(db, { id: 'n1', chainId: 'c1', orderIndex: 0, kind: 'action', actionId: 'act1' });
+    await insertNode(db, { id: 'n2', chainId: 'c1', orderIndex: 1, kind: 'action', actionId: 'act1' });
+    // n1: 5/16 達成, 5/17 達成, 5/18(=今日) 達成 / n2: 5/17 達成, 5/18 未達, 5/16 未達(=false)
+    await recordAchievement(db, { nodeId: 'n1', date: '2026-05-16', achieved: true });
+    await recordAchievement(db, { nodeId: 'n1', date: '2026-05-17', achieved: true });
+    await recordAchievement(db, { nodeId: 'n1', date: '2026-05-18', achieved: true });
+    await recordAchievement(db, { nodeId: 'n2', date: '2026-05-16', achieved: false });
+    await recordAchievement(db, { nodeId: 'n2', date: '2026-05-17', achieved: true });
+    await recordAchievement(db, { nodeId: 'n2', date: '2026-05-18', achieved: false });
+  });
+
+  afterEach(async () => {
+    await teardown(db);
+  });
+
+  test('countAchievedBefore: 今日(5/18)より前の達成数のみ集計 (achieved=false / 今日は除外)', async () => {
+    // 5/18 より前で achieved=true: n1@5/16, n1@5/17, n2@5/17 = 3
+    expect(await countAchievedBefore(db, '2026-05-18')).toBe(3);
+  });
+
+  test('countAchievedBefore: 全期間を含む未来日付なら今日分も入る', async () => {
+    // 5/19 より前で achieved=true: 上記 3 + n1@5/18 = 4
+    expect(await countAchievedBefore(db, '2026-05-19')).toBe(4);
+  });
+
+  test('countAchievedBeforeByNode: ノード別に今日より前の達成数を返す', async () => {
+    const byNode = await countAchievedBeforeByNode(db, ['n1', 'n2'], '2026-05-18');
+    expect(byNode).toEqual({ n1: 2, n2: 1 });
+  });
+
+  test('countAchievedBeforeByNode: 達成 0 のノードはキーに出ない (?? 0 で扱う前提)', async () => {
+    const byNode = await countAchievedBeforeByNode(db, ['n1', 'n2'], '2026-05-16');
+    // 5/16 より前は何もない
+    expect(byNode).toEqual({});
+  });
+
+  test('countAchievedBeforeByNode: nodeIds 空で空オブジェクト', async () => {
+    expect(await countAchievedBeforeByNode(db, [], '2026-05-18')).toEqual({});
   });
 });
 

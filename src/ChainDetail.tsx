@@ -19,7 +19,7 @@ import type {
   Chain,
   Node,
 } from './domain';
-import { lastAchievedNodeIndex } from './domain';
+import { lastAchievedNodeIndex, nodeCumulativeCount } from './domain';
 import {
   COLOR_ACCENT,
   COLOR_BG,
@@ -67,6 +67,10 @@ export type ChainDetailProps = {
   // 渡されない / 該当 nodeId 不在のノードはマトリクス非表示 (既存挙動互換)。 派生値の
   // 計算は useTodayData が担当 (純粋関数 nodeDateMatrixCells、 ChainDetail は表示係)。
   nodeRecentCells?: ReadonlyMap<string, readonly DateMatrixCell[]>;
+  // #142: ノード (アクション) 単位の「今日より前の累計達成回数」。 ノード行右端に
+  // 「N 回」を表示するための base。 今日の達成状態 (achievements) と合算 (nodeCumulativeCount)
+  // して表示する。 渡されない / 該当 nodeId 不在は base=0 扱い (既存挙動互換)。
+  nodeAchievedBase?: Readonly<Record<string, number>>;
 };
 
 const SPINE_X = 9;
@@ -100,6 +104,7 @@ export const ChainDetail = ({
   nodeIdsEstablished,
   onStartTimer,
   nodeRecentCells,
+  nodeAchievedBase,
 }: ChainDetailProps) => {
   const domainNodes = nodes.map((n) => n.node);
   const lastAchievedIdx = lastAchievedNodeIndex(domainNodes, achievements);
@@ -230,6 +235,10 @@ export const ChainDetail = ({
               actionTitle={label}
               achieved={achievements[node.id] ?? false}
               established={nodeIdsEstablished?.has(node.id) ?? false}
+              cumulativeCount={nodeCumulativeCount(
+                nodeAchievedBase?.[node.id] ?? 0,
+                achievements[node.id] ?? false,
+              )}
               onPress={() => onToggleNode(node.id)}
               timerSeconds={action.timerSeconds}
               onStartTimer={
@@ -319,6 +328,7 @@ const NodeRow = ({
   actionTitle,
   achieved,
   established,
+  cumulativeCount,
   onPress,
   timerSeconds,
   onStartTimer,
@@ -328,6 +338,7 @@ const NodeRow = ({
   actionTitle: string;
   achieved: boolean;
   established: boolean;
+  cumulativeCount: number;
   onPress: () => void;
   timerSeconds: number | null;
   onStartTimer?: () => void;
@@ -394,6 +405,18 @@ const NodeRow = ({
         >
           <Text style={styles.timerBtnText}>⏱ {minutes} 分</Text>
         </Pressable>
+      )}
+      {/* #142: ノード単位の累計達成回数「N 回」。 0 回 (= まだ一度も達成なし) は
+          非表示 — 新規ノードに 0 を見せても積み上がりの起点にならず、 最初の 1 回で
+          「1 回」が現れる方が前進感に効く。 マイナスを指差さない (DESIGN-SYSTEM §0)。 */}
+      {cumulativeCount > 0 && (
+        <Text
+          testID={`node-row-cumulative-${nodeId}`}
+          style={styles.nodeRowCumulative}
+          accessibilityLabel={`累計 ${cumulativeCount} 回達成`}
+        >
+          {cumulativeCount} 回
+        </Text>
       )}
       {recentCells && <NodeRecentCellsMatrix nodeId={nodeId} cells={recentCells} />}
     </View>
@@ -516,6 +539,14 @@ const styles = StyleSheet.create({
     color: COLOR_STAR,
     fontSize: 12,
     fontWeight: '600',
+  },
+  // #142: ノード行右端の累計達成回数「N 回」。 控えめなトーン (COLOR_FG_FAINT) で
+  // 定着星・達成マーカーより目立たせない (DESIGN-SYSTEM §0 / §4.2 の控えめ原則)。
+  nodeRowCumulative: {
+    color: COLOR_FG_FAINT,
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
+    marginRight: 8,
   },
   timerBtn: {
     paddingVertical: 6,

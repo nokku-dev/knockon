@@ -545,6 +545,42 @@ export const listAchievementsForNodes = async (
   return rows.map(rowToAchievement);
 };
 
+// #142: アプリ全体の累計達成ノード数のベース。 beforeDate より前 (= 今日を含まない) で
+// achieved=1 の record 総数を SQL COUNT で返す。 今日分を含めないのは、 表示側で
+// 「今日の達成数 (楽観更新で即時反映)」を別途合算するため (今日の record を二重計上しない)。
+// ADR-0001: 派生値は永続化せず、 表示時に都度集計する。
+export const countAchievedBefore = async (
+  db: DbClient,
+  beforeDate: IsoDate,
+): Promise<number> => {
+  const rows = await db.all<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM achievements WHERE achieved = 1 AND date < ?`,
+    [beforeDate],
+  );
+  return rows[0]?.n ?? 0;
+};
+
+// #142: ノード (アクション) 単位の累計達成回数のベース。 beforeDate より前で achieved=1 の
+// record 数を nodeId ごとに集計して返す。 達成 0 のノードはキーに現れない (呼び出し側は
+// `?? 0` で扱う)。 今日分を含めない理由は countAchievedBefore と同じ。
+export const countAchievedBeforeByNode = async (
+  db: DbClient,
+  nodeIds: readonly string[],
+  beforeDate: IsoDate,
+): Promise<Record<string, number>> => {
+  if (nodeIds.length === 0) return {};
+  const placeholders = nodeIds.map(() => '?').join(',');
+  const rows = await db.all<{ node_id: string; n: number }>(
+    `SELECT node_id, COUNT(*) AS n FROM achievements
+       WHERE achieved = 1 AND date < ? AND node_id IN (${placeholders})
+       GROUP BY node_id`,
+    [beforeDate, ...nodeIds],
+  );
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.node_id] = r.n;
+  return out;
+};
+
 // ADR-0012: アンカー発火イベントの記録。1 日 1 回の不可逆事実。
 // 同 (anchor_id, date) で 2 回目以降の INSERT は OR IGNORE で握り潰す。
 export const recordAnchorFiring = (
