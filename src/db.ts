@@ -2,6 +2,8 @@
 // catalogSeed → repository → (db の型のみ) なので実行時循環なし (型 import は erase される)。
 // initSchema が全 seed (metric_kinds / app_settings / catalog) を担う一貫性を保つ。
 import { seedCatalog } from './catalogSeed';
+// ADR-0039 (#154): 新カテゴリカタログ seed。旧 seedCatalog と並行投入 (どちらも冪等)。
+import { seedCategoryCatalog } from './categoryCatalogSeed';
 
 export interface DbClient {
   exec(sql: string): Promise<void>;
@@ -111,6 +113,44 @@ CREATE TABLE IF NOT EXISTS links (
   starter INTEGER NOT NULL CHECK(starter IN (0, 1))
 );
 
+-- ADR-0039 (#154): 新カタログモデル (module 廃止 → カテゴリ2型)。旧 modules/links と
+-- 並行追加 (catalog/live 分離は継承)。consumer (discovery/onboarding/edit) 移行は別トラック。
+-- type: 'genre' (ジャンル別・個別アクション束) / 'recommended' (朝/夜の完成ルーティン束)。
+-- moment は持たない (採用後にチェーン側で決まる、ADR-0039)。採用前メタ (default_on) は
+-- catalog_actions が持ち live に混入させない (ADR-0001 維持 / K-002 / K-030)。
+CREATE TABLE IF NOT EXISTS categories (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL CHECK(type IN ('genre', 'recommended')),
+  color TEXT NOT NULL,
+  source TEXT NOT NULL CHECK(source IN ('official', 'user')),
+  order_index INTEGER NOT NULL
+);
+
+-- ジャンル別カテゴリ内の個別アクション (採用単位)。各アクションは 1 つの genre カテゴリに
+-- 属す (一意)。category_id NOT NULL + FK→categories (orphan 物理禁止)。
+-- default_on: 採用時の既定 ON (●=1 / 「(任意)」=0、「初期全選択」の既定集合判定)。
+-- position: カテゴリ内の表示順。timer_seconds: NULL = タイマーなし (actions と同型)。
+CREATE TABLE IF NOT EXISTS catalog_actions (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  default_on INTEGER NOT NULL CHECK(default_on IN (0, 1)),
+  position INTEGER NOT NULL,
+  source TEXT NOT NULL CHECK(source IN ('official', 'user')),
+  timer_seconds INTEGER
+);
+
+-- おすすめカテゴリの順序つきアイテム。genre アクションを順序つきで重複参照する
+-- (同じ action_id を複数カテゴリ / 同カテゴリ内で参照可、ADR-0039 の「重複参照 OK」)。
+-- category_id → recommended カテゴリ、action_id → genre アクション (どちらも CASCADE)。
+CREATE TABLE IF NOT EXISTS recommended_items (
+  id TEXT PRIMARY KEY,
+  category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  action_id TEXT NOT NULL REFERENCES catalog_actions(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL
+);
+
 -- ADR-0012: アンカー発火イベント。1 日 1 回の不可逆事実。
 -- 時刻/場所共通。発火 record があれば「今日発火済み」扱い (Today の発火中ピル表示)。
 CREATE TABLE IF NOT EXISTS anchor_firings (
@@ -168,6 +208,9 @@ CREATE INDEX IF NOT EXISTS idx_metrics_key_date ON metrics(metric_key, recorded_
 CREATE INDEX IF NOT EXISTS idx_metric_kinds_order ON metric_kinds(order_index);
 CREATE INDEX IF NOT EXISTS idx_links_module ON links(module_id, position);
 CREATE INDEX IF NOT EXISTS idx_modules_order ON modules(order_index);
+CREATE INDEX IF NOT EXISTS idx_categories_order ON categories(order_index);
+CREATE INDEX IF NOT EXISTS idx_catalog_actions_category ON catalog_actions(category_id, position);
+CREATE INDEX IF NOT EXISTS idx_recommended_items_category ON recommended_items(category_id, position);
 `;
 
 // スキーマバージョン管理。PR-1.8a で導入。
@@ -180,9 +223,12 @@ CREATE INDEX IF NOT EXISTS idx_modules_order ON modules(order_index);
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 const DROP_SQL = `
+DROP TABLE IF EXISTS recommended_items;
+DROP TABLE IF EXISTS catalog_actions;
+DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS app_settings;
 DROP TABLE IF EXISTS metric_kinds;
 DROP TABLE IF EXISTS metrics;
@@ -292,6 +338,42 @@ export const MIGRATIONS: Record<number, Migration> = {
       `ALTER TABLE nodes ADD COLUMN active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0, 1));`,
     );
   },
+  // ADR-0039 (#154): 新カタログモデル (categories / catalog_actions / recommended_items)
+  // を新設。旧 modules/links と並行追加 (consumer 移行は別トラック)。既存ユーザー (v9) の
+  // チェーン / ノード / 旧 catalog はそのまま保全 (新テーブル CREATE のみで ALTER なし)。
+  // SCHEMA_SQL 側にも同じ定義を持たせ、新規 / 既存ユーザーで列定義を一致させる
+  // (= MIGRATIONS[5]/[6]/[7] と同じ二重 truth source は値で一致を担保するパターン)。
+  // v0 カテゴリ seed 投入は initSchema 末尾の seedCategoryCatalog (本 step ではテーブル作成のみ)。
+  10: async (client) => {
+    await client.exec(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('genre', 'recommended')),
+        color TEXT NOT NULL,
+        source TEXT NOT NULL CHECK(source IN ('official', 'user')),
+        order_index INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS catalog_actions (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+        default_on INTEGER NOT NULL CHECK(default_on IN (0, 1)),
+        position INTEGER NOT NULL,
+        source TEXT NOT NULL CHECK(source IN ('official', 'user')),
+        timer_seconds INTEGER
+      );
+      CREATE TABLE IF NOT EXISTS recommended_items (
+        id TEXT PRIMARY KEY,
+        category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+        action_id TEXT NOT NULL REFERENCES catalog_actions(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_categories_order ON categories(order_index);
+      CREATE INDEX IF NOT EXISTS idx_catalog_actions_category ON catalog_actions(category_id, position);
+      CREATE INDEX IF NOT EXISTS idx_recommended_items_category ON recommended_items(category_id, position);
+    `);
+  },
 };
 
 // schema 構築済み状態 (= ADR-0026 PR-CC で確定した v4) の番号。
@@ -340,6 +422,11 @@ export const initSchema = async (client: DbClient): Promise<void> => {
   // この時点で modules/links テーブルは全経路で存在する (初回・legacy は SCHEMA_SQL、
   // ALTER 経路は MIGRATIONS[7] が作成済み)。official カタログの更新も次回起動で反映される。
   await seedCatalog(client);
+
+  // ADR-0039 (#154): 新カテゴリカタログを全経路の最後で投入。INSERT OR IGNORE で冪等。
+  // この時点で categories / catalog_actions / recommended_items は全経路で存在する
+  // (初回・legacy は SCHEMA_SQL、ALTER 経路は MIGRATIONS[10] が作成済み)。
+  await seedCategoryCatalog(client);
 };
 
 // PR-CC (ADR-0026): builtin メトリクス種別の DB seed SQL。
