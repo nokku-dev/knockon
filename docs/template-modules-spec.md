@@ -1,5 +1,7 @@
 # knockon テンプレート／モジュール設計 SPEC
 
+> ⚠️ **構造置換 ([ADR-0039](decisions/0039-catalog-restructure-modules-to-categories.md))**: 本 SPEC の **module(テーマ束) モデル（§2-§9）は ADR-0039 で「カテゴリ2型（ジャンル別／おすすめ）+ 個別アクション採用」に置換**された。catalog/live 分離（[ADR-0030](decisions/0030-template-module-link-data-model.md)）は継承。本 SPEC 本体の category モデルへの書き換えは catalog/schema 再構成トラックで行う。それまでは §2-§9 を単体で実装規範にしないこと（最新の構造は ADR-0039 を参照）。
+>
 > 関連: Issue #62。本ドキュメントは #62 の方針コメントを正式 SPEC 化したもの。
 > 由来: Claude.ai 設計セッション → design-session 配布（決定事項）。判断ログは Notion 思考ノートを参照。
 
