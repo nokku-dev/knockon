@@ -1,6 +1,9 @@
-import { buildChainDraftFromBundle } from './domain';
-import type { ChainDraft, Link, Module } from './domain';
-import { buildChainDraftFromSelection } from './discovery';
+import {
+  allItemKeys,
+  buildChainDraftFromCategorySelection,
+} from './categoryDiscovery';
+import type { CategoryPreview } from './categoryDiscovery';
+import type { ChainDraft } from './domain';
 
 // #72 (SPEC docs/template-modules-spec.md §5): onboarding (初回ルート) の純粋ドメイン層。
 // 状態ゴール扉だけを通る 1 画面 1 決定の連続を、ステップ順 / moment 分岐 /
@@ -63,6 +66,14 @@ export const DEFAULT_ANCHOR_TIMES: Record<OnboardingMoment, string> = {
   night: '22:00',
 };
 
+// ADR-0039 (#155): onboarding は「おすすめ朝/夜」カテゴリを 1 本目/2 本目として採用する。
+// moment (朝/夜) → おすすめカテゴリ id の対応 (seed の固定 id、categoryCatalogSeed)。
+// onboarding は朝/夜の完成ルーティン (おすすめカテゴリ) に特化するため id 結合を許容する。
+export const RECOMMENDED_CATEGORY_ID: Record<OnboardingMoment, string> = {
+  morning: 'cat-rec-morning',
+  night: 'cat-rec-night',
+};
+
 // onboarding の採用は「時刻アンカー」を伴う点が discovery (= behavior アンカー) と異なる。
 // load-bearing な要件: アンカー時刻が無いとチェーンが発火しない (SPEC §5)。
 export type OnboardingAnchorSpec = { kind: 'time'; time: string };
@@ -72,29 +83,29 @@ export type OnboardingAdoption = {
   anchor: OnboardingAnchorSpec;
 };
 
-// moment + 時刻 → 採用ドラフト (starter×defaultOn) + 時刻アンカー。
-// buildChainDraftFromBundle (discovery と共有) を時刻アンカー付きで包む純粋関数。
-// 2 本目 (もう一方の moment) の既定セット採用に使う (#106 後も選択なしの一括採用)。
+// プレビュー (おすすめカテゴリ) を全選択 + 時刻 → 採用ドラフト + 時刻アンカー。
+// 2 本目 (もう一方の moment) の既定全採用に使う (選択なしの一括採用)。
 export const buildOnboardingAdoption = (
-  modules: readonly Module[],
-  links: readonly Link[],
-  moment: OnboardingMoment,
+  preview: CategoryPreview,
   time: string,
   title: string,
 ): OnboardingAdoption => ({
-  draft: buildChainDraftFromBundle(modules, links, moment, title),
+  draft: buildChainDraftFromCategorySelection(
+    preview,
+    new Set(allItemKeys(preview)),
+    title,
+  ),
   anchor: { kind: 'time', time },
 });
 
-// #106: ユーザーが選んだリンク集合 + 時刻 → 採用ドラフト + 時刻アンカー。
-// 1 本目 onboarding でアクションを個別選択 (starter モジュールのリンクから取捨選択) した
-// 結果を採用する。buildChainDraftFromSelection (discovery と共有) を時刻アンカーで包む。
+// #106: ユーザーが選んだアイテム集合 + 時刻 → 採用ドラフト + 時刻アンカー。
+// 1 本目 onboarding でおすすめカテゴリのアクションを個別選択した結果を採用する。
 export const buildOnboardingAdoptionFromSelection = (
-  links: readonly Link[],
-  selectedLinkIds: readonly string[],
+  preview: CategoryPreview,
+  selectedKeys: ReadonlySet<string>,
   time: string,
   title: string,
 ): OnboardingAdoption => ({
-  draft: buildChainDraftFromSelection(links, selectedLinkIds, title),
+  draft: buildChainDraftFromCategorySelection(preview, selectedKeys, title),
   anchor: { kind: 'time', time },
 });

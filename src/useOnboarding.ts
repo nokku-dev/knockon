@@ -2,13 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { adoptChainDraft } from './bundleAdoption';
 import type { IdGen } from './bundleAdoption';
+import {
+  allItemKeys,
+  buildRecommendedPreview,
+} from './categoryDiscovery';
+import type { AdoptItem, CategoryPreview } from './categoryDiscovery';
 import { getExpoSqliteClient } from './db.expo';
-import { buildBundleForMoment } from './discovery';
 import { momentLabel } from './discoveryLabels';
-import type { Link, Module } from './domain';
+import type { Category, CatalogAction, RecommendedItem } from './domain';
 import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
 import {
   DEFAULT_ANCHOR_TIMES,
+  RECOMMENDED_CATEGORY_ID,
   buildOnboardingAdoption,
   buildOnboardingAdoptionFromSelection,
   nextStep,
@@ -17,7 +22,11 @@ import {
 } from './onboarding';
 import type { OnboardingMoment, OnboardingStep } from './onboarding';
 import { requestNotificationPermission, syncAllNotifications } from './notifications';
-import { listLinks, listModules } from './repository';
+import {
+  listCatalogActions,
+  listCategories,
+  listRecommendedItems,
+} from './repository';
 import { updateAppSettings } from './settingsRepository';
 
 // #72 (SPEC §5): onboarding フローの状態 hook。catalog をロードし、状態ゴール扉だけを
@@ -33,14 +42,6 @@ const defaultIdGen: IdGen = {
   node: newNodeId,
 };
 
-// #106: onboarding preview の選択リスト 1 モジュール分 (starter モジュールの行)。
-export type OnboardingPreviewModule = {
-  moduleId: string;
-  moduleName: string;
-  moduleColor: string;
-  links: { id: string; title: string }[];
-};
-
 export type UseOnboardingResult = {
   loading: boolean;
   error: string | null;
@@ -48,11 +49,11 @@ export type UseOnboardingResult = {
   firstMoment: OnboardingMoment | null;
   secondMoment: OnboardingMoment | null;
   time: string;
-  // #106: starter モジュールのアクションを選択式に。previewModules = 選べる行、
-  // selectedLinkIds = 採用する集合 (既定 = starter×defaultOn)、toggleLink で取捨選択。
-  previewModules: OnboardingPreviewModule[];
-  selectedLinkIds: Set<string>;
-  toggleLink: (linkId: string) => void;
+  // ADR-0039 (#155): おすすめ朝/夜カテゴリのアクションを選択式に。previewItems = 選べる行、
+  // selectedKeys = 採用する集合 (既定 = 全選択)、toggleItem で取捨選択。
+  previewItems: AdoptItem[];
+  selectedKeys: Set<string>;
+  toggleItem: (key: string) => void;
   adoptedTimes: string[];
   notifyDecided: 'granted' | 'denied' | null;
   adopting: boolean;
@@ -73,8 +74,11 @@ export type UseOnboardingResult = {
 export const useOnboarding = (
   idGen: IdGen = defaultIdGen,
 ): UseOnboardingResult => {
-  const [modules, setModules] = useState<Module[]>([]);
-  const [links, setLinks] = useState<Link[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [actions, setActions] = useState<CatalogAction[]>([]);
+  const [recommendedItems, setRecommendedItems] = useState<RecommendedItem[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,18 +91,23 @@ export const useOnboarding = (
   );
   const [adopting, setAdopting] = useState(false);
   const [firstChainId, setFirstChainId] = useState<string | null>(null);
-  // #106: 1 本目で採用するアクション集合 (selectMoment で starter×defaultOn を初期選択)。
-  const [selectedLinkIds, setSelectedLinkIds] = useState<Set<string>>(new Set());
+  // ADR-0039 (#155): 1 本目で採用するアイテム集合 (selectMoment で全選択を初期化)。
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const db = await getExpoSqliteClient();
-        const [mods, lks] = await Promise.all([listModules(db), listLinks(db)]);
+        const [cats, acts, recs] = await Promise.all([
+          listCategories(db),
+          listCatalogActions(db),
+          listRecommendedItems(db),
+        ]);
         if (cancelled) return;
-        setModules(mods);
-        setLinks(lks);
+        setCategories(cats);
+        setActions(acts);
+        setRecommendedItems(recs);
       } catch (e) {
         if (!cancelled)
           setError(e instanceof Error ? e.message : '読み込みに失敗しました');
@@ -116,24 +125,28 @@ export const useOnboarding = (
     [firstMoment],
   );
 
-  // #106: starter モジュールのプレビュー (選択リストの素材)。discovery の束プレビューを再利用。
-  const bundle = useMemo(
-    () =>
-      firstMoment
-        ? buildBundleForMoment(modules, links, firstMoment, momentLabel(firstMoment))
-        : null,
-    [modules, links, firstMoment],
+  // moment → おすすめカテゴリのプレビューを組む純粋計算 (categoryDiscovery 再利用)。
+  const buildMomentPreview = useCallback(
+    (m: OnboardingMoment): CategoryPreview | null => {
+      const category = categories.find(
+        (c) => c.id === RECOMMENDED_CATEGORY_ID[m],
+      );
+      if (!category) return null;
+      return buildRecommendedPreview(category, recommendedItems, actions);
+    },
+    [categories, recommendedItems, actions],
   );
 
-  const previewModules = useMemo<OnboardingPreviewModule[]>(() => {
-    if (!bundle) return [];
-    return bundle.starterModules.map((m) => ({
-      moduleId: m.module.id,
-      moduleName: m.module.name,
-      moduleColor: m.module.color,
-      links: m.links.map((l) => ({ id: l.id, title: l.title })),
-    }));
-  }, [bundle]);
+  // 1 本目プレビュー (選択リストの素材) = 選んだ moment のおすすめカテゴリ。
+  const firstPreview = useMemo<CategoryPreview | null>(
+    () => (firstMoment ? buildMomentPreview(firstMoment) : null),
+    [firstMoment, buildMomentPreview],
+  );
+
+  const previewItems = useMemo<AdoptItem[]>(
+    () => firstPreview?.items ?? [],
+    [firstPreview],
+  );
 
   const back = useCallback(() => setStep((s) => prevStep(s)), []);
   const start = useCallback(() => setStep('moment'), []);
@@ -141,35 +154,35 @@ export const useOnboarding = (
     (m: OnboardingMoment) => {
       setFirstMoment(m);
       setTime(DEFAULT_ANCHOR_TIMES[m]);
-      // 既定選択 = starter×defaultOn (最小核から始める。要らないものは外せる)。
-      const b = buildBundleForMoment(modules, links, m, momentLabel(m));
-      setSelectedLinkIds(new Set(b.defaultSelectedLinkIds));
+      // 既定選択 = 全アイテム (おすすめは完成ルーティン。要らないものは外せる、ADR-0039)。
+      const p = buildMomentPreview(m);
+      setSelectedKeys(new Set(p ? allItemKeys(p) : []));
       setStep('anchorTime');
     },
-    [modules, links],
+    [buildMomentPreview],
   );
 
-  const toggleLink = useCallback((linkId: string) => {
-    setSelectedLinkIds((prev) => {
+  const toggleItem = useCallback((key: string) => {
+    setSelectedKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(linkId)) next.delete(linkId);
-      else next.add(linkId);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }, []);
   const changeTime = useCallback((t: string) => setTime(t), []);
   const confirmTime = useCallback(() => setStep('preview'), []);
 
-  // 1 本目を採用 (選択アクション + 時刻アンカー) → second へ (#106)。
+  // 1 本目を採用 (選択アクション + 時刻アンカー) → second へ。
   const adoptFirst = useCallback(
     async (now: string) => {
-      if (!firstMoment) return;
+      if (!firstMoment || !firstPreview) return;
       setAdopting(true);
       try {
         const db = await getExpoSqliteClient();
         const { draft, anchor } = buildOnboardingAdoptionFromSelection(
-          links,
-          Array.from(selectedLinkIds),
+          firstPreview,
+          selectedKeys,
           time,
           momentLabel(firstMoment),
         );
@@ -187,14 +200,19 @@ export const useOnboarding = (
         setAdopting(false);
       }
     },
-    [links, firstMoment, time, selectedLinkIds, idGen],
+    [firstPreview, firstMoment, time, selectedKeys, idGen],
   );
 
-  // もう一方 (other moment) をデフォルト時刻で採用 → notify へ。
+  // もう一方 (other moment) のおすすめをデフォルト時刻で全採用 → notify へ。
   // 2 本目の時刻調整は onboarding に出さず、採用後にチェーン編集で行う前提 (floor は 1 本)。
   const addSecond = useCallback(
     async (now: string) => {
       if (!secondMoment) {
+        setStep('notify');
+        return;
+      }
+      const secondPreview = buildMomentPreview(secondMoment);
+      if (!secondPreview) {
         setStep('notify');
         return;
       }
@@ -203,9 +221,7 @@ export const useOnboarding = (
         const db = await getExpoSqliteClient();
         const secondTime = DEFAULT_ANCHOR_TIMES[secondMoment];
         const { draft, anchor } = buildOnboardingAdoption(
-          modules,
-          links,
-          secondMoment,
+          secondPreview,
           secondTime,
           momentLabel(secondMoment),
         );
@@ -220,7 +236,7 @@ export const useOnboarding = (
         setAdopting(false);
       }
     },
-    [modules, links, secondMoment, idGen],
+    [buildMomentPreview, secondMoment, idGen],
   );
 
   const skipSecond = useCallback(() => setStep('notify'), []);
@@ -259,9 +275,9 @@ export const useOnboarding = (
     firstMoment,
     secondMoment,
     time,
-    previewModules,
-    selectedLinkIds,
-    toggleLink,
+    previewItems,
+    selectedKeys,
+    toggleItem,
     adoptedTimes,
     notifyDecided,
     adopting,

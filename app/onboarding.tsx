@@ -39,9 +39,9 @@ export default function OnboardingRoute() {
           step={o.step}
           firstMoment={o.firstMoment}
           time={o.time}
-          previewModules={o.previewModules}
-          selectedLinkIds={o.selectedLinkIds}
-          onToggleLink={o.toggleLink}
+          previewItems={o.previewItems}
+          selectedKeys={o.selectedKeys}
+          onToggleItem={o.toggleItem}
           secondMoment={o.secondMoment}
           adoptedTimes={o.adoptedTimes}
           notifyDecided={o.notifyDecided}

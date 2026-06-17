@@ -10,10 +10,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import type { AdoptItem } from './categoryDiscovery';
 import { momentLabel } from './discoveryLabels';
 import { ONBOARDING_STEPS, stepProgress } from './onboarding';
 import type { OnboardingMoment, OnboardingStep } from './onboarding';
-import type { OnboardingPreviewModule } from './useOnboarding';
 import {
   COLOR_BG,
   COLOR_FG,
@@ -33,10 +33,10 @@ export type OnboardingScreenProps = {
   step: OnboardingStep;
   firstMoment: OnboardingMoment | null;
   time: string; // 1 本目アンカー時刻 'HH:MM'
-  // #106: 1 本目で選べる starter モジュールのアクション + 選択集合。
-  previewModules: OnboardingPreviewModule[];
-  selectedLinkIds: Set<string>;
-  onToggleLink: (linkId: string) => void;
+  // ADR-0039 (#155): 1 本目で選べるおすすめカテゴリのアクション + 選択集合。
+  previewItems: AdoptItem[];
+  selectedKeys: Set<string>;
+  onToggleItem: (key: string) => void;
   secondMoment: OnboardingMoment | null; // もう一方の moment (= otherMoment(first))
   adoptedTimes: string[]; // 採用したチェーンの起動時刻 (done のサマリ用、1 or 2 件)
   notifyDecided: 'granted' | 'denied' | null;
@@ -279,52 +279,42 @@ const renderStep = (props: OnboardingScreenProps) => {
             style={styles.previewScroll}
             contentContainerStyle={styles.previewScrollContent}
           >
-            {props.previewModules.map((m) => (
-              <View key={m.moduleId} style={styles.previewModule}>
-                <View style={styles.previewModuleHead}>
+            {props.previewItems.map((item) => {
+              const checked = props.selectedKeys.has(item.key);
+              return (
+                <Pressable
+                  key={item.key}
+                  onPress={() => props.onToggleItem(item.key)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked }}
+                  accessibilityLabel={item.title}
+                  style={styles.previewLinkRow}
+                >
                   <View
-                    style={[styles.previewModuleDot, { backgroundColor: m.moduleColor }]}
-                  />
-                  <Text style={styles.previewModuleName}>{m.moduleName}</Text>
-                </View>
-                {m.links.map((l) => {
-                  const checked = props.selectedLinkIds.has(l.id);
-                  return (
-                    <Pressable
-                      key={l.id}
-                      onPress={() => props.onToggleLink(l.id)}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked }}
-                      accessibilityLabel={l.title}
-                      style={styles.previewLinkRow}
-                    >
-                      <View
-                        style={[
-                          styles.previewCheckbox,
-                          checked && styles.previewCheckboxChecked,
-                        ]}
-                      >
-                        {checked && <Text style={styles.previewCheckmark}>✓</Text>}
-                      </View>
-                      <Text
-                        style={[
-                          styles.previewLinkText,
-                          !checked && styles.previewLinkTextMuted,
-                        ]}
-                      >
-                        {l.title}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ))}
+                    style={[
+                      styles.previewCheckbox,
+                      checked && styles.previewCheckboxChecked,
+                    ]}
+                  >
+                    {checked && <Text style={styles.previewCheckmark}>✓</Text>}
+                  </View>
+                  <Text
+                    style={[
+                      styles.previewLinkText,
+                      !checked && styles.previewLinkTextMuted,
+                    ]}
+                  >
+                    {item.title}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
           <PrimaryButton
-            label={`これで始める (${props.selectedLinkIds.size})`}
+            label={`これで始める (${props.selectedKeys.size})`}
             onPress={props.onAdoptFirst}
             busy={props.adopting}
-            disabled={props.selectedLinkIds.size === 0}
+            disabled={props.selectedKeys.size === 0}
           />
         </View>
       );
@@ -437,13 +427,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   timeColon: { color: COLOR_FG_FAINT, fontSize: 56, fontWeight: '700' },
-  // #106: 選択リスト
+  // #155: 選択リスト (おすすめカテゴリのアクションを flat に表示)
   previewScroll: { flex: 1, marginTop: 8 },
-  previewScrollContent: { gap: 16, paddingBottom: 8 },
-  previewModule: { gap: 8 },
-  previewModuleHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  previewModuleDot: { width: 10, height: 10, borderRadius: 999 },
-  previewModuleName: { color: COLOR_FG_SOFT, fontSize: 13, fontWeight: '700' },
+  previewScrollContent: { gap: 4, paddingBottom: 8 },
   previewLinkRow: {
     flexDirection: 'row',
     alignItems: 'center',

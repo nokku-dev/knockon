@@ -1,8 +1,9 @@
-import { buildV0Catalog } from './catalogSeed';
+import type { CategoryPreview } from './categoryDiscovery';
 import {
   DEFAULT_ANCHOR_TIMES,
   ONBOARDING_MOMENTS,
   ONBOARDING_STEPS,
+  RECOMMENDED_CATEGORY_ID,
   buildOnboardingAdoption,
   buildOnboardingAdoptionFromSelection,
   nextStep,
@@ -10,7 +11,6 @@ import {
   prevStep,
   stepProgress,
 } from './onboarding';
-import type { Link, Module } from './domain';
 
 // #72 (SPEC docs/template-modules-spec.md §5): onboarding の純粋ドメイン層。
 // ステップ進行・moment 分岐・時刻アンカー付き採用ドラフトを DB/UI 非依存で検証する (K-007)。
@@ -56,110 +56,88 @@ describe('onboarding moment — 朝/夜の 2 択と分岐 (#72)', () => {
     expect(DEFAULT_ANCHOR_TIMES.morning).toBe('07:00');
     expect(DEFAULT_ANCHOR_TIMES.night).toBe('22:00');
   });
+
+  test('moment → おすすめカテゴリ id の対応 (ADR-0039)', () => {
+    expect(RECOMMENDED_CATEGORY_ID.morning).toBe('cat-rec-morning');
+    expect(RECOMMENDED_CATEGORY_ID.night).toBe('cat-rec-night');
+  });
 });
 
-describe('buildOnboardingAdoption — moment+時刻 → 時刻アンカー付きドラフト (#72)', () => {
-  const modules: Module[] = [
+// おすすめカテゴリのプレビュー fixture (genre アクションを順序つきで参照、ADR-0039)。
+const previewFixture = (): CategoryPreview => ({
+  category: {
+    id: 'cat-rec-morning',
+    name: '朝のおすすめ',
+    type: 'recommended',
+    color: '#111',
+    source: 'official',
+    orderIndex: 0,
+  },
+  items: [
     {
-      id: 't-mod-morning',
-      name: '朝',
-      color: '#111',
-      moment: ['morning'],
-      goal: ['health'],
-      source: 'official',
-      kind: 'normal',
-      orderIndex: 0,
-    },
-  ];
-  const links: Link[] = [
-    {
-      id: 't-lnk-1',
+      key: 'r-0',
+      actionId: 'act-brush-teeth',
       title: '歯磨き',
-      moduleId: 't-mod-morning',
-      defaultOn: true,
-      position: 0,
-      source: 'official',
       timerSeconds: null,
-      starter: true,
+      optional: false,
     },
     {
-      id: 't-lnk-2',
-      title: 'サプリ',
-      moduleId: 't-mod-morning',
-      defaultOn: false, // 追加リンク → 採用されない
-      position: 1,
-      source: 'official',
+      key: 'r-1',
+      actionId: 'act-face-wash',
+      title: '洗顔',
       timerSeconds: null,
-      starter: true,
+      optional: false,
     },
-  ];
+  ],
+});
 
-  test('starter×defaultOn のリンクが採用ドラフトになる', () => {
-    const { draft } = buildOnboardingAdoption(modules, links, 'morning', '07:30', '朝');
+describe('buildOnboardingAdoption — おすすめ全採用 + 時刻アンカー (#155)', () => {
+  test('プレビュー全アイテムが順序つきで採用ドラフトになる', () => {
+    const { draft } = buildOnboardingAdoption(previewFixture(), '07:30', '朝');
     expect(draft.title).toBe('朝');
-    expect(draft.nodes.map((n) => n.actionTitle)).toEqual(['歯磨き']);
+    expect(draft.nodes.map((n) => n.actionTitle)).toEqual(['歯磨き', '洗顔']);
   });
 
   test('指定時刻の時刻アンカー (kind=time) を伴う', () => {
-    const { anchor } = buildOnboardingAdoption(modules, links, 'morning', '07:30', '朝');
+    const { anchor } = buildOnboardingAdoption(previewFixture(), '07:30', '朝');
     expect(anchor).toEqual({ kind: 'time', time: '07:30' });
   });
 
-  test('v0 catalog の朝束で 1 つ以上のノードを採用できる', () => {
-    const { modules: cm, links: cl } = buildV0Catalog();
-    const { draft, anchor } = buildOnboardingAdoption(cm, cl, 'morning', '06:00', '朝');
-    expect(draft.nodes.length).toBeGreaterThan(0);
-    expect(anchor.time).toBe('06:00');
+  test('採用ノードは由来参照 (moduleId) を持たない (ADR-0039)', () => {
+    const { draft } = buildOnboardingAdoption(previewFixture(), '07:30', '朝');
+    expect(draft.nodes.every((n) => n.moduleId === undefined)).toBe(true);
   });
 });
 
-describe('buildOnboardingAdoptionFromSelection — 選択アクション → 採用 (#106)', () => {
-  const links: Link[] = [
-    {
-      id: 't-lnk-1',
-      title: '歯磨き',
-      moduleId: 't-mod-morning',
-      defaultOn: true,
-      position: 0,
-      source: 'official',
-      timerSeconds: null,
-      starter: true,
-    },
-    {
-      id: 't-lnk-2',
-      title: 'サプリ',
-      moduleId: 't-mod-morning',
-      defaultOn: false,
-      position: 1,
-      source: 'official',
-      timerSeconds: null,
-      starter: true,
-    },
-  ];
-
-  test('選んだリンクだけが position 昇順でドラフトになる', () => {
+describe('buildOnboardingAdoptionFromSelection — 選択アクション → 採用 (#155)', () => {
+  test('選んだアイテムだけが表示順でドラフトになる', () => {
     const { draft } = buildOnboardingAdoptionFromSelection(
-      links,
-      ['t-lnk-2'],
+      previewFixture(),
+      new Set(['r-1']),
       '07:30',
       '朝',
     );
-    expect(draft.nodes.map((n) => n.actionTitle)).toEqual(['サプリ']);
+    expect(draft.nodes.map((n) => n.actionTitle)).toEqual(['洗顔']);
   });
 
-  test('複数選択は position 順で並ぶ + 時刻アンカーを伴う', () => {
+  test('複数選択は表示順で並ぶ + 時刻アンカーを伴う', () => {
     const { draft, anchor } = buildOnboardingAdoptionFromSelection(
-      links,
-      ['t-lnk-2', 't-lnk-1'],
+      previewFixture(),
+      new Set(['r-1', 'r-0']),
       '07:30',
       '朝',
     );
-    expect(draft.nodes.map((n) => n.actionTitle)).toEqual(['歯磨き', 'サプリ']);
+    expect(draft.nodes.map((n) => n.actionTitle)).toEqual(['歯磨き', '洗顔']);
     expect(anchor).toEqual({ kind: 'time', time: '07:30' });
   });
 
   test('選択ゼロは空ドラフト', () => {
-    const { draft } = buildOnboardingAdoptionFromSelection(links, [], '07:30', '朝');
+    const { draft } = buildOnboardingAdoptionFromSelection(
+      previewFixture(),
+      new Set(),
+      '07:30',
+      '朝',
+    );
     expect(draft.nodes).toEqual([]);
   });
 });
