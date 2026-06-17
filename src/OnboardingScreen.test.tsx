@@ -7,19 +7,24 @@ const baseProps: OnboardingScreenProps = {
   step: 'welcome',
   firstMoment: null,
   time: '07:00',
-  previewModules: [
+  previewItems: [
     {
-      moduleId: 'mod-a',
-      moduleName: '目覚め・水分',
-      moduleColor: '#4FB0AE',
-      links: [
-        { id: 'lnk-1', title: '歯磨き' },
-        { id: 'lnk-2', title: '白湯' },
-      ],
+      key: 'r-0',
+      actionId: 'act-brush-teeth',
+      title: '歯磨き',
+      timerSeconds: null,
+      optional: false,
+    },
+    {
+      key: 'r-1',
+      actionId: 'act-drink-water',
+      title: '水を飲む',
+      timerSeconds: null,
+      optional: false,
     },
   ],
-  selectedLinkIds: new Set(['lnk-1', 'lnk-2']),
-  onToggleLink: () => {},
+  selectedKeys: new Set(['r-0', 'r-1']),
+  onToggleItem: () => {},
   secondMoment: null,
   adoptedTimes: [],
   notifyDecided: null,
@@ -72,38 +77,37 @@ describe('OnboardingScreen (#72)', () => {
     expect(onConfirmTime).toHaveBeenCalled();
   });
 
-  test('preview: 選べるアクションを表示し、これで始める(件数付き)で onAdoptFirst', () => {
+  test('preview: 選べるアクションを flat に表示し、これで始める(件数付き)で onAdoptFirst', () => {
     const onAdoptFirst = jest.fn();
     const { getByText } = renderStep({
       step: 'preview',
       firstMoment: 'morning',
       onAdoptFirst,
     });
-    expect(getByText('目覚め・水分')).toBeTruthy(); // モジュール見出し
     expect(getByText('歯磨き')).toBeTruthy();
-    expect(getByText('白湯')).toBeTruthy();
+    expect(getByText('水を飲む')).toBeTruthy();
     // 選択数 2 が CTA に出る
     fireEvent.press(getByText('これで始める (2)'));
     expect(onAdoptFirst).toHaveBeenCalled();
   });
 
-  test('preview: アクションタップで onToggleLink が該当 linkId で呼ばれる (#106)', () => {
-    const onToggleLink = jest.fn();
+  test('preview: アクションタップで onToggleItem が該当 key で呼ばれる (#155)', () => {
+    const onToggleItem = jest.fn();
     const { getByLabelText } = renderStep({
       step: 'preview',
       firstMoment: 'morning',
-      onToggleLink,
+      onToggleItem,
     });
     fireEvent.press(getByLabelText('歯磨き'));
-    expect(onToggleLink).toHaveBeenCalledWith('lnk-1');
+    expect(onToggleItem).toHaveBeenCalledWith('r-0');
   });
 
-  test('preview: 選択ゼロだと「これで始める」を押しても採用されない (disabled, #106)', () => {
+  test('preview: 選択ゼロだと「これで始める」を押しても採用されない (disabled, #155)', () => {
     const onAdoptFirst = jest.fn();
     const { getByText } = renderStep({
       step: 'preview',
       firstMoment: 'morning',
-      selectedLinkIds: new Set<string>(),
+      selectedKeys: new Set<string>(),
       onAdoptFirst,
     });
     fireEvent.press(getByText('これで始める (0)'));
