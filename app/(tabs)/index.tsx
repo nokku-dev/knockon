@@ -74,6 +74,7 @@ export default function TodayTab() {
           initialOpenChainId={initialOpen}
           onEditChain={(chainId) => router.push(`/chain/${chainId}`)}
           onMarkNodeAchieved={markNodeAchieved}
+          onOpenDiscovery={() => router.push('/discover')}
         />
       )}
     </SafeAreaView>
