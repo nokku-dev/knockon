@@ -1,10 +1,27 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import type { DbClient } from './db';
 import { getExpoSqliteClient } from './db.expo';
-import type { Anchor, Chain } from './domain';
+import type { Action, Anchor, Chain, Node } from './domain';
+import { effectiveTodayIsoDate } from './domain';
 import { parseTimeString, shouldNotifyForChain } from './notificationHelpers';
-import { getAnchor, listChains } from './repository';
+import {
+  computeNightSummary,
+  formatNightSummaryBody,
+  NIGHT_SUMMARY_HOUR,
+  NIGHT_SUMMARY_MINUTE,
+  NIGHT_SUMMARY_NOTIFICATION_ID,
+  type NightSummaryChainSnapshot,
+} from './nightSummary';
+import {
+  getAction,
+  getAnchor,
+  listAchievementsForNodes,
+  listChains,
+  listNodes,
+} from './repository';
+import { getAppSettings } from './settingsRepository';
 
 export { parseTimeString, shouldNotifyForChain };
 
@@ -89,10 +106,87 @@ export const scheduleNotificationForChain = async (
   });
 };
 
+// Issue #169 / ADR-0042: 夜の達成サマリ通知をスケジュール。
+// DAILY trigger で 21:00 に発火し、 本文は「今日は N 個アクションを達成済み。
+// M 個の達成チャンスがあります。」(4 象限分岐は formatNightSummaryBody 参照)。
+//
+// 受容判断 (Phase 1 N=1):
+// - body は schedule 時点の達成数で固定される (DAILY trigger の content は同一)。
+//   ユーザーが 21:00 までに状態を変えると body が古くなるが、 syncAllNotifications
+//   は app 起動 + データ変更で都度呼ばれるため drift は限定的。 Phase 2 で N が増
+//   えたら notification handler 内で再計算 + 即時 present への変更を判断する。
+// - N=0 / M=0 のとき (= 今日 active な fire ノードが 1 件も無い、 もしくは 全達成済かつ
+//   未達 0 件) は通知を出さない (formatNightSummaryBody が null を返す)。
+// - 通知 ID は `'night-summary'` 固定 (per-chain `chain-{id}` と衝突しない)。
+const buildNightSummarySnapshots = async (
+  db: DbClient,
+  today: string,
+): Promise<NightSummaryChainSnapshot[]> => {
+  const activeChains = await listChains(db, 'active');
+  const snapshots: NightSummaryChainSnapshot[] = [];
+  for (const chain of activeChains) {
+    const nodes = await listNodes(db, chain.id);
+    const items: Array<{ node: Node; action: Action }> = [];
+    for (const node of nodes) {
+      const action = await getAction(db, node.actionId);
+      if (action) items.push({ node, action });
+    }
+    const nodeIds = items.map((i) => i.node.id);
+    const achievements = await listAchievementsForNodes(
+      db,
+      nodeIds,
+      today,
+      today,
+    );
+    const achievementsToday: Record<string, boolean> = {};
+    for (const a of achievements) achievementsToday[a.nodeId] = a.achieved;
+    snapshots.push({ nodes: items, achievementsToday });
+  }
+  return snapshots;
+};
+
+export const scheduleNightSummaryNotification = async (
+  db: DbClient,
+  now: Date,
+): Promise<void> => {
+  await Notifications.cancelScheduledNotificationAsync(
+    NIGHT_SUMMARY_NOTIFICATION_ID,
+  );
+  const settings = await getAppSettings(db);
+  const today = effectiveTodayIsoDate(now, settings.resetTime);
+  const snapshots = await buildNightSummarySnapshots(db, today);
+  const summary = computeNightSummary(snapshots, today);
+  const body = formatNightSummaryBody(
+    summary.achievedCount,
+    summary.remainingCount,
+  );
+  if (!body) return;
+  const granted = await requestNotificationPermission();
+  if (!granted) return;
+  await Notifications.scheduleNotificationAsync({
+    identifier: NIGHT_SUMMARY_NOTIFICATION_ID,
+    content: {
+      title: 'knockon',
+      body,
+      data: { kind: 'night-summary' },
+      ...(Platform.OS === 'android'
+        ? { channelId: ANDROID_CHANNEL_ID }
+        : {}),
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour: NIGHT_SUMMARY_HOUR,
+      minute: NIGHT_SUMMARY_MINUTE,
+    },
+  });
+};
+
 // 全 active チェーンを fetch して通知を再スケジュール。
 // app/_layout.tsx の起動時に呼ぶ safety net。 個別 schedule とは別に「全体一致」
 // を担保する。 stocked チェーンや時刻アンカーなしのチェーンは shouldNotifyForChain
 // で除外され、 通知は出ない。
+// Issue #169: 夜の達成サマリ通知も同じ sync で再スケジュール (body は schedule
+// 時点の達成数で派生)。
 export const syncAllNotifications = async (): Promise<void> => {
   const db = await getExpoSqliteClient();
   // 既存スケジュールを一旦全クリアしてから active チェーンだけ再登録 (drift 解消)。
@@ -103,4 +197,5 @@ export const syncAllNotifications = async (): Promise<void> => {
     if (!anchor) continue;
     await scheduleNotificationForChain(chain, anchor);
   }
+  await scheduleNightSummaryNotification(db, new Date());
 };
