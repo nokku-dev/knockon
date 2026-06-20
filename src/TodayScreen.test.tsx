@@ -410,3 +410,122 @@ describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {
     expect(getByText('✓ 達成')).toBeTruthy();
   });
 });
+
+// #165 (ADR-0042 P1): 立ち上げチェックリスト
+describe('TodayScreen 立ち上げチェックリスト (#165)', () => {
+  const oneChain = (): TodayChainData[] => [
+    buildChainData('c1', '朝のルーティン', [fireNode('n1', '水を飲む')]),
+  ];
+
+  test('onboarding 完了・未 dismiss・未達 + onDismissChecklist あり → チェックリスト表示', () => {
+    const { getByTestId, getByText } = render(
+      <TodayScreen
+        chains={oneChain()}
+        onToggleNode={() => {}}
+        onboardingCompleted
+        checklistDismissedAt={null}
+        onDismissChecklist={() => {}}
+      />,
+    );
+    expect(getByTestId('onboarding-checklist')).toBeTruthy();
+    // 1 本目採用のみ done → (1/5)
+    expect(getByText('立ち上げチェックリスト (1/5)')).toBeTruthy();
+  });
+
+  test('onboarding 未完了 → 表示しない (まだ onboarding 中)', () => {
+    const { queryByTestId } = render(
+      <TodayScreen
+        chains={oneChain()}
+        onToggleNode={() => {}}
+        onboardingCompleted={false}
+        onDismissChecklist={() => {}}
+      />,
+    );
+    expect(queryByTestId('onboarding-checklist')).toBeNull();
+  });
+
+  test('dismiss 済み → 表示しない', () => {
+    const { queryByTestId } = render(
+      <TodayScreen
+        chains={oneChain()}
+        onToggleNode={() => {}}
+        onboardingCompleted
+        checklistDismissedAt="2026-06-20T00:00:00.000Z"
+        onDismissChecklist={() => {}}
+      />,
+    );
+    expect(queryByTestId('onboarding-checklist')).toBeNull();
+  });
+
+  test('onDismissChecklist 未指定 → 表示しない (親が dismiss 動線を持つときのみ)', () => {
+    const { queryByTestId } = render(
+      <TodayScreen chains={oneChain()} onToggleNode={() => {}} onboardingCompleted />,
+    );
+    expect(queryByTestId('onboarding-checklist')).toBeNull();
+  });
+
+  test('全マイルストーン達成 → 自動的に表示しない', () => {
+    // 2 本採用 + 通算 10 達成 + アクション追加済み = 全 done
+    const chains: TodayChainData[] = [
+      buildChainData('c1', '朝', [fireNode('n1', '水')]),
+      buildChainData('c2', '夜', [fireNode('n2', '歯磨き')]),
+    ];
+    const { queryByTestId } = render(
+      <TodayScreen
+        chains={chains}
+        achievedBeforeToday={10}
+        onToggleNode={() => {}}
+        onboardingCompleted
+        checklistAddedAction
+        onDismissChecklist={() => {}}
+      />,
+    );
+    expect(queryByTestId('onboarding-checklist')).toBeNull();
+  });
+
+  test('閉じるボタン → onDismissChecklist が呼ばれる', () => {
+    const onDismissChecklist = jest.fn();
+    const { getByLabelText } = render(
+      <TodayScreen
+        chains={oneChain()}
+        onToggleNode={() => {}}
+        onboardingCompleted
+        onDismissChecklist={onDismissChecklist}
+      />,
+    );
+    fireEvent.press(getByLabelText('立ち上げチェックリストを閉じる'));
+    expect(onDismissChecklist).toHaveBeenCalledTimes(1);
+  });
+
+  test('マイルストーンの達成度がライブ反映される (2 本採用で 2/5)', () => {
+    const chains: TodayChainData[] = [
+      buildChainData('c1', '朝', [fireNode('n1', '水')]),
+      buildChainData('c2', '夜', [fireNode('n2', '歯磨き')]),
+    ];
+    const { getByText } = render(
+      <TodayScreen
+        chains={chains}
+        onToggleNode={() => {}}
+        onboardingCompleted
+        onDismissChecklist={() => {}}
+      />,
+    );
+    // 1 本目採用 + 2 本目採用 = 2 done
+    expect(getByText('立ち上げチェックリスト (2/5)')).toBeTruthy();
+  });
+
+  test('checklistAddedAction で「アクションを 1 つ追加した」が done になる', () => {
+    const { getByText, getByLabelText } = render(
+      <TodayScreen
+        chains={oneChain()}
+        onToggleNode={() => {}}
+        onboardingCompleted
+        checklistAddedAction
+        onDismissChecklist={() => {}}
+      />,
+    );
+    // 1 本目採用 + アクション追加 = 2 done
+    expect(getByText('立ち上げチェックリスト (2/5)')).toBeTruthy();
+    expect(getByLabelText('チェーンにアクションを 1 つ追加した 達成済み')).toBeTruthy();
+  });
+});

@@ -38,7 +38,7 @@ import {
   recordAchievement,
   recordAnchorFiring,
 } from './repository';
-import { getAppSettings } from './settingsRepository';
+import { getAppSettings, updateAppSettings } from './settingsRepository';
 import type { TodayNode } from './ChainDetail';
 
 // #125 / ADR-0038: Today ChainDetail のノード行右端に直近 7 日間の達成グリフマトリクスを
@@ -79,6 +79,13 @@ export type TodayData = {
   // 今日分を含めないので楽観更新で base は変化せず、 タップ即時 +1 は各チェーンの
   // achievements 合算が担う。
   achievedBeforeToday: number;
+  // #165 (ADR-0042 P1): 立ち上げチェックリストの表示判定に使う app_settings 由来の値。
+  // onboarding 完了済みか (= まだ onboarding 中は出さない)、dismiss 時刻 (null = 未 dismiss)、
+  // 「アクションを 1 つ追加した」フラグ。チェーン数・通算達成数は chains / achievedBeforeToday
+  // から表示側でライブ算出する (楽観更新で即反映される)。
+  onboardingCompleted: boolean;
+  checklistDismissedAt: string | null;
+  checklistAddedAction: boolean;
 };
 
 // #125: 1 ノードの達成 toggle / markAchieved 後に、 そのノードのマトリクスセル列だけを
@@ -216,6 +223,9 @@ const loadToday = async (): Promise<TodayData> => {
     today,
     chains: sortChainsForDisplay(valid),
     achievedBeforeToday,
+    onboardingCompleted: settings.onboardingCompleted,
+    checklistDismissedAt: settings.checklistDismissedAt,
+    checklistAddedAction: settings.checklistAddedAction,
   };
 };
 
@@ -232,6 +242,9 @@ export type UseTodayDataResult = {
     nodeId: string,
     achieved: boolean,
   ) => Promise<void>;
+  // #165 (ADR-0042 P1): 立ち上げチェックリストを閉じる。dismiss 時刻を app_settings に
+  // 永続化し、 ローカル state を即時更新 (= タップで即座に消える楽観更新)。
+  dismissChecklist: () => Promise<void>;
 };
 
 export const useTodayData = (): UseTodayDataResult => {
@@ -447,5 +460,22 @@ export const useTodayData = (): UseTodayDataResult => {
     [data],
   );
 
-  return { data, error, loading, handleToggle, markNodeAchieved };
+  // #165 (ADR-0042 P1): チェックリストを dismiss する。楽観更新でローカル state に
+  // 時刻を入れて即時非表示にし、 非同期で app_settings に永続化 (handleToggle と同型の
+  // K-010 受容判断)。永続化失敗は error state に出すが UI は閉じたままにする
+  // (= 次の focus で再 load され、 失敗していれば再表示されるので silent には握り潰さない)。
+  const dismissChecklist = useCallback(async () => {
+    const dismissedAt = new Date().toISOString();
+    setData((prev) =>
+      prev ? { ...prev, checklistDismissedAt: dismissedAt } : prev,
+    );
+    try {
+      const db = await getExpoSqliteClient();
+      await updateAppSettings(db, { checklistDismissedAt: dismissedAt });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  return { data, error, loading, handleToggle, markNodeAchieved, dismissChecklist };
 };
