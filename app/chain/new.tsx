@@ -16,6 +16,9 @@ export default function NewChainRoute() {
   const {
     draft,
     availableActions,
+    catalogCategories,
+    catalogActions,
+    recommendedItems,
     error,
     loading,
     saving,
@@ -30,7 +33,7 @@ export default function NewChainRoute() {
     fetchCurrentLocation,
     addNodeFromExistingAction,
     addNodeFromNewAction,
-    addNodesFromTemplate,
+    addNodesFromCategory,
     removeNode,
     undoCount,
     undoRemoval,
@@ -60,6 +63,9 @@ export default function NewChainRoute() {
           <ChainEditScreen
             draft={draft}
             availableActions={availableActions}
+            catalogCategories={catalogCategories}
+            catalogActions={catalogActions}
+            recommendedItems={recommendedItems}
             saving={saving}
             locationPermission={locationPermission}
             locating={locating}
@@ -72,7 +78,7 @@ export default function NewChainRoute() {
             onFetchLocation={fetchCurrentLocation}
             onAddExistingAction={addNodeFromExistingAction}
             onAddNewAction={addNodeFromNewAction}
-            onAddNodesFromTemplate={addNodesFromTemplate}
+            onAddNodesFromCategory={addNodesFromCategory}
             onRemoveNode={removeNode}
             onToggleNodeActive={toggleNodeActive}
             undoCount={undoCount}

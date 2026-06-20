@@ -1,7 +1,7 @@
 import { fireEvent, render } from '@testing-library/react-native';
 
 import { ChainEditScreen } from './ChainEditScreen';
-import type { Action } from './domain';
+import type { Action, CatalogAction, Category, RecommendedItem } from './domain';
 import type { ChainEditDraft } from './useChainEdit';
 
 const baseDraft = (): ChainEditDraft => ({
@@ -256,53 +256,129 @@ describe('ChainEditScreen', () => {
     });
   });
 
-  test('onAddNodesFromTemplate 未指定では「+ テンプレから追加」ボタンが表示されない', () => {
+  // #168 (#155 follow-up): テンプレ追加 picker は新カテゴリモデルに移行。
+  const CATALOG_CATEGORIES: Category[] = [
+    {
+      id: 'cat-hydration',
+      name: '水分・健康',
+      type: 'genre',
+      color: '#888',
+      source: 'official',
+      orderIndex: 0,
+    },
+    {
+      id: 'cat-rec-morning',
+      name: '朝のおすすめ',
+      type: 'recommended',
+      color: '#aaa',
+      source: 'official',
+      orderIndex: 9,
+    },
+  ];
+  const CATALOG_ACTIONS: CatalogAction[] = [
+    {
+      id: 'act-drink-water',
+      title: '水を飲む',
+      categoryId: 'cat-hydration',
+      defaultOn: true,
+      position: 0,
+      source: 'official',
+      timerSeconds: null,
+    },
+    {
+      id: 'act-brush',
+      title: '歯磨き',
+      categoryId: 'cat-hydration',
+      defaultOn: true,
+      position: 1,
+      source: 'official',
+      timerSeconds: null,
+    },
+    {
+      id: 'act-weigh',
+      title: '体重計',
+      categoryId: 'cat-hydration',
+      defaultOn: false,
+      position: 2,
+      source: 'official',
+      timerSeconds: null,
+    },
+  ];
+  const RECOMMENDED_ITEMS: RecommendedItem[] = [];
+
+  test('onAddNodesFromCategory 未指定では「+ テンプレから追加」ボタンが表示されない', () => {
     const { queryByLabelText } = render(
-      <ChainEditScreen draft={baseDraft()} {...noopProps} />,
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        catalogCategories={CATALOG_CATEGORIES}
+        catalogActions={CATALOG_ACTIONS}
+        recommendedItems={RECOMMENDED_ITEMS}
+      />,
     );
     expect(queryByLabelText('テンプレから追加')).toBeNull();
   });
 
-  test('テンプレ選択 → 全件 追加 で onAddNodesFromTemplate が (template, 全アクション) で呼ばれる', () => {
-    const onAddNodesFromTemplate = jest.fn();
-    const { getByLabelText } = render(
+  test('catalog 空のときは onAddNodesFromCategory 指定でもボタンが出ない', () => {
+    const { queryByLabelText } = render(
       <ChainEditScreen
         draft={baseDraft()}
         {...noopProps}
-        onAddNodesFromTemplate={onAddNodesFromTemplate}
+        onAddNodesFromCategory={() => {}}
+        catalogCategories={[]}
+        catalogActions={[]}
+        recommendedItems={[]}
       />,
     );
-    fireEvent.press(getByLabelText('テンプレから追加'));
-    fireEvent.press(getByLabelText('テンプレ「朝のルーティン」を開く'));
-    fireEvent.press(getByLabelText('6件を追加'));
-    expect(onAddNodesFromTemplate).toHaveBeenCalledTimes(1);
-    const [template, titles] = onAddNodesFromTemplate.mock.calls[0];
-    expect(template.id).toBe('morning-routine');
-    expect(titles).toEqual(template.actions);
+    expect(queryByLabelText('テンプレから追加')).toBeNull();
   });
 
-  test('テンプレ選択 → 一部のみチェック → 追加 で選択 subset が渡る', () => {
-    const onAddNodesFromTemplate = jest.fn();
+  test('カテゴリ選択 → 全件 追加 で onAddNodesFromCategory が全アイテムで呼ばれる', () => {
+    const onAddNodesFromCategory = jest.fn();
     const { getByLabelText } = render(
       <ChainEditScreen
         draft={baseDraft()}
         {...noopProps}
-        onAddNodesFromTemplate={onAddNodesFromTemplate}
+        onAddNodesFromCategory={onAddNodesFromCategory}
+        catalogCategories={CATALOG_CATEGORIES}
+        catalogActions={CATALOG_ACTIONS}
+        recommendedItems={RECOMMENDED_ITEMS}
       />,
     );
     fireEvent.press(getByLabelText('テンプレから追加'));
-    fireEvent.press(getByLabelText('テンプレ「朝のルーティン」を開く'));
-    fireEvent.press(getByLabelText('アクション「水を飲む」'));
-    fireEvent.press(getByLabelText('アクション「朝食器を浸け置き」'));
-    fireEvent.press(getByLabelText('4件を追加'));
-    expect(onAddNodesFromTemplate).toHaveBeenCalledTimes(1);
-    const [template, titles] = onAddNodesFromTemplate.mock.calls[0];
-    expect(template.id).toBe('morning-routine');
-    expect(titles).toEqual([
-      '筋トレ',
-      'シャワー時に洗濯スタート',
-      'ロボ掃除機を起動',
-      'ウォーキング',
+    fireEvent.press(getByLabelText('カテゴリ「水分・健康」を開く'));
+    fireEvent.press(getByLabelText('3件を追加'));
+    expect(onAddNodesFromCategory).toHaveBeenCalledTimes(1);
+    const [items] = onAddNodesFromCategory.mock.calls[0];
+    expect(items).toEqual([
+      { actionTitle: '水を飲む', timerSeconds: null },
+      { actionTitle: '歯磨き', timerSeconds: null },
+      { actionTitle: '体重計', timerSeconds: null },
+    ]);
+  });
+
+  test('カテゴリ選択 → 一部のみチェック → 追加 で選択 subset が表示順で渡る', () => {
+    const onAddNodesFromCategory = jest.fn();
+    const { getByLabelText } = render(
+      <ChainEditScreen
+        draft={baseDraft()}
+        {...noopProps}
+        onAddNodesFromCategory={onAddNodesFromCategory}
+        catalogCategories={CATALOG_CATEGORIES}
+        catalogActions={CATALOG_ACTIONS}
+        recommendedItems={RECOMMENDED_ITEMS}
+      />,
+    );
+    fireEvent.press(getByLabelText('テンプレから追加'));
+    fireEvent.press(getByLabelText('カテゴリ「水分・健康」を開く'));
+    // 「歯磨き」と「体重計」を外す → 「水を飲む」だけ残る
+    fireEvent.press(getByLabelText('アクション「歯磨き」'));
+    fireEvent.press(getByLabelText('アクション「体重計」'));
+    fireEvent.press(getByLabelText('1件を追加'));
+    expect(onAddNodesFromCategory).toHaveBeenCalledTimes(1);
+    const [items] = onAddNodesFromCategory.mock.calls[0];
+    expect(items).toEqual([
+      { actionTitle: '水を飲む', timerSeconds: null },
     ]);
   });
 
