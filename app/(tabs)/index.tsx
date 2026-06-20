@@ -75,7 +75,6 @@ export default function TodayTab() {
           initialOpenChainId={initialOpen}
           onEditChain={(chainId) => router.push(`/chain/${chainId}`)}
           onMarkNodeAchieved={markNodeAchieved}
-          onOpenDiscovery={() => router.push('/discover')}
           onboardingCompleted={data.onboardingCompleted}
           checklistDismissedAt={data.checklistDismissedAt}
           checklistAddedAction={data.checklistAddedAction}

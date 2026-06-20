@@ -44,15 +44,10 @@ export type TodayScreenProps = {
   // PR-BB (ADR-0025): タイマー完了で「必ず達成」(force set)。 onToggleNode の
   // bool 反転 semantics と区別 (K-027 同型のミスマッチ防止)。
   onMarkNodeAchieved?: (chainId: string, nodeId: string, achieved: boolean) => void;
-  // Issue #166 (ADR-0042 採択): 採用チェーンがちょうど 1 本のときだけ Today 下部に
-  // 出す「もう一本テンプレートから足す」ナッジのタップハンドラ。 親 route 側で
-  // router.push('/discover') を配線する。 未指定ならナッジは出さない (発見性 =
-  // 親が動線を持つときのみ、 PR-AA 編集ボタンと同型)。
-  onOpenDiscovery?: () => void;
   // #165 (ADR-0042 P1): 立ち上げチェックリスト用。onboarding 完了済みか、dismiss 時刻
   // (null = 未 dismiss)、閉じるハンドラ。マイルストーンの達成度は chains / achievedBeforeToday
   // からライブ算出する (= 楽観更新で即反映)。onDismissChecklist 未指定ならチェックリストは
-  // 出さない (= 親が dismiss 動線を持つときのみ、 onEditChain / onOpenDiscovery と同型)。
+  // 出さない (= 親が dismiss 動線を持つときのみ、 onEditChain と同型)。
   onboardingCompleted?: boolean;
   checklistDismissedAt?: string | null;
   checklistAddedAction?: boolean;
@@ -66,7 +61,6 @@ export const TodayScreen = ({
   initialOpenChainId = null,
   onEditChain,
   onMarkNodeAchieved,
-  onOpenDiscovery,
   onboardingCompleted = false,
   checklistDismissedAt = null,
   checklistAddedAction = false,
@@ -228,28 +222,6 @@ export const TodayScreen = ({
             );
           })
         )}
-        {/* Issue #166 (ADR-0042 採択): 採用チェーンがちょうど 1 本のときだけ、
-            Today 下部に「もう一本、テンプレートから足す」discovery ナッジを出す。
-            SPEC §5 step5 (「もう一方も?」opt-in) と同型の Augmentation 原則ナッジ
-            (= 完成形のプレビュー、 K-031 と整合)。 0 本は empty 表示と排他、
-            2 本以上は「もう一本」訴求の役目が終わっているため非表示。 トーンは
-            controll (LINE_BG 背景 / FG_SOFT テキスト) で控えめに置く (DESIGN-SYSTEM
-            §0 Celebrate 主 / マイナスを指差さない)。 親 route が onOpenDiscovery
-            を渡したときだけ表示 (発見性 = 親が動線を持つときのみ、 PR-AA 編集ボタン
-            と同型)。 */}
-        {onOpenDiscovery && chains.length === 1 && (
-          <Pressable
-            onPress={onOpenDiscovery}
-            accessibilityRole="button"
-            accessibilityLabel="もう一本、テンプレートから足す"
-            style={styles.discoveryNudge}
-          >
-            <Text style={styles.discoveryNudgeTitle}>もう一本、テンプレートから足す</Text>
-            <Text style={styles.discoveryNudgeBody}>
-              朝・夜の片方が動き出したら、 もう片方も。
-            </Text>
-          </Pressable>
-        )}
       </ScrollView>
 
       <BottomSheet
@@ -377,27 +349,6 @@ const styles = StyleSheet.create({
     color: COLOR_FG_FAINT,
     fontSize: 14,
     lineHeight: 22,
-  },
-  // Issue #166: 控えめなトーン (LINE_BG 背景 / FG_SOFT テキスト) で「もう一本」
-  // ナッジを置く。 角丸はカード系と揃え (DESIGN-SYSTEM §3 / `--r`=14)、 上方向に
-  // margin を取って ChainCard と一定の距離を作る (押し込み感を出さない)。
-  discoveryNudge: {
-    marginTop: 24,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    backgroundColor: COLOR_LINE_BG,
-    gap: 4,
-  },
-  discoveryNudgeTitle: {
-    color: COLOR_FG,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  discoveryNudgeBody: {
-    color: COLOR_FG_SOFT,
-    fontSize: 12,
-    lineHeight: 18,
   },
   sheetBg: { backgroundColor: COLOR_SURFACE },
   sheetHandle: { backgroundColor: COLOR_LINE_BG, width: 40 },
