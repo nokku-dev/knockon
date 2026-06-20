@@ -43,9 +43,21 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="analytics"
         options={{
-          title: '分析',
+          // #175 (PR-A): 「分析」→「ログ」リネーム。 ファイル名 (analytics) と
+          // 中身は PR-A スコープ外として現状維持し、 表示ラベルだけ差し替える。
+          title: 'ログ',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bar-chart-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="research"
+        options={{
+          // #175 (PR-A): 研究タブ新設。 当面は固定文言の空スケルトン。
+          title: '研究',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bulb-outline" color={color} size={size} />
           ),
         }}
       />
