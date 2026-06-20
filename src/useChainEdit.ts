@@ -39,6 +39,7 @@ import {
   listRecommendedItems,
   updateAction as updateActionRepo,
 } from './repository';
+import { updateAppSettings } from './settingsRepository';
 
 // チェーン編集画面のドラフト状態。
 // 既存チェーンの場合は load 時に初期値を入れる。新規作成は空の初期値。
@@ -594,6 +595,14 @@ export const useChainEdit = (
     try {
       const db = await getExpoSqliteClient();
       await persistChainDraft(db, draft);
+      // #165 (ADR-0042 P1): このチェーンに新規ノード (= アクション) を追加して保存したら、
+      // 立ち上げチェックリストの「アクションを 1 つ追加した」マイルストーンを満たす。
+      // one-way フラグ (= 失われない指標)。失敗は握り潰す (save 自体は成功扱い)。
+      if (draft.nodes.some((n) => n.isNew)) {
+        await updateAppSettings(db, { checklistAddedAction: true }).catch(
+          () => undefined,
+        );
+      }
       // 保存成功後に通知を再スケジュール (時刻アンカー + active のときだけ実発火、
       // 他の条件は scheduleNotificationForChain 内で no-op)。
       // 通知の権限拒否や Expo SDK エラーで save 自体を失敗にしたくないため catch で握り潰す。

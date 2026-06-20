@@ -16,7 +16,8 @@ import {
 import { useTodayData } from '../../src/useTodayData';
 
 export default function TodayTab() {
-  const { data, error, loading, handleToggle, markNodeAchieved } = useTodayData();
+  const { data, error, loading, handleToggle, markNodeAchieved, dismissChecklist } =
+    useTodayData();
   const router = useRouter();
   // 通知タップで遷移してきたときの chainId を URL params から拾う (PR-1.5b-3)。
   // TodayScreen に渡したらすぐ undefined に戻す (リロード等で再 open しないため)。
@@ -75,6 +76,10 @@ export default function TodayTab() {
           onEditChain={(chainId) => router.push(`/chain/${chainId}`)}
           onMarkNodeAchieved={markNodeAchieved}
           onOpenDiscovery={() => router.push('/discover')}
+          onboardingCompleted={data.onboardingCompleted}
+          checklistDismissedAt={data.checklistDismissedAt}
+          checklistAddedAction={data.checklistAddedAction}
+          onDismissChecklist={dismissChecklist}
         />
       )}
     </SafeAreaView>

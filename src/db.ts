@@ -153,11 +153,18 @@ CREATE TABLE IF NOT EXISTS metric_kinds (
 -- #72 (SPEC §5): onboarding_completed。初回ルート (onboarding) を通したか。
 --   新規ユーザーは 0 (= 初回起動で onboarding へ誘導)。既存ユーザーは MIGRATIONS[8] で
 --   1 にセット (= 既にチェーンを持っているので onboarding を出さない、別軸の app 動作設定)。
+-- #165 (ADR-0042 P1): checklist_dismissed_at。立ち上げチェックリストをユーザーが閉じた時刻
+--   (ISO8601 文字列、NULL = 未 dismiss)。一度閉じたら戻らない静かな UX (ADR-0042 §5論点2)。
+-- #165: checklist_added_action。立ち上げチェックリストの「アクションを 1 つ追加した」
+--   マイルストーン。編集画面でアクションを追加保存したら 1 (one-way、戻さない = 失われない指標)。
+--   新規ユーザーは 0、既存ユーザーは MIGRATIONS[13] で 1 (= すでにカスタムしている前提)。
 CREATE TABLE IF NOT EXISTS app_settings (
   id TEXT PRIMARY KEY,
   reset_time TEXT NOT NULL DEFAULT '00:00',
   theme_mode TEXT NOT NULL DEFAULT 'auto' CHECK(theme_mode IN ('auto', 'light', 'dark')),
-  onboarding_completed INTEGER NOT NULL DEFAULT 0 CHECK(onboarding_completed IN (0, 1))
+  onboarding_completed INTEGER NOT NULL DEFAULT 0 CHECK(onboarding_completed IN (0, 1)),
+  checklist_dismissed_at TEXT DEFAULT NULL,
+  checklist_added_action INTEGER NOT NULL DEFAULT 0 CHECK(checklist_added_action IN (0, 1))
 );
 
 CREATE INDEX IF NOT EXISTS idx_nodes_chain_order ON nodes(chain_id, order_index);
@@ -180,7 +187,7 @@ CREATE INDEX IF NOT EXISTS idx_recommended_items_category ON recommended_items(c
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 13;
 
 const DROP_SQL = `
 DROP TABLE IF EXISTS recommended_items;
@@ -359,6 +366,23 @@ export const MIGRATIONS: Record<number, Migration> = {
       COMMIT;
     `);
     await client.exec(`PRAGMA foreign_keys=ON;`);
+  },
+  // #165 (ADR-0042 P1): 立ち上げチェックリストの dismiss 時刻を app_settings に追加。
+  // DEFAULT NULL 明示 (= 既存ユーザーは未 dismiss = チェックリスト表示対象)。
+  12: async (client) => {
+    await client.exec(
+      `ALTER TABLE app_settings ADD COLUMN checklist_dismissed_at TEXT DEFAULT NULL;`,
+    );
+  },
+  // #165 (ADR-0042 P1): 「アクションを 1 つ追加した」マイルストーン用の列を追加。
+  // 既存ユーザーは UPDATE で 1 に backfill (= すでにカスタム済みとみなしチェックリストを
+  // 再出現させない、MIGRATIONS[8] の onboarding_completed と同じ手法)。新規ユーザーは
+  // SCHEMA_SQL の DEFAULT 0 で始まる (= 未追加)。
+  13: async (client) => {
+    await client.exec(
+      `ALTER TABLE app_settings ADD COLUMN checklist_added_action INTEGER NOT NULL DEFAULT 0 CHECK(checklist_added_action IN (0, 1));`,
+    );
+    await client.exec(`UPDATE app_settings SET checklist_added_action = 1;`);
   },
 };
 
