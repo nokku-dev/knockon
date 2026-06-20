@@ -17,10 +17,17 @@ import type {
 
 import { ActionEditor } from './ActionEditor';
 import { AnchorEditor } from './AnchorEditor';
-import { TemplateChainPicker } from './TemplateChainPicker';
-import { BUILTIN_TEMPLATE_CHAINS } from './templateChains';
-import type { TemplateChain } from './templateChains';
-import type { Action, Anchor, ChainStatus } from './domain';
+import { TemplateCategoryPicker } from './TemplateCategoryPicker';
+import type { TemplateCategoryPickerItem } from './TemplateCategoryPicker';
+import { listGenreCategories, listRecommendedCategories } from './categoryDiscovery';
+import type {
+  Action,
+  Anchor,
+  CatalogAction,
+  Category,
+  ChainStatus,
+  RecommendedItem,
+} from './domain';
 import { summarizeVariantDays } from './domain';
 import type { CurrentPosition, LocationPermissionStatus } from './location';
 import {
@@ -47,6 +54,11 @@ export type ChainEditScreenProps = {
   saving: boolean;
   locationPermission: LocationPermissionStatus;
   locating: boolean;
+  // #168 (#155 follow-up): テンプレ追加 picker (新カテゴリモデル) に渡す catalog。
+  // 渡さなければ「+ テンプレから追加」ボタンは表示されない。
+  catalogCategories?: readonly Category[];
+  catalogActions?: readonly CatalogAction[];
+  recommendedItems?: readonly RecommendedItem[];
   onSetTitle: (title: string) => void;
   onSetStatus: (status: ChainStatus) => void;
   onSetAnchorKind: (kind: Anchor['kind']) => void;
@@ -63,11 +75,10 @@ export type ChainEditScreenProps = {
   undoCount: number;
   onUndo: () => void;
   onUndoDismiss: () => void;
-  // PR-Y1: テンプレチェーンを選んで末尾追加 (各アクションを新規 INSERT + ノード追加)。
-  // 未指定なら Footer の「+ テンプレから追加」ボタンは表示されない。
-  onAddNodesFromTemplate?: (
-    template: TemplateChain,
-    selectedActionTitles: ReadonlyArray<string>,
+  // #168 (#155 follow-up): カテゴリ picker からのアイテム集合を末尾追加。
+  // 未指定 or catalog データなしなら Footer の「+ テンプレから追加」ボタンは出ない。
+  onAddNodesFromCategory?: (
+    items: ReadonlyArray<TemplateCategoryPickerItem>,
   ) => void;
   // react-native-reorderable-list の onReorder({from, to}) をそのまま受ける形。
   onReorderNodes: (from: number, to: number) => void;
@@ -87,6 +98,9 @@ export const ChainEditScreen = ({
   saving,
   locationPermission,
   locating,
+  catalogCategories,
+  catalogActions,
+  recommendedItems,
   onSetTitle,
   onSetStatus,
   onSetAnchorKind,
@@ -96,7 +110,7 @@ export const ChainEditScreen = ({
   onFetchLocation,
   onAddExistingAction,
   onAddNewAction,
-  onAddNodesFromTemplate,
+  onAddNodesFromCategory,
   onRemoveNode,
   onToggleNodeActive,
   undoCount,
@@ -110,6 +124,20 @@ export const ChainEditScreen = ({
   onSaveAction,
 }: ChainEditScreenProps) => {
   const [adderOpen, setAdderOpen] = useState(false);
+  // #168: 「+ テンプレから追加」を出すかどうかの判定。 catalog データが揃って
+  // いて、 かつコールバックが渡されているときだけ表示する。
+  const recommendedCategories = useMemo<readonly Category[]>(
+    () =>
+      catalogCategories ? listRecommendedCategories(catalogCategories) : [],
+    [catalogCategories],
+  );
+  const genreCategories = useMemo<readonly Category[]>(
+    () => (catalogCategories ? listGenreCategories(catalogCategories) : []),
+    [catalogCategories],
+  );
+  const templateAvailable =
+    !!onAddNodesFromCategory &&
+    (recommendedCategories.length > 0 || genreCategories.length > 0);
 
   // #94: undo バーのタイムアウト (SPEC §8: 5 秒で自動的に確定 = undo 不可に)。
   // undoCount が変わるたびにタイマーを張り直す (新しい削除で延長)。
@@ -292,7 +320,7 @@ export const ChainEditScreen = ({
             >
               <Text style={styles.addBtnText}>+ ノードを追加</Text>
             </Pressable>
-            {onAddNodesFromTemplate && (
+            {templateAvailable && (
               <Pressable
                 onPress={() => setTemplatePickerOpen(true)}
                 accessibilityRole="button"
@@ -346,7 +374,7 @@ export const ChainEditScreen = ({
       newActionDraft,
       onAddExistingAction,
       onAddNewAction,
-      onAddNodesFromTemplate,
+      templateAvailable,
       onDelete,
       onDeleteAction,
       onSaveAction,
@@ -387,11 +415,14 @@ export const ChainEditScreen = ({
         animationType="slide"
         onRequestClose={() => setTemplatePickerOpen(false)}
       >
-        {onAddNodesFromTemplate && (
-          <TemplateChainPicker
-            templates={BUILTIN_TEMPLATE_CHAINS}
-            onSelect={(t, titles) => {
-              onAddNodesFromTemplate(t, titles);
+        {onAddNodesFromCategory && (
+          <TemplateCategoryPicker
+            recommendedCategories={recommendedCategories}
+            genreCategories={genreCategories}
+            actions={catalogActions ?? []}
+            recommendedItems={recommendedItems ?? []}
+            onSelect={(items) => {
+              onAddNodesFromCategory(items);
               setTemplatePickerOpen(false);
             }}
             onCancel={() => setTemplatePickerOpen(false)}

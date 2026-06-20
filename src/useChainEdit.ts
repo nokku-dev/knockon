@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
-import type { Action, Anchor, ChainStatus, VariantMap } from './domain';
+import type {
+  Action,
+  Anchor,
+  CatalogAction,
+  Category,
+  ChainStatus,
+  RecommendedItem,
+  VariantMap,
+} from './domain';
 import { reinsertByIndex } from './editLayout';
 import type { RemovedEntry } from './editLayout';
 import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
@@ -12,7 +20,7 @@ import {
 } from './location';
 import type { CurrentPosition, LocationPermissionStatus } from './location';
 import { persistChainDraft, validateChainDraft } from './chainEditPersist';
-import type { TemplateChain } from './templateChains';
+import type { TemplateCategoryPickerItem } from './TemplateCategoryPicker';
 import {
   cancelNotificationForChain,
   scheduleNotificationForChain,
@@ -24,8 +32,11 @@ import {
   getAnchor,
   insertAction,
   listActions,
+  listCatalogActions,
+  listCategories,
   listChains,
   listNodes,
+  listRecommendedItems,
   updateAction as updateActionRepo,
 } from './repository';
 
@@ -128,6 +139,12 @@ const loadExisting = async (chainId: string): Promise<ChainEditDraft | null> => 
 export type UseChainEditResult = {
   draft: ChainEditDraft | null;
   availableActions: Action[];
+  // #168 (#155 follow-up): テンプレ追加 picker (TemplateCategoryPicker) に渡す
+  // 新カテゴリモデルのカタログ。 マウント時に listCategories /
+  // listCatalogActions / listRecommendedItems で取得。
+  catalogCategories: Category[];
+  catalogActions: CatalogAction[];
+  recommendedItems: RecommendedItem[];
   error: string | null;
   loading: boolean;
   saving: boolean;
@@ -145,16 +162,13 @@ export type UseChainEditResult = {
   // ノード編集
   addNodeFromExistingAction: (actionId: string, actionTitle: string) => void;
   addNodeFromNewAction: (actionTitle: string) => Promise<void>;
-  // PR-Y1 (ADR-0023): テンプレチェーンを選んで末尾にフラット追加。
-  // 各アクションを新規 INSERT (= 既存 actions と重複しても別物として扱う) +
-  // ノードを末尾に追加。
-  // #305 (knockon#133): 第 2 引数 = 取り込むアクションタイトル集合。 TemplateChainPicker
-  // が 2-step 化されアクション個別選択ができるようになったため、 picker 側で curate された
-  // subset (順序保持・重複は picker 側で index 単位に分解済み) を受け取る。 省略時は
-  // template.actions 全件 (旧 1-step 互換)。
-  addNodesFromTemplate: (
-    template: TemplateChain,
-    selectedActionTitles?: ReadonlyArray<string>,
+  // #168 (#155 follow-up): カテゴリ picker (TemplateCategoryPicker) からのアイテムを
+  // 末尾にフラット追加。 各アイテムを新規 Action として INSERT (= 既存 actions と
+  // 重複してもタイトル一致で名寄せはしない、 旧テンプレ取り込みのセマンティクスを継承)
+  // し、 新規 EditableNode をまとめて末尾に追加する。 timerSeconds は catalog 由来
+  // (ストレッチに 5 分などのプリセット) をそのまま新規 Action にコピーする。
+  addNodesFromCategory: (
+    items: ReadonlyArray<TemplateCategoryPickerItem>,
   ) => Promise<void>;
   removeNode: (nodeId: string) => void;
   // #94: 直近の削除を元に戻す。undoCount = 戻せるノード数 (0 = 戻せない)。
@@ -187,6 +201,11 @@ export const useChainEdit = (
 ): UseChainEditResult => {
   const [draft, setDraft] = useState<ChainEditDraft | null>(null);
   const [availableActions, setAvailableActions] = useState<Action[]>([]);
+  const [catalogCategories, setCatalogCategories] = useState<Category[]>([]);
+  const [catalogActions, setCatalogActions] = useState<CatalogAction[]>([]);
+  const [recommendedItems, setRecommendedItems] = useState<RecommendedItem[]>(
+    [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -206,7 +225,16 @@ export const useChainEdit = (
     (async () => {
       try {
         const db = await getExpoSqliteClient();
-        const actions = await listActions(db);
+        // #168: catalog (新カテゴリモデル) と既存 actions を並列ロード。
+        // catalog は TemplateCategoryPicker に渡す。 失敗時は picker が空表示で
+        // 開くだけにとどめ、 編集自体を block しない (= read-only 機能なので
+        // 致命傷ではない)。
+        const [actions, categories, catActions, recItems] = await Promise.all([
+          listActions(db),
+          listCategories(db),
+          listCatalogActions(db),
+          listRecommendedItems(db),
+        ]);
         let next: ChainEditDraft | null = null;
         if (chainId == null) {
           next = newDraft();
@@ -221,6 +249,9 @@ export const useChainEdit = (
         if (!cancelled) {
           setDraft(next);
           setAvailableActions(actions);
+          setCatalogCategories(categories);
+          setCatalogActions(catActions);
+          setRecommendedItems(recItems);
           setLocationPermission(permission);
         }
       } catch (e: unknown) {
@@ -364,32 +395,26 @@ export const useChainEdit = (
     [],
   );
 
-  // PR-Y1 (ADR-0023): テンプレチェーンを末尾追加。
-  // 各アクションを新規 INSERT (= 重複名を許容、 「胸トレ」が複数生まれてもよい)
-  // → 新規 EditableNode をまとめて末尾に追加。
-  // #305 (knockon#133): selectedActionTitles が渡れば、 そのリストだけを取り込む
-  // (省略時は template.actions 全件 = 旧 1-step 互換)。
-  // 追加順は常に **テンプレ順** を保つ (selectedActionTitles の並びには依存しない)。
-  // picker の選択順で渡ってきても template.actions の出現順でフィルタする (#133/#305 のテスト整合)。
-  const addNodesFromTemplate = useCallback(
-    async (
-      template: TemplateChain,
-      selectedActionTitles?: ReadonlyArray<string>,
-    ) => {
-      const titles = selectedActionTitles
-        ? template.actions.filter((a) => selectedActionTitles.includes(a))
-        : template.actions;
+  // #168 (#155 follow-up): カテゴリ picker からのアイテムを末尾追加。
+  // 各アイテムを新規 Action として INSERT (= 既存 actions と重複してもタイトル
+  // 一致で名寄せはしない、 旧テンプレ取り込みのセマンティクスを継承) → 新規
+  // EditableNode をまとめて末尾に追加。 timerSeconds は catalog 由来をそのまま
+  // 新 Action にコピーする。
+  // 追加順は items の引数順をそのまま保つ (picker 側で表示順 = カテゴリ内
+  // position 昇順 / recommended の order に揃えてあるため)。
+  const addNodesFromCategory = useCallback(
+    async (items: ReadonlyArray<TemplateCategoryPickerItem>) => {
       try {
         const db = await getExpoSqliteClient();
         const newActions: Action[] = [];
-        for (const actionTitle of titles) {
-          const trimmed = actionTitle.trim();
+        for (const item of items) {
+          const trimmed = item.actionTitle.trim();
           if (trimmed.length === 0) continue;
           const action: Action = {
             id: newActionId(),
             title: trimmed,
             variants: null,
-            timerSeconds: null,
+            timerSeconds: item.timerSeconds,
           };
           await insertAction(db, action);
           newActions.push(action);
@@ -605,6 +630,9 @@ export const useChainEdit = (
   return {
     draft,
     availableActions,
+    catalogCategories,
+    catalogActions,
+    recommendedItems,
     error,
     loading,
     saving,
@@ -619,7 +647,7 @@ export const useChainEdit = (
     fetchCurrentLocation,
     addNodeFromExistingAction,
     addNodeFromNewAction,
-    addNodesFromTemplate,
+    addNodesFromCategory,
     removeNode,
     undoCount: undo?.length ?? 0,
     undoRemoval,
