@@ -106,4 +106,22 @@ describe('settingsRepository', () => {
     expect(settings.themeMode).toBe('auto');
     await teardown(db);
   });
+
+  // #165 (ADR-0042 P1): checklistDismissedAt のラウンドトリップ。
+  test('初回起動: checklistDismissedAt は null (未 dismiss)', async () => {
+    const db = await setup();
+    const settings = await getAppSettings(db);
+    expect(settings.checklistDismissedAt).toBeNull();
+    await teardown(db);
+  });
+
+  test('updateAppSettings で checklistDismissedAt を設定 → 読み出せる (他項目は不変)', async () => {
+    const db = await setup();
+    await updateAppSettings(db, { checklistDismissedAt: '2026-06-20T10:00:00.000Z' });
+    const settings = await getAppSettings(db);
+    expect(settings.checklistDismissedAt).toBe('2026-06-20T10:00:00.000Z');
+    expect(settings.onboardingCompleted).toBe(false);
+    expect(settings.resetTime).toBe('00:00');
+    await teardown(db);
+  });
 });

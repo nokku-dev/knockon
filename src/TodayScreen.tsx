@@ -10,6 +10,11 @@ import { ChainCard } from './ChainCard';
 import { ChainDetail } from './ChainDetail';
 import { countAchievedInMap } from './domain';
 import { InAppNotificationToast } from './InAppNotificationToast';
+import { OnboardingChecklistCard } from './OnboardingChecklistCard';
+import {
+  computeOnboardingChecklist,
+  shouldShowOnboardingChecklist,
+} from './onboardingChecklist';
 import { TimerScreen } from './TimerScreen';
 import {
   COLOR_BG,
@@ -44,6 +49,13 @@ export type TodayScreenProps = {
   // router.push('/discover') を配線する。 未指定ならナッジは出さない (発見性 =
   // 親が動線を持つときのみ、 PR-AA 編集ボタンと同型)。
   onOpenDiscovery?: () => void;
+  // #165 (ADR-0042 P1): 立ち上げチェックリスト用。onboarding 完了済みか、dismiss 時刻
+  // (null = 未 dismiss)、閉じるハンドラ。マイルストーンの達成度は chains / achievedBeforeToday
+  // からライブ算出する (= 楽観更新で即反映)。onDismissChecklist 未指定ならチェックリストは
+  // 出さない (= 親が dismiss 動線を持つときのみ、 onEditChain / onOpenDiscovery と同型)。
+  onboardingCompleted?: boolean;
+  checklistDismissedAt?: string | null;
+  onDismissChecklist?: () => void;
 };
 
 export const TodayScreen = ({
@@ -54,6 +66,9 @@ export const TodayScreen = ({
   onEditChain,
   onMarkNodeAchieved,
   onOpenDiscovery,
+  onboardingCompleted = false,
+  checklistDismissedAt = null,
+  onDismissChecklist,
 }: TodayScreenProps) => {
   const [openChainId, setOpenChainId] = useState<string | null>(null);
   const sheetRef = useRef<BottomSheet>(null);
@@ -119,6 +134,33 @@ export const TodayScreen = ({
   );
   const cumulativeTotal = achievedBeforeToday + todayAchievedCount;
 
+  // #165 (ADR-0042 P1): 立ち上げチェックリストのライブ算出。
+  //   - activeChainCount = 表示中の active チェーン本数
+  //   - totalAchievedCount = アプリ全体の通算達成数 (= 累計表示と同じ cumulativeTotal)
+  //   - establishedNodeCount = 全チェーンの定着 (★) ノード数の合計 (楽観更新で即反映)
+  // 達成度は props のスカラ + chains からライブ計算するので、 ノード達成タップで即座に
+  // マイルストーンが ✓ になる (snapshot を loadToday に固定しない理由)。
+  const establishedNodeCount = useMemo(
+    () => chains.reduce((acc, c) => acc + c.nodeIdsEstablished.size, 0),
+    [chains],
+  );
+  const checklistInput = useMemo(
+    () => ({
+      onboardingCompleted,
+      activeChainCount: chains.length,
+      totalAchievedCount: cumulativeTotal,
+      establishedNodeCount,
+    }),
+    [onboardingCompleted, chains.length, cumulativeTotal, establishedNodeCount],
+  );
+  const checklistVisible =
+    onDismissChecklist != null &&
+    shouldShowOnboardingChecklist(checklistInput, checklistDismissedAt != null);
+  const checklistItems = useMemo(
+    () => computeOnboardingChecklist(checklistInput),
+    [checklistInput],
+  );
+
   const snapPoints = useMemo(() => ['85%'], []);
 
   const renderBackdrop = useCallback(
@@ -153,6 +195,16 @@ export const TodayScreen = ({
             </Text>
           )}
         </View>
+        {/* #165 (ADR-0042 P1): 立ち上げチェックリスト。onboarding 完了直後の Today 最上部
+            (チェーンリストより上) に 5 マイルストーン。全達成 or dismiss で非表示
+            (shouldShowOnboardingChecklist が判定)。失われない指標のみで構成し Celebrate 主
+            と整合 (ADR-0036 +/- 判定基準)。親が onDismissChecklist を渡したときだけ出す。 */}
+        {checklistVisible && onDismissChecklist && (
+          <OnboardingChecklistCard
+            items={checklistItems}
+            onDismiss={onDismissChecklist}
+          />
+        )}
         {chains.length === 0 ? (
           <Text style={styles.empty}>
             アクティブなチェーンがありません。 {'\n'}

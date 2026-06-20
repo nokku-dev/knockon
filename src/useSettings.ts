@@ -23,6 +23,7 @@ const FALLBACK_SETTINGS: AppSettings = {
   resetTime: DEFAULT_RESET_TIME,
   themeMode: DEFAULT_THEME_MODE,
   onboardingCompleted: false,
+  checklistDismissedAt: null,
 };
 
 export type UseSettingsResult = {
