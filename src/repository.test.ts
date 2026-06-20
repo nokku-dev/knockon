@@ -316,14 +316,15 @@ describe('スキーマの不変条件', () => {
     await teardown(db);
   });
 
-  // ADR-0028 + ADR-0029 + #72 + #165: app_settings カラム =
-  // id / reset_time / theme_mode / onboarding_completed / checklist_dismissed_at。
-  test('app_settings テーブル: カラムは id / reset_time / theme_mode / onboarding_completed / checklist_dismissed_at', async () => {
+  // ADR-0028 + ADR-0029 + #72 + #165: app_settings カラム = id / reset_time / theme_mode /
+  // onboarding_completed / checklist_dismissed_at / checklist_added_action。
+  test('app_settings テーブル: カラムは id / reset_time / theme_mode / onboarding_completed / checklist_dismissed_at / checklist_added_action', async () => {
     const db = await setup();
     type ColumnRow = { name: string };
     const cols = await db.all<ColumnRow>(`PRAGMA table_info(app_settings)`);
     const colNames = cols.map((c) => c.name).sort();
     expect(colNames).toEqual([
+      'checklist_added_action',
       'checklist_dismissed_at',
       'id',
       'onboarding_completed',

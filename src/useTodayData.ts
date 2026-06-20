@@ -80,11 +80,12 @@ export type TodayData = {
   // achievements 合算が担う。
   achievedBeforeToday: number;
   // #165 (ADR-0042 P1): 立ち上げチェックリストの表示判定に使う app_settings 由来の値。
-  // onboarding 完了済みか (= まだ onboarding 中は出さない) と、dismiss 時刻 (null = 未 dismiss)。
-  // マイルストーンの達成度は chains / achievedBeforeToday から表示側でライブ算出する
-  // (楽観更新で即反映される)。
+  // onboarding 完了済みか (= まだ onboarding 中は出さない)、dismiss 時刻 (null = 未 dismiss)、
+  // 「アクションを 1 つ追加した」フラグ。チェーン数・通算達成数は chains / achievedBeforeToday
+  // から表示側でライブ算出する (楽観更新で即反映される)。
   onboardingCompleted: boolean;
   checklistDismissedAt: string | null;
+  checklistAddedAction: boolean;
 };
 
 // #125: 1 ノードの達成 toggle / markAchieved 後に、 そのノードのマトリクスセル列だけを
@@ -224,6 +225,7 @@ const loadToday = async (): Promise<TodayData> => {
     achievedBeforeToday,
     onboardingCompleted: settings.onboardingCompleted,
     checklistDismissedAt: settings.checklistDismissedAt,
+    checklistAddedAction: settings.checklistAddedAction,
   };
 };
 

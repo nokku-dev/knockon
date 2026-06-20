@@ -14,7 +14,7 @@ export type OnboardingMilestoneId =
   | 'first-achievement'
   | 'second-chain'
   | 'ten-achievements'
-  | 'first-established';
+  | 'added-action';
 
 export type ChecklistItem = {
   id: OnboardingMilestoneId;
@@ -30,15 +30,16 @@ export type OnboardingChecklistInput = {
   activeChainCount: number;
   // 通算 (全期間) の達成ノード数。累積なので後戻りしない。
   totalAchievedCount: number;
-  // 定着 (★) 判定済みノード数 (ADR-0024 の閾値)。1 度満たした事実として扱う。
-  establishedNodeCount: number;
+  // 編集画面でチェーンにアクションを 1 つ以上追加したか。一度追加したら戻さない one-way
+  // フラグ (= 失われない指標)。app_settings に永続化した値を呼び出し側が渡す。
+  addedAction: boolean;
 };
 
 // 「通算 10 ノード達成」マイルストーンの閾値 (ADR-0042 §2.2)。
 export const TEN_ACHIEVEMENTS_TARGET = 10;
 
 // 5 マイルストーンを固定順で返す。順序は ADR-0042 §2.1 のモック準拠
-// (採用 → 初達成 → 2 本目 → 通算 10 → 定着)。
+// (採用 → 初達成 → 2 本目 → 通算 10 → アクション追加)。
 export const computeOnboardingChecklist = (
   input: OnboardingChecklistInput,
 ): ChecklistItem[] => [
@@ -63,9 +64,9 @@ export const computeOnboardingChecklist = (
     done: input.totalAchievedCount >= TEN_ACHIEVEMENTS_TARGET,
   },
   {
-    id: 'first-established',
-    label: '定着 (★) を 1 つ獲得する',
-    done: input.establishedNodeCount >= 1,
+    id: 'added-action',
+    label: 'チェーンにアクションを 1 つ追加した',
+    done: input.addedAction,
   },
 ];
 

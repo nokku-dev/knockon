@@ -11,7 +11,7 @@ const base: OnboardingChecklistInput = {
   onboardingCompleted: true,
   activeChainCount: 1,
   totalAchievedCount: 0,
-  establishedNodeCount: 0,
+  addedAction: false,
 };
 
 describe('computeOnboardingChecklist (#165)', () => {
@@ -22,7 +22,7 @@ describe('computeOnboardingChecklist (#165)', () => {
       'first-achievement',
       'second-chain',
       'ten-achievements',
-      'first-established',
+      'added-action',
     ]);
   });
 
@@ -77,15 +77,15 @@ describe('computeOnboardingChecklist (#165)', () => {
     ).toBe(true);
   });
 
-  test('定着ノードが 1 つ以上で「定着 (★) を 1 つ獲得」が done', () => {
+  test('アクション追加フラグが立つと「アクションを 1 つ追加した」が done', () => {
     expect(
-      computeOnboardingChecklist({ ...base, establishedNodeCount: 0 }).find(
-        (i) => i.id === 'first-established',
+      computeOnboardingChecklist({ ...base, addedAction: false }).find(
+        (i) => i.id === 'added-action',
       )?.done,
     ).toBe(false);
     expect(
-      computeOnboardingChecklist({ ...base, establishedNodeCount: 1 }).find(
-        (i) => i.id === 'first-established',
+      computeOnboardingChecklist({ ...base, addedAction: true }).find(
+        (i) => i.id === 'added-action',
       )?.done,
     ).toBe(true);
   });
@@ -103,7 +103,7 @@ describe('isOnboardingChecklistComplete (#165)', () => {
       onboardingCompleted: true,
       activeChainCount: 2,
       totalAchievedCount: TEN_ACHIEVEMENTS_TARGET,
-      establishedNodeCount: 1,
+      addedAction: true,
     });
     expect(isOnboardingChecklistComplete(items)).toBe(true);
   });
@@ -133,7 +133,7 @@ describe('shouldShowOnboardingChecklist (#165)', () => {
       onboardingCompleted: true,
       activeChainCount: 2,
       totalAchievedCount: TEN_ACHIEVEMENTS_TARGET,
-      establishedNodeCount: 1,
+      addedAction: true,
     };
     expect(shouldShowOnboardingChecklist(allDone, false)).toBe(false);
   });

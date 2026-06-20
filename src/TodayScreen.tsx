@@ -55,6 +55,7 @@ export type TodayScreenProps = {
   // 出さない (= 親が dismiss 動線を持つときのみ、 onEditChain / onOpenDiscovery と同型)。
   onboardingCompleted?: boolean;
   checklistDismissedAt?: string | null;
+  checklistAddedAction?: boolean;
   onDismissChecklist?: () => void;
 };
 
@@ -68,6 +69,7 @@ export const TodayScreen = ({
   onOpenDiscovery,
   onboardingCompleted = false,
   checklistDismissedAt = null,
+  checklistAddedAction = false,
   onDismissChecklist,
 }: TodayScreenProps) => {
   const [openChainId, setOpenChainId] = useState<string | null>(null);
@@ -137,21 +139,18 @@ export const TodayScreen = ({
   // #165 (ADR-0042 P1): 立ち上げチェックリストのライブ算出。
   //   - activeChainCount = 表示中の active チェーン本数
   //   - totalAchievedCount = アプリ全体の通算達成数 (= 累計表示と同じ cumulativeTotal)
-  //   - establishedNodeCount = 全チェーンの定着 (★) ノード数の合計 (楽観更新で即反映)
-  // 達成度は props のスカラ + chains からライブ計算するので、 ノード達成タップで即座に
-  // マイルストーンが ✓ になる (snapshot を loadToday に固定しない理由)。
-  const establishedNodeCount = useMemo(
-    () => chains.reduce((acc, c) => acc + c.nodeIdsEstablished.size, 0),
-    [chains],
-  );
+  //   - addedAction = 「アクションを 1 つ追加した」フラグ (app_settings 由来、props)
+  // チェーン数・通算達成は chains からライブ計算するので、 ノード達成タップで即座に
+  // マイルストーンが ✓ になる (snapshot を loadToday に固定しない理由)。addedAction は
+  // 編集保存時に永続化され、 Today への focus 復帰で再 load される。
   const checklistInput = useMemo(
     () => ({
       onboardingCompleted,
       activeChainCount: chains.length,
       totalAchievedCount: cumulativeTotal,
-      establishedNodeCount,
+      addedAction: checklistAddedAction,
     }),
-    [onboardingCompleted, chains.length, cumulativeTotal, establishedNodeCount],
+    [onboardingCompleted, chains.length, cumulativeTotal, checklistAddedAction],
   );
   const checklistVisible =
     onDismissChecklist != null &&

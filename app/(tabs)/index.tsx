@@ -78,6 +78,7 @@ export default function TodayTab() {
           onOpenDiscovery={() => router.push('/discover')}
           onboardingCompleted={data.onboardingCompleted}
           checklistDismissedAt={data.checklistDismissedAt}
+          checklistAddedAction={data.checklistAddedAction}
           onDismissChecklist={dismissChecklist}
         />
       )}

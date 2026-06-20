@@ -465,13 +465,9 @@ describe('TodayScreen 立ち上げチェックリスト (#165)', () => {
   });
 
   test('全マイルストーン達成 → 自動的に表示しない', () => {
-    // 2 本採用 + 通算 10 達成 + 定着 1 = 全 done
-    const established: TodayChainData = {
-      ...buildChainData('c1', '朝', [fireNode('n1', '水')]),
-      nodeIdsEstablished: new Set<string>(['n1']),
-    };
+    // 2 本採用 + 通算 10 達成 + アクション追加済み = 全 done
     const chains: TodayChainData[] = [
-      established,
+      buildChainData('c1', '朝', [fireNode('n1', '水')]),
       buildChainData('c2', '夜', [fireNode('n2', '歯磨き')]),
     ];
     const { queryByTestId } = render(
@@ -480,6 +476,7 @@ describe('TodayScreen 立ち上げチェックリスト (#165)', () => {
         achievedBeforeToday={10}
         onToggleNode={() => {}}
         onboardingCompleted
+        checklistAddedAction
         onDismissChecklist={() => {}}
       />,
     );
@@ -515,5 +512,20 @@ describe('TodayScreen 立ち上げチェックリスト (#165)', () => {
     );
     // 1 本目採用 + 2 本目採用 = 2 done
     expect(getByText('立ち上げチェックリスト (2/5)')).toBeTruthy();
+  });
+
+  test('checklistAddedAction で「アクションを 1 つ追加した」が done になる', () => {
+    const { getByText, getByLabelText } = render(
+      <TodayScreen
+        chains={oneChain()}
+        onToggleNode={() => {}}
+        onboardingCompleted
+        checklistAddedAction
+        onDismissChecklist={() => {}}
+      />,
+    );
+    // 1 本目採用 + アクション追加 = 2 done
+    expect(getByText('立ち上げチェックリスト (2/5)')).toBeTruthy();
+    expect(getByLabelText('チェーンにアクションを 1 つ追加した 達成済み')).toBeTruthy();
   });
 });

@@ -124,4 +124,22 @@ describe('settingsRepository', () => {
     expect(settings.resetTime).toBe('00:00');
     await teardown(db);
   });
+
+  // #165 (ADR-0042 P1): checklistAddedAction のラウンドトリップ。
+  test('初回起動: checklistAddedAction は false (新規ユーザーは未追加)', async () => {
+    const db = await setup();
+    const settings = await getAppSettings(db);
+    expect(settings.checklistAddedAction).toBe(false);
+    await teardown(db);
+  });
+
+  test('updateAppSettings で checklistAddedAction を true に → 読み出せる (他項目は不変)', async () => {
+    const db = await setup();
+    await updateAppSettings(db, { checklistAddedAction: true });
+    const settings = await getAppSettings(db);
+    expect(settings.checklistAddedAction).toBe(true);
+    expect(settings.onboardingCompleted).toBe(false);
+    expect(settings.checklistDismissedAt).toBeNull();
+    await teardown(db);
+  });
 });

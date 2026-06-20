@@ -24,6 +24,7 @@ const FALLBACK_SETTINGS: AppSettings = {
   themeMode: DEFAULT_THEME_MODE,
   onboardingCompleted: false,
   checklistDismissedAt: null,
+  checklistAddedAction: false,
 };
 
 export type UseSettingsResult = {
