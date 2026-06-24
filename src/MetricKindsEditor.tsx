@@ -26,13 +26,15 @@ import {
 
 // PR-CC (ADR-0026): メトリクス種別の編集モーダル。
 // builtin (is_builtin=1) も含めて全件編集可 (削除可)。 削除は警告 alert を 1 段挟む。
-// 編集: 既存行に対して label / unit / key を変更可能。 key 変更は Notion 連携影響あり。
+// 編集: 既存行に対して label / unit を変更可能。
+// #184: Notion 連携不要のため key 入力は撤去。 新規追加時の key は呼び出し側 (hook)
+// で自動生成 (= 既存 metrics record の参照整合を保ったまま、 ユーザーの認知負荷を下げる)。
 
 export type MetricKindsEditorProps = {
   open: boolean;
   kinds: readonly MetricKind[];
   onClose: () => void;
-  onAdd: (key: string, label: string, unit: string) => Promise<void> | void;
+  onAdd: (label: string, unit: string) => Promise<void> | void;
   onUpdate: (id: string, patch: Partial<MetricKind>) => Promise<void> | void;
   onDelete: (kind: MetricKind) => Promise<void> | void;
 };
@@ -46,7 +48,6 @@ export const MetricKindsEditor = ({
   onDelete,
 }: MetricKindsEditorProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draftKey, setDraftKey] = useState('');
   const [draftLabel, setDraftLabel] = useState('');
   const [draftUnit, setDraftUnit] = useState('');
   // 新規追加 row 用 (editingId === '__new__' でトグル)
@@ -54,14 +55,12 @@ export const MetricKindsEditor = ({
 
   const startEdit = (kind: MetricKind) => {
     setEditingId(kind.id);
-    setDraftKey(kind.key);
     setDraftLabel(kind.label);
     setDraftUnit(kind.unit);
   };
 
   const startNew = () => {
     setEditingId(NEW_ID);
-    setDraftKey('');
     setDraftLabel('');
     setDraftUnit('');
   };
@@ -69,21 +68,16 @@ export const MetricKindsEditor = ({
   const cancelEdit = () => setEditingId(null);
 
   const handleSave = async () => {
-    const trimmedKey = draftKey.trim();
     const trimmedLabel = draftLabel.trim();
     const trimmedUnit = draftUnit.trim();
-    if (
-      trimmedKey.length === 0 ||
-      trimmedLabel.length === 0 ||
-      trimmedUnit.length === 0
-    ) {
+    if (trimmedLabel.length === 0 || trimmedUnit.length === 0) {
       return;
     }
     if (editingId === NEW_ID) {
-      await onAdd(trimmedKey, trimmedLabel, trimmedUnit);
+      await onAdd(trimmedLabel, trimmedUnit);
     } else if (editingId) {
+      // #184: 既存 key は変更しない (patch に key を含めない)
       await onUpdate(editingId, {
-        key: trimmedKey,
         label: trimmedLabel,
         unit: trimmedUnit,
       });
@@ -143,10 +137,8 @@ export const MetricKindsEditor = ({
             editingId === kind.id ? (
               <View key={kind.id} style={styles.editCard}>
                 <KindEditFields
-                  draftKey={draftKey}
                   draftLabel={draftLabel}
                   draftUnit={draftUnit}
-                  setDraftKey={setDraftKey}
                   setDraftLabel={setDraftLabel}
                   setDraftUnit={setDraftUnit}
                 />
@@ -177,9 +169,7 @@ export const MetricKindsEditor = ({
                       <Text style={styles.builtinBadge}>(初期)</Text>
                     )}
                   </Text>
-                  <Text style={styles.rowMeta}>
-                    key: {kind.key} · {kind.unit}
-                  </Text>
+                  <Text style={styles.rowMeta}>{kind.unit}</Text>
                 </View>
                 <View style={styles.rowActions}>
                   <Pressable
@@ -206,10 +196,8 @@ export const MetricKindsEditor = ({
           {editingId === NEW_ID ? (
             <View style={styles.editCard}>
               <KindEditFields
-                draftKey={draftKey}
                 draftLabel={draftLabel}
                 draftUnit={draftUnit}
-                setDraftKey={setDraftKey}
                 setDraftLabel={setDraftLabel}
                 setDraftUnit={setDraftUnit}
               />
@@ -248,17 +236,13 @@ export const MetricKindsEditor = ({
 };
 
 const KindEditFields = ({
-  draftKey,
   draftLabel,
   draftUnit,
-  setDraftKey,
   setDraftLabel,
   setDraftUnit,
 }: {
-  draftKey: string;
   draftLabel: string;
   draftUnit: string;
-  setDraftKey: (s: string) => void;
   setDraftLabel: (s: string) => void;
   setDraftUnit: (s: string) => void;
 }) => (
@@ -284,22 +268,6 @@ const KindEditFields = ({
         style={styles.input}
         accessibilityLabel="単位"
       />
-    </View>
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>key (英字、 Notion property 名)</Text>
-      <TextInput
-        value={draftKey}
-        onChangeText={setDraftKey}
-        placeholder="例: weight"
-        placeholderTextColor={COLOR_FG_FAINT}
-        autoCapitalize="none"
-        autoCorrect={false}
-        style={styles.input}
-        accessibilityLabel="key"
-      />
-      <Text style={styles.fieldHint}>
-        builtin の key を変更すると Notion 連携の sync が壊れる可能性あり
-      </Text>
     </View>
   </View>
 );
@@ -353,7 +321,6 @@ const styles = StyleSheet.create({
   fieldsRoot: { gap: 10 },
   field: { gap: 4 },
   fieldLabel: { color: COLOR_FG_SOFT, fontSize: 12, fontWeight: '600' },
-  fieldHint: { color: COLOR_FG_FAINT, fontSize: 11 },
   input: {
     color: COLOR_FG,
     fontSize: 15,
