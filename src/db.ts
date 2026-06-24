@@ -167,7 +167,24 @@ CREATE TABLE IF NOT EXISTS app_settings (
   checklist_added_action INTEGER NOT NULL DEFAULT 0 CHECK(checklist_added_action IN (0, 1))
 );
 
+-- ADR-0044 (#181): 手動メモ。ユーザーが書いた「観測した事実」軸 (派生値ではない、
+-- ADR-0012 anchor_firings / ADR-0024 metrics と同型の別軸)。
+-- node_id: 紐付け先ノード。NULL = 汎用メモ (= チェーン/アクション未選択で書いたメモ)。
+-- ON DELETE SET NULL: ノード (やチェーン経由 CASCADE) 削除時もメモ本文は残し node_id だけ
+--   外す (= 汎用メモに格下げ)。ユーザーが書いた記録を勝手に消さない (Augmentation 原則)。
+-- created_at / updated_at: ISO-like (秒精度、metrics.recorded_at と同フォーマット)。
+-- 派生値カラムは持たない (ADR-0001 維持)。表示時の chain/action 解決は派生で引く。
+CREATE TABLE IF NOT EXISTS notes (
+  id TEXT PRIMARY KEY,
+  node_id TEXT REFERENCES nodes(id) ON DELETE SET NULL,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_nodes_chain_order ON nodes(chain_id, order_index);
+CREATE INDEX IF NOT EXISTS idx_notes_node ON notes(node_id);
+CREATE INDEX IF NOT EXISTS idx_notes_created ON notes(created_at);
 CREATE INDEX IF NOT EXISTS idx_achievements_date ON achievements(date);
 CREATE INDEX IF NOT EXISTS idx_anchor_firings_date ON anchor_firings(date);
 CREATE INDEX IF NOT EXISTS idx_metrics_key_date ON metrics(metric_key, recorded_at);
@@ -187,9 +204,10 @@ CREATE INDEX IF NOT EXISTS idx_recommended_items_category ON recommended_items(c
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 const DROP_SQL = `
+DROP TABLE IF EXISTS notes;
 DROP TABLE IF EXISTS recommended_items;
 DROP TABLE IF EXISTS catalog_actions;
 DROP TABLE IF EXISTS categories;
@@ -383,6 +401,23 @@ export const MIGRATIONS: Record<number, Migration> = {
       `ALTER TABLE app_settings ADD COLUMN checklist_added_action INTEGER NOT NULL DEFAULT 0 CHECK(checklist_added_action IN (0, 1));`,
     );
     await client.exec(`UPDATE app_settings SET checklist_added_action = 1;`);
+  },
+  // ADR-0044 (#181): 手動メモ用 notes テーブルを新設 (新規テーブル CREATE のみ、 既存
+  // データへの ALTER なし)。既存ユーザー (v13) のチェーン / ノード / 達成記録は無影響。
+  // SCHEMA_SQL 側にも同じ定義を持たせ、新規 / 既存ユーザーで列定義を一致させる
+  // (= MIGRATIONS[5]/[6]/[7]/[10] と同じ二重 truth source は値で一致を担保するパターン)。
+  14: async (client) => {
+    await client.exec(`
+      CREATE TABLE IF NOT EXISTS notes (
+        id TEXT PRIMARY KEY,
+        node_id TEXT REFERENCES nodes(id) ON DELETE SET NULL,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_notes_node ON notes(node_id);
+      CREATE INDEX IF NOT EXISTS idx_notes_created ON notes(created_at);
+    `);
   },
 };
 
