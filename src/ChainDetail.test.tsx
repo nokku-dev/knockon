@@ -663,4 +663,47 @@ describe('ChainDetail', () => {
     const { getByLabelText } = renderScreen();
     expect(() => fireEvent(getByLabelText('水を飲む'), 'longPress')).not.toThrow();
   });
+
+  // Issue #188: 長押し中はノード Pressable に押下スタイル (opacity 低下) を適用する。
+  // 長押しメモ動線 (onNoteLongPress) の発見性を上げるための UX フィードバック。
+  // 注: RN Pressable の pressed 状態は jest-expo 環境では fireEvent('pressIn') で
+  // 内部 state が flip せず、 resolved style は常に「pressed=false 時の解決結果」が
+  // 出てくる。 そのため Pressable のレンダー結果を直接配列か単一 object かで比較し、
+  // pressed-state ベースの function スタイルが設定されているかを構造的に検証する。
+  describe('Issue #188: 長押し中の押下フィードバック', () => {
+    test('onNoteLongPress 提供時、 Pressable に pressed 状態応答 style 配列が設定されている (= [base, null] 形式)', () => {
+      const { getByLabelText } = render(
+        <ChainDetail
+          chain={chain}
+          anchor={anchor}
+          nodes={todayNodes}
+          achievements={{}}
+          onToggleNode={() => {}}
+          onNoteLongPress={() => {}}
+        />,
+      );
+      const pressable = getByLabelText('水を飲む');
+      // pressed=false 解決結果は [base, null] の配列形式 (style={({pressed})=>...} 適用済の証跡)
+      expect(Array.isArray(pressable.props.style)).toBe(true);
+      // 現状 (unpressed) では opacity が下がっていない
+      const flat = StyleSheet.flatten(pressable.props.style) as {
+        opacity?: number;
+      };
+      expect(flat.opacity ?? 1).toBe(1);
+    });
+
+    test('onNoteLongPress 未指定なら static style のまま (= 機能が無いなら発見性フィードバックも出さない)', () => {
+      const { getByLabelText } = renderScreen();
+      const pressable = getByLabelText('水を飲む');
+      const styleProp = pressable.props.style;
+      // function 形式の場合でも pressed=true で opacity 低下しないことを確認
+      const flat =
+        typeof styleProp === 'function'
+          ? (StyleSheet.flatten(styleProp({ pressed: true })) as {
+              opacity?: number;
+            })
+          : (StyleSheet.flatten(styleProp) as { opacity?: number });
+      expect(flat.opacity ?? 1).toBe(1);
+    });
+  });
 });

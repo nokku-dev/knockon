@@ -376,7 +376,15 @@ const NodeRow = ({
         accessibilityState={{ checked: achieved }}
         accessibilityLabel={actionTitle}
         accessibilityHint={onLongPress ? '長押しでメモを追加' : undefined}
-        style={styles.nodePressArea}
+        // Issue #188: 長押し中の押下フィードバック (= 長押しメモ動線の発見性向上)。
+        // onLongPress が定義されているときのみ opacity を落として「押されている」ことを
+        // 視覚化する。 機能が無いノードでフィードバックを出すと「何かある」と誤誘導するため、
+        // onLongPress 未指定ならフィードバックも出さない。 Celebrate 主 / マイナスを指差さない
+        // (DESIGN-SYSTEM §0) と整合するよう accent/red は使わず opacity のみで控えめに表現。
+        style={({ pressed }) => [
+          styles.nodePressArea,
+          pressed && onLongPress ? styles.nodePressAreaPressed : null,
+        ]}
       >
         <Animated.View style={[styles.nodeTextWrap, animatedStyle]}>
           <Text style={styles.nodeText}>{actionTitle}</Text>
@@ -519,6 +527,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  // Issue #188: 長押し中の押下フィードバック。 ノード全体を半透明にして
+  // 「押されている」ことを伝える。 長押しメモ動線 (onNoteLongPress) の発見性向上が目的。
+  nodePressAreaPressed: { opacity: 0.5 },
   nodeTextWrap: { alignSelf: 'center' },
   nodeText: { color: COLOR_FG, fontSize: 16 },
   // Issue #118: アクション名の右に置く小さな定着星。 控えめなサイズ・トーン。
