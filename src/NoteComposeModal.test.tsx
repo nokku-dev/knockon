@@ -74,6 +74,24 @@ describe('NoteComposeModal (ADR-0044)', () => {
     expect(onSubmit).toHaveBeenCalledWith('node-2', 'ストレッチについて');
   });
 
+  test('hideSelector=true で対象セレクタを隠す (編集時に効かない UI を出さない / K-030)', () => {
+    const { queryByLabelText, getByLabelText } = render(
+      <NoteComposeModal
+        open
+        chainOptions={CHAIN_OPTIONS}
+        initialContent="既存メモ"
+        hideSelector
+        onCancel={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+    // 本文と保存は出るが、対象セレクタ (なし / チェーンチップ) は出ない。
+    expect(getByLabelText('メモ本文')).toBeTruthy();
+    expect(getByLabelText('保存')).toBeTruthy();
+    expect(queryByLabelText('対象なし (汎用メモ)')).toBeNull();
+    expect(queryByLabelText('朝のチェーン を選択')).toBeNull();
+  });
+
   test('initialNodeId 指定で開くと対象が選択済み (= Today 長押し導線)', () => {
     const onSubmit = jest.fn();
     const { getByLabelText } = render(

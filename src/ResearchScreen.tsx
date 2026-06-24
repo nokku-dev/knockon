@@ -106,7 +106,10 @@ export function ResearchScreen({
               accessibilityLabel={`メモ: ${note.content}`}
               style={styles.card}
             >
-              <Text style={styles.cardContent}>{note.content}</Text>
+              {/* 一覧は俯瞰目的なので本文は 6 行で省略 (全文はタップして編集で見る)。 */}
+              <Text style={styles.cardContent} numberOfLines={6}>
+                {note.content}
+              </Text>
               <View style={styles.cardMeta}>
                 <Text style={styles.cardContext} numberOfLines={1}>
                   {contextLabel(note)}
@@ -134,6 +137,8 @@ export function ResearchScreen({
         chainOptions={chainOptions}
         initialNodeId={editing?.nodeId ?? null}
         initialContent={editing?.content ?? ''}
+        // 編集時は本文のみ更新 (紐付けは作成時固定) なので対象セレクタを隠す (K-030)。
+        hideSelector={editing != null}
         onCancel={() => setComposeOpen(false)}
         onSubmit={handleSubmit}
       />

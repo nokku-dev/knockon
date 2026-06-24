@@ -22,6 +22,9 @@ export default function TodayTab() {
   // ADR-0044 (#181): Today アクション長押しからのメモ作成。 研究タブの useNotesData と
   // 同じ永続化関数を共有する (= 生成ロジックの二重化回避)。 メモ一覧は研究タブで focus
   // 時に再ロードされるため、 Today 側で再描画する必要はない (= setRefreshTick 不要)。
+  // K-010: 失敗時は silently 受容する (= UI に出さない)。 SQLite ローカル書込でほぼ失敗
+  // しない前提 + Today はメモ一覧を持たないので rollback 対象もない。 失敗の顕在化が必要に
+  // なったら (= 連携/同期が増えたら) トースト通知を判断する。
   const handleAddNote = useCallback(
     (nodeId: string | null, content: string) => {
       void persistNewNote(nodeId, content);

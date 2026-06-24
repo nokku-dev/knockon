@@ -37,6 +37,9 @@ export type NoteComposeModalProps = {
   initialNodeId?: string | null;
   // 編集起点のときの既存本文 (= 研究画面でメモをタップして編集)。
   initialContent?: string;
+  // 対象セレクタを隠す。編集時は本文のみ更新で紐付けは変えない (ADR-0044 最小スコープ) ため、
+  // セレクタを出すと「変えても効かない」嘘 UI になる (K-030 同型) ので非表示にする。
+  hideSelector?: boolean;
   onCancel: () => void;
   onSubmit: (nodeId: string | null, content: string) => Promise<void> | void;
 };
@@ -46,6 +49,7 @@ export const NoteComposeModal = ({
   chainOptions,
   initialNodeId = null,
   initialContent = '',
+  hideSelector = false,
   onCancel,
   onSubmit,
 }: NoteComposeModalProps) => {
@@ -128,7 +132,10 @@ export const NoteComposeModal = ({
               autoFocus
             />
 
-            {/* 対象 (チェーン → アクション) セレクタ。選択なし = 汎用メモ。 */}
+            {/* 対象 (チェーン → アクション) セレクタ。選択なし = 汎用メモ。
+                編集時 (hideSelector) は本文のみ更新するため非表示 (K-030: 効かない UI を出さない)。 */}
+            {!hideSelector && (
+            <>
             <Text style={styles.sectionLabel}>対象 (任意)</Text>
             <ScrollView
               style={styles.selectorScroll}
@@ -209,6 +216,8 @@ export const NoteComposeModal = ({
                 </View>
               )}
             </ScrollView>
+            </>
+            )}
 
             <View style={styles.actions}>
               <Pressable
