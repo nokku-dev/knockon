@@ -12,3 +12,4 @@ export const newAnchorId = (): string => `anchor-${Crypto.randomUUID()}`;
 export const newModuleId = (): string => `module-${Crypto.randomUUID()}`;
 export const newMetricId = (): string => `metric-${Crypto.randomUUID()}`;
 export const newMetricKindId = (): string => `metric-kind-${Crypto.randomUUID()}`;
+export const newNoteId = (): string => `note-${Crypto.randomUUID()}`;

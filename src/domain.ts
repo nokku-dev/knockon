@@ -71,6 +71,19 @@ export type AnchorFiring = {
   date: IsoDate;
 };
 
+// ADR-0044 (#181): 手動メモ。ユーザーが書いた「観測した事実」軸 (派生値ではない)。
+// 正準データの 4 軸目 (achievements / anchor_firings / metrics に続く)。
+// nodeId: 紐付け先ノード (= 特定チェーン内の特定アクション位置)。null = 汎用メモ。
+//   ノード削除時は ON DELETE SET NULL で本文を残し node_id だけ外す (Augmentation)。
+// createdAt / updatedAt: ISO-like 文字列 (秒精度、 metrics の recorded_at と同フォーマット)。
+export type Note = {
+  id: string;
+  nodeId: string | null;
+  content: string;
+  createdAt: IsoDate;
+  updatedAt: IsoDate;
+};
+
 // テンプレートカタログの source。'official' = seed 由来 / 'user' = ユーザー作成。
 // ADR-0040 (#160): 旧 Module / Link / ModuleKind 型は撤去。CatalogSource は新カテゴリ
 // モデル (Category / CatalogAction) で継続利用する。

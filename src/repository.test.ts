@@ -310,9 +310,36 @@ describe('スキーマの不変条件', () => {
         'metric_kinds',
         'metrics',
         'nodes',
+        'notes',
         'recommended_items',
       ].sort(),
     );
+    await teardown(db);
+  });
+
+  // ADR-0044 (#181): 手動メモ。観測した事実軸 (派生値ではない)。
+  test('notes テーブル (ADR-0044): カラムは id / node_id / content / created_at / updated_at の 5 固定、 派生値カラム禁止', async () => {
+    const db = await setup();
+    type ColumnRow = { name: string };
+    const cols = await db.all<ColumnRow>(`PRAGMA table_info(notes)`);
+    const colNames = cols.map((c) => c.name).sort();
+    expect(colNames).toEqual([
+      'content',
+      'created_at',
+      'id',
+      'node_id',
+      'updated_at',
+    ]);
+    await teardown(db);
+  });
+
+  test('notes.node_id は ON DELETE SET NULL (ノード削除でメモ本文を残し紐付けのみ外す)', async () => {
+    const db = await setup();
+    type FkRow = { table: string; from: string; to: string; on_delete: string };
+    const fks = await db.all<FkRow>(`PRAGMA foreign_key_list(notes)`);
+    const nodeFk = fks.find((f) => f.from === 'node_id');
+    expect(nodeFk?.table).toBe('nodes');
+    expect(nodeFk?.on_delete).toBe('SET NULL');
     await teardown(db);
   });
 

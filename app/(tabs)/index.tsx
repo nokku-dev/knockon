@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -14,10 +14,20 @@ import {
   COLOR_GROW,
 } from '../../src/tokens';
 import { useTodayData } from '../../src/useTodayData';
+import { persistNewNote } from '../../src/useNotesData';
 
 export default function TodayTab() {
   const { data, error, loading, handleToggle, markNodeAchieved, dismissChecklist } =
     useTodayData();
+  // ADR-0044 (#181): Today アクション長押しからのメモ作成。 研究タブの useNotesData と
+  // 同じ永続化関数を共有する (= 生成ロジックの二重化回避)。 メモ一覧は研究タブで focus
+  // 時に再ロードされるため、 Today 側で再描画する必要はない (= setRefreshTick 不要)。
+  const handleAddNote = useCallback(
+    (nodeId: string | null, content: string) => {
+      void persistNewNote(nodeId, content);
+    },
+    [],
+  );
   const router = useRouter();
   // 通知タップで遷移してきたときの chainId を URL params から拾う (PR-1.5b-3)。
   // TodayScreen に渡したらすぐ undefined に戻す (リロード等で再 open しないため)。
@@ -79,6 +89,7 @@ export default function TodayTab() {
           checklistDismissedAt={data.checklistDismissedAt}
           checklistAddedAction={data.checklistAddedAction}
           onDismissChecklist={dismissChecklist}
+          onAddNote={handleAddNote}
         />
       )}
     </SafeAreaView>

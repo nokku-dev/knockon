@@ -8,7 +8,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ChainCard } from './ChainCard';
 import { ChainDetail } from './ChainDetail';
+import { NoteComposeModal } from './NoteComposeModal';
 import { countAchievedInMap } from './domain';
+import type { NoteChainOption } from './useNotesData';
 import { InAppNotificationToast } from './InAppNotificationToast';
 import { OnboardingChecklistCard } from './OnboardingChecklistCard';
 import {
@@ -52,6 +54,9 @@ export type TodayScreenProps = {
   checklistDismissedAt?: string | null;
   checklistAddedAction?: boolean;
   onDismissChecklist?: () => void;
+  // ADR-0044 (#181): Today アクション長押し → 手動メモ作成。 親 (index.tsx) が永続化を担う。
+  // 未指定 → 長押しメモ動線は無効 (= ChainDetail の onNoteLongPress も渡さない)。
+  onAddNote?: (nodeId: string | null, content: string) => void | Promise<void>;
 };
 
 export const TodayScreen = ({
@@ -65,8 +70,25 @@ export const TodayScreen = ({
   checklistDismissedAt = null,
   checklistAddedAction = false,
   onDismissChecklist,
+  onAddNote,
 }: TodayScreenProps) => {
   const [openChainId, setOpenChainId] = useState<string | null>(null);
+  // ADR-0044 (#181): アクション長押しで開くメモ作成 Modal。 対象ノードを保持。
+  const [noteTargetNodeId, setNoteTargetNodeId] = useState<string | null>(null);
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  // メモ作成 Modal のセレクタ候補。 Today に並ぶ active チェーンから派生 (skip ノードは除く)。
+  // 長押し起点は対象が選択済みで開くが、 Modal 内で対象変更も可能なので候補を渡す。
+  const noteChainOptions = useMemo<NoteChainOption[]>(
+    () =>
+      chains.map((c) => ({
+        chainId: c.chain.id,
+        chainTitle: c.chain.title,
+        nodes: c.nodes
+          .filter((n) => n.kind !== 'skip')
+          .map((n) => ({ nodeId: n.node.id, actionTitle: n.label })),
+      })),
+    [chains],
+  );
   const sheetRef = useRef<BottomSheet>(null);
   // PR-BB (ADR-0025): タイマー Modal の状態。 起動中の chainId / nodeId / 設定時間を保持。
   const [timerState, setTimerState] = useState<{
@@ -264,6 +286,14 @@ export const TodayScreen = ({
                 nodeIdsEstablished={openChain.nodeIdsEstablished}
                 nodeRecentCells={openChain.nodeRecentCells}
                 onToggleNode={(nodeId) => onToggleNode(openChain.chain.id, nodeId)}
+                onNoteLongPress={
+                  onAddNote
+                    ? (nodeId) => {
+                        setNoteTargetNodeId(nodeId);
+                        setNoteModalOpen(true);
+                      }
+                    : undefined
+                }
                 onStartTimer={(nodeId, durationSeconds, actionTitle) => {
                   setTimerState({
                     chainId: openChain.chain.id,
@@ -302,6 +332,18 @@ export const TodayScreen = ({
           }
         }}
       />
+
+      {/* ADR-0044 (#181): アクション長押し起点の手動メモ作成 Modal。
+          onAddNote 未指定なら描画しない (= 親がメモ永続化を提供するときのみ)。 */}
+      {onAddNote && (
+        <NoteComposeModal
+          open={noteModalOpen}
+          chainOptions={noteChainOptions}
+          initialNodeId={noteTargetNodeId}
+          onCancel={() => setNoteModalOpen(false)}
+          onSubmit={(nodeId, content) => onAddNote(nodeId, content)}
+        />
+      )}
 
       {/* Issue #102: タイマー完了トースト。 background 中に OS タイマーで完了 →
           foreground 復帰で TimerScreen が自動 onComplete → ここに表示される。

@@ -641,4 +641,26 @@ describe('ChainDetail', () => {
     expect(queryByText(/\d+\s*回/)).toBeNull();
     expect(queryByText(/累計/)).toBeNull();
   });
+
+  // ADR-0044 (#181): ノード行の長押しで手動メモ導線 (onNoteLongPress) が発火する。
+  test('ADR-0044: ノード行を長押しすると onNoteLongPress が該当 nodeId で呼ばれる', () => {
+    const onNoteLongPress = jest.fn();
+    const { getByLabelText } = render(
+      <ChainDetail
+        chain={chain}
+        anchor={anchor}
+        nodes={todayNodes}
+        achievements={{}}
+        onToggleNode={() => {}}
+        onNoteLongPress={onNoteLongPress}
+      />,
+    );
+    fireEvent(getByLabelText('ストレッチ'), 'longPress');
+    expect(onNoteLongPress).toHaveBeenCalledWith('n2');
+  });
+
+  test('ADR-0044: onNoteLongPress 未指定なら長押しでエラーにならない (動線無効)', () => {
+    const { getByLabelText } = renderScreen();
+    expect(() => fireEvent(getByLabelText('水を飲む'), 'longPress')).not.toThrow();
+  });
 });
