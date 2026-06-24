@@ -56,6 +56,9 @@ export type ChainDetailProps = {
   nodes: readonly TodayNode[];
   achievements: AchievementMap;
   onToggleNode: (nodeId: string) => void;
+  // ADR-0044 (#181): ノード行の長押しで手動メモを書く導線。 親 (TodayScreen) が
+  // NoteComposeModal を制御する責務。 未指定 → 長押しメモ動線は無効 (既存挙動互換)。
+  onNoteLongPress?: (nodeId: string) => void;
   anchorFiredToday?: boolean;
   nodeIdsEstablished?: ReadonlySet<string>;
   // PR-BB (ADR-0025): タイマー設定済みノードでタップされたとき呼ぶ。
@@ -96,6 +99,7 @@ export const ChainDetail = ({
   nodes,
   achievements,
   onToggleNode,
+  onNoteLongPress,
   anchorFiredToday = false,
   nodeIdsEstablished,
   onStartTimer,
@@ -231,6 +235,9 @@ export const ChainDetail = ({
               achieved={achievements[node.id] ?? false}
               established={nodeIdsEstablished?.has(node.id) ?? false}
               onPress={() => onToggleNode(node.id)}
+              onLongPress={
+                onNoteLongPress ? () => onNoteLongPress(node.id) : undefined
+              }
               timerSeconds={action.timerSeconds}
               onStartTimer={
                 onStartTimer &&
@@ -320,6 +327,7 @@ const NodeRow = ({
   achieved,
   established,
   onPress,
+  onLongPress,
   timerSeconds,
   onStartTimer,
   recentCells,
@@ -329,6 +337,7 @@ const NodeRow = ({
   achieved: boolean;
   established: boolean;
   onPress: () => void;
+  onLongPress?: () => void;
   timerSeconds: number | null;
   onStartTimer?: () => void;
   recentCells?: readonly DateMatrixCell[];
@@ -362,9 +371,11 @@ const NodeRow = ({
     <View style={[styles.contentRow, styles.nodeRowContainer, { height: NODE_ROW_HEIGHT }]}>
       <Pressable
         onPress={onPress}
+        onLongPress={onLongPress}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: achieved }}
         accessibilityLabel={actionTitle}
+        accessibilityHint={onLongPress ? '長押しでメモを追加' : undefined}
         style={styles.nodePressArea}
       >
         <Animated.View style={[styles.nodeTextWrap, animatedStyle]}>
