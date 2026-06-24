@@ -146,7 +146,8 @@ export type UseMetricsDataResult = {
   addMetric: (metricKey: string, value: number) => Promise<void>;
   removeMetric: (metricId: string) => Promise<void>;
   // PR-CC (ADR-0026): メトリクス種別 CRUD
-  addKind: (key: string, label: string, unit: string) => Promise<void>;
+  // #184: addKind 引数から key を削除。 key は呼び出し側で kind ID と同値で自動生成。
+  addKind: (label: string, unit: string) => Promise<void>;
   updateKind: (id: string, patch: Partial<MetricKind>) => Promise<void>;
   removeKind: (kind: MetricKind) => Promise<void>;
 };
@@ -243,7 +244,7 @@ export const useMetricsData = (): UseMetricsDataResult => {
   // UNIQUE 違反 (key 重複) は SQLite 生 error.message が error state に乗る。
   // Phase 1 N=1 受容 (= UX 改善は Phase 2 で error code 化判断、 K-024 同型)。
   const addKind = useCallback(
-    async (key: string, label: string, unit: string) => {
+    async (label: string, unit: string) => {
       try {
         const db = await getExpoSqliteClient();
         const existing = await listMetricKinds(db);
@@ -251,9 +252,12 @@ export const useMetricsData = (): UseMetricsDataResult => {
           existing.length === 0
             ? 0
             : Math.max(...existing.map((k) => k.orderIndex)) + 1;
+        // #184: key は kind ID と同値で自動生成。 ID は UUID なので UNIQUE 制約衝突なし。
+        // ユーザー入力なしで一意性を担保しつつ、 metrics.metric_key 経由の参照整合も維持。
+        const id = newMetricKindId();
         await insertMetricKind(db, {
-          id: newMetricKindId(),
-          key,
+          id,
+          key: id,
           label,
           unit,
           orderIndex: nextOrder,
