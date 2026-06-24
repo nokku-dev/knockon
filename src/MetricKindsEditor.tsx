@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { MetricKind } from './metricKindsRepository';
 import {
@@ -52,6 +53,11 @@ export const MetricKindsEditor = ({
   const [draftUnit, setDraftUnit] = useState('');
   // 新規追加 row 用 (editingId === '__new__' でトグル)
   const NEW_ID = '__new__';
+  // Issue #183: Android edge-to-edge + Modal presentationStyle="pageSheet" は
+  // status bar 透過のまま content が描かれ、 topbar が status bar に被って「閉じる」が
+  // 押せない。 親 SafeAreaProvider (app/_layout.tsx) の top inset を topbar に反映する。
+  // SettingsModal Issue #57 と同型の修正。
+  const insets = useSafeAreaInsets();
 
   const startEdit = (kind: MetricKind) => {
     setEditingId(kind.id);
@@ -112,7 +118,10 @@ export const MetricKindsEditor = ({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.root}
       >
-        <View style={styles.topbar}>
+        <View
+          testID="metric-kinds-editor-topbar"
+          style={[styles.topbar, { paddingTop: insets.top + 12 }]}
+        >
           <Pressable
             onPress={onClose}
             accessibilityRole="button"
@@ -278,7 +287,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    // paddingTop は status bar inset 込みで inline 指定 (Issue #183)。
+    paddingBottom: 12,
     paddingHorizontal: 16,
   },
   cancel: { color: COLOR_FG_SOFT, fontSize: 14 },

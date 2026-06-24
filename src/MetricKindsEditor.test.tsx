@@ -1,8 +1,26 @@
-import { Alert } from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { MetricKindsEditor } from './MetricKindsEditor';
 import type { MetricKind } from './metricKindsRepository';
+
+// Issue #183: ステータスバーかぶり修正で `useSafeAreaInsets` を導入したため、
+// provider 不在で throw する。 既存テストも provider 配下でレンダリングする。
+const renderWithInsets = (
+  ui: React.ReactElement,
+  top = 0,
+): ReturnType<typeof render> =>
+  render(
+    <SafeAreaProvider
+      initialMetrics={{
+        insets: { top, right: 0, bottom: 0, left: 0 },
+        frame: { x: 0, y: 0, width: 320, height: 640 },
+      }}
+    >
+      {ui}
+    </SafeAreaProvider>,
+  );
 
 const builtinKinds: MetricKind[] = [
   {
@@ -32,14 +50,14 @@ const noopProps = {
 
 describe('MetricKindsEditor (ADR-0026 PR-CC)', () => {
   test('open=false なら何もレンダリングしない', () => {
-    const { queryByText } = render(
+    const { queryByText } = renderWithInsets(
       <MetricKindsEditor open={false} kinds={builtinKinds} {...noopProps} />,
     );
     expect(queryByText('メトリクス種別')).toBeNull();
   });
 
   test('open=true で全種別の表示名 + 単位を表示 (key 表示は撤去 / #184)', () => {
-    const { getByText, getByLabelText, queryByText } = render(
+    const { getByText, getByLabelText, queryByText } = renderWithInsets(
       <MetricKindsEditor open={true} kinds={builtinKinds} {...noopProps} />,
     );
     // 各種別の編集ボタン accessibilityLabel から存在確認 (text は inline 子要素で分解されるため)
@@ -51,7 +69,7 @@ describe('MetricKindsEditor (ADR-0026 PR-CC)', () => {
   });
 
   test('builtin に「(初期)」バッジ表示、 user 追加分には表示しない', () => {
-    const { getAllByText } = render(
+    const { getAllByText } = renderWithInsets(
       <MetricKindsEditor open={true} kinds={builtinKinds} {...noopProps} />,
     );
     expect(getAllByText('(初期)')).toHaveLength(1); // 体重 (builtin) のみ
@@ -59,7 +77,7 @@ describe('MetricKindsEditor (ADR-0026 PR-CC)', () => {
 
   test('「+ 種別を追加」 → フォーム表示 + 「追加」で onAdd 呼び出し (key 入力なし / #184)', () => {
     const onAdd = jest.fn();
-    const { getByLabelText, queryByLabelText } = render(
+    const { getByLabelText, queryByLabelText } = renderWithInsets(
       <MetricKindsEditor
         open={true}
         kinds={builtinKinds}
@@ -78,7 +96,7 @@ describe('MetricKindsEditor (ADR-0026 PR-CC)', () => {
 
   test('編集ボタン押下 → 入力欄に既存値、 保存で onUpdate 呼び出し (key は不変 / #184)', () => {
     const onUpdate = jest.fn();
-    const { getByLabelText, queryByLabelText } = render(
+    const { getByLabelText, queryByLabelText } = renderWithInsets(
       <MetricKindsEditor
         open={true}
         kinds={builtinKinds}
@@ -108,7 +126,7 @@ describe('MetricKindsEditor (ADR-0026 PR-CC)', () => {
         const del = buttons?.[1];
         del?.onPress?.();
       });
-    const { getByLabelText } = render(
+    const { getByLabelText } = renderWithInsets(
       <MetricKindsEditor
         open={true}
         kinds={builtinKinds}
@@ -126,7 +144,7 @@ describe('MetricKindsEditor (ADR-0026 PR-CC)', () => {
     const alertSpy = jest
       .spyOn(Alert, 'alert')
       .mockImplementation(() => undefined);
-    const { getByLabelText } = render(
+    const { getByLabelText } = renderWithInsets(
       <MetricKindsEditor open={true} kinds={builtinKinds} {...noopProps} />,
     );
     fireEvent.press(getByLabelText('体重 を削除')); // builtin
@@ -134,9 +152,32 @@ describe('MetricKindsEditor (ADR-0026 PR-CC)', () => {
     alertSpy.mockRestore();
   });
 
+  // Issue #183: メトリクス種別編集画面の最上部 (閉じる / 種別 行) が Android のステータスバーに
+  // 被って「閉じる」を押せないバグ。 SettingsModal Issue #57 と同型の修正 (useSafeAreaInsets で
+  // topbar に paddingTop を確保)。
+  test('Issue #183: top inset > 0 のとき topbar の paddingTop が inset 分だけ広がる', () => {
+    const { getByTestId } = renderWithInsets(
+      <MetricKindsEditor open={true} kinds={builtinKinds} {...noopProps} />,
+      47,
+    );
+    const topbar = getByTestId('metric-kinds-editor-topbar');
+    const flat = StyleSheet.flatten(topbar.props.style);
+    expect(flat.paddingTop).toBeGreaterThanOrEqual(47);
+  });
+
+  test('Issue #183: top inset = 0 でも topbar は最低限の paddingTop を保つ (既存挙動の互換)', () => {
+    const { getByTestId } = renderWithInsets(
+      <MetricKindsEditor open={true} kinds={builtinKinds} {...noopProps} />,
+      0,
+    );
+    const topbar = getByTestId('metric-kinds-editor-topbar');
+    const flat = StyleSheet.flatten(topbar.props.style);
+    expect(flat.paddingTop).toBeGreaterThanOrEqual(12);
+  });
+
   test('空文字 (表示名 / 単位 のどちらか空) では追加されない', () => {
     const onAdd = jest.fn();
-    const { getByLabelText } = render(
+    const { getByLabelText } = renderWithInsets(
       <MetricKindsEditor
         open={true}
         kinds={[]}
