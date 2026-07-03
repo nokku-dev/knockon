@@ -10,6 +10,8 @@ superseded-by: []
 
 # 目標ビュー + 分析 + Phase 3 (チェーン詳細) を統合実装する (SPEC §5 一部覆し)
 
+> **部分改訂 ([ADR-0045](0045-exclude-analytics-tab-from-release-scope.md), #194)**: 本 ADR の「**分析タブを v1 リリースに載せる**」スコープ判断は ADR-0045 で当面棚上げ (分析タブは `href: null` でタブバーから非表示、コード/ルートは保持)。本 ADR の他条項 (チェーン詳細 = Phase 3a / メトリクスは任意・疎結合・read-only という ANT 回避構造 / メトリクスデータモデル) は有効。全面 supersede ではないため status は accepted のまま。
+
 ## 文脈
 
 [SPEC.md §5](../../SPEC.md) で **目標ビュー / メトリクス / 分析** は v1 非スコープ (= 出荷後レイヤー) と明示していた。理由は [K-004](../../KNOWLEDGE.md) 「完成ゲートを非コア機能 / ANT 違反機能の上に置いた」: 旧定義の「目標ビューで実運用が閉じる」は (1) コア体験から外れ、(2) 既存 Notion Body Metrics / `/fitness` と二重記録になり ANT 違反だった。
