@@ -43,8 +43,12 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="analytics"
         options={{
-          // #175 (PR-A): 「分析」→「ログ」リネーム。 ファイル名 (analytics) と
-          // 中身は PR-A スコープ外として現状維持し、 表示ラベルだけ差し替える。
+          // #194 (ADR-0045): 分析 (ログ) タブをリリーススコープから除外し、
+          // ミニマルリリースに絞る。 href: null でタブバーから非表示にしつつ、
+          // ルート/コード自体は残す (Today が analyticsDerivation を共有 /
+          // 出荷後に無移行で再有効化できる)。 ADR-0024 の分析取り込みを部分的に覆す。
+          href: null,
+          // #175 (PR-A): 「分析」→「ログ」リネーム時のラベル。 再有効化時に使う。
           title: 'ログ',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bar-chart-outline" color={color} size={size} />
