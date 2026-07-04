@@ -204,7 +204,7 @@ CREATE INDEX IF NOT EXISTS idx_recommended_items_category ON recommended_items(c
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 const DROP_SQL = `
 DROP TABLE IF EXISTS notes;
@@ -418,6 +418,31 @@ export const MIGRATIONS: Record<number, Migration> = {
       CREATE INDEX IF NOT EXISTS idx_notes_node ON notes(node_id);
       CREATE INDEX IF NOT EXISTS idx_notes_created ON notes(created_at);
     `);
+  },
+  // #196 (テンプレアクション文法統一 / #192): catalog_actions.title を「1 動作性名詞」
+  // ルールに寄せてリネームする。seedCatalogAction は INSERT OR IGNORE のため、既存 DB
+  // (Taku 本人のローカル含む) では seed 経由で title が更新されない。ID 不変・title のみ
+  // UPDATE で追随させる (live 側 nodes.title は分離済 = 無影響 / ADR-0039)。
+  // categoryCatalogSeed.ts の新 title と 1:1 で一致させること。UPDATE ... WHERE id は
+  // 再実行安全 (冪等)。
+  15: async (client) => {
+    const renames: Array<[string, string]> = [
+      ['act-weigh', '体重測定'],
+      ['act-drink-protein', 'プロテイン摂取'],
+      ['act-style-hair', 'ヘアセット'],
+      ['act-dry-hair', 'ヘアドライ'],
+      ['act-put-away-dishes', '食器収納'],
+      ['act-fold-laundry', '洗濯物たたみ'],
+      ['act-todo-today', '予定整理'],
+      ['act-online-course', 'オンライン学習'],
+      ['act-review-notes', 'ノート復習'],
+    ];
+    for (const [id, title] of renames) {
+      await client.run(`UPDATE catalog_actions SET title = ? WHERE id = ?`, [
+        title,
+        id,
+      ]);
+    }
   },
 };
 

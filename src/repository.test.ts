@@ -896,6 +896,67 @@ describe('スキーマの不変条件', () => {
     expect(ach).toEqual([{ node_id: 'nd-1', date: '2026-01-02', achieved: 1 }]);
     await teardown(db);
   });
+
+  test('#196: MIGRATIONS[15] が catalog_actions.title の文法統一リネームを既存 DB に反映する (seed は INSERT OR IGNORE で反映されないため UPDATE で追随)', async () => {
+    // v14 相当 (旧 title のまま) を直接構築し、既存ユーザーの catalog_actions を
+    // 旧 title で入れてから MIGRATIONS[15] を当てる。seed は INSERT OR IGNORE で
+    // 2 回目以降握り潰すため、UPDATE で既存 DB の title を追随させる必要がある。
+    const db = createBetterSqliteClient(':memory:');
+    await db.exec(`
+      CREATE TABLE categories (id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT NOT NULL, color TEXT NOT NULL, source TEXT NOT NULL, order_index INTEGER NOT NULL);
+      CREATE TABLE catalog_actions (id TEXT PRIMARY KEY, title TEXT NOT NULL, category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE, default_on INTEGER NOT NULL, position INTEGER NOT NULL, source TEXT NOT NULL, timer_seconds INTEGER);
+    `);
+    await db.run(
+      `INSERT INTO categories (id, name, type, color, source, order_index) VALUES ('cat-x', 'X', 'genre', '#fff', 'official', 0)`,
+    );
+    const oldTitles: Array<[string, string]> = [
+      ['act-weigh', '体重計'],
+      ['act-drink-protein', 'プロテイン飲む'],
+      ['act-style-hair', '髪を整える'],
+      ['act-dry-hair', '髪を乾かす'],
+      ['act-put-away-dishes', '食器しまう'],
+      ['act-fold-laundry', '洗濯物畳む'],
+      ['act-todo-today', '今日やること'],
+      ['act-online-course', 'オンライン講座・動画学習'],
+      ['act-review-notes', '復習・ノートまとめ'],
+    ];
+    for (const [id, title] of oldTitles) {
+      await db.run(
+        `INSERT INTO catalog_actions (id, title, category_id, default_on, position, source, timer_seconds) VALUES (?, ?, 'cat-x', 0, 0, 'official', NULL)`,
+        [id, title],
+      );
+    }
+    // user override / 未リネーム対象は不変であることの確認用 (サプリ = 維持)
+    await db.run(
+      `INSERT INTO catalog_actions (id, title, category_id, default_on, position, source, timer_seconds) VALUES ('act-supplement', 'サプリ', 'cat-x', 0, 99, 'official', NULL)`,
+    );
+
+    await MIGRATIONS[15]!(db);
+
+    type Row = { id: string; title: string };
+    const titleOf = async (id: string) =>
+      (
+        await db.all<Row>(`SELECT id, title FROM catalog_actions WHERE id = ?`, [
+          id,
+        ])
+      )[0]?.title;
+    expect(await titleOf('act-weigh')).toBe('体重測定');
+    expect(await titleOf('act-drink-protein')).toBe('プロテイン摂取');
+    expect(await titleOf('act-style-hair')).toBe('ヘアセット');
+    expect(await titleOf('act-dry-hair')).toBe('ヘアドライ');
+    expect(await titleOf('act-put-away-dishes')).toBe('食器収納');
+    expect(await titleOf('act-fold-laundry')).toBe('洗濯物たたみ');
+    expect(await titleOf('act-todo-today')).toBe('予定整理');
+    expect(await titleOf('act-online-course')).toBe('オンライン学習');
+    expect(await titleOf('act-review-notes')).toBe('ノート復習');
+    // 維持対象は不変
+    expect(await titleOf('act-supplement')).toBe('サプリ');
+
+    // 冪等性: 2 回目でも同じ結果 (UPDATE ... WHERE id は再実行安全)
+    await MIGRATIONS[15]!(db);
+    expect(await titleOf('act-weigh')).toBe('体重測定');
+    await teardown(db);
+  });
 });
 
 describe('deleteChain — チェーン削除 + 関連レコードの CASCADE', () => {

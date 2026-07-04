@@ -66,7 +66,7 @@ export const V0_GENRE_CATEGORIES: readonly GenreCategoryDef[] = [
       { id: 'act-brush-teeth', title: '歯磨き', defaultOn: true },
       { id: 'act-drink-water', title: '水を飲む', defaultOn: true },
       { id: 'act-medication', title: '服薬', defaultOn: true },
-      { id: 'act-weigh', title: '体重計', defaultOn: false },
+      { id: 'act-weigh', title: '体重測定', defaultOn: false },
       { id: 'act-supplement', title: 'サプリ', defaultOn: false },
     ],
   },
@@ -88,7 +88,7 @@ export const V0_GENRE_CATEGORIES: readonly GenreCategoryDef[] = [
       { id: 'act-stretch', title: 'ストレッチ', defaultOn: true },
       { id: 'act-walking', title: 'ウォーキング', defaultOn: true },
       { id: 'act-workout', title: '筋トレ', defaultOn: false },
-      { id: 'act-drink-protein', title: 'プロテイン飲む', defaultOn: true },
+      { id: 'act-drink-protein', title: 'プロテイン摂取', defaultOn: true },
       { id: 'act-light-walk', title: '軽い散歩', defaultOn: true },
     ],
   },
@@ -108,8 +108,8 @@ export const V0_GENRE_CATEGORIES: readonly GenreCategoryDef[] = [
     actions: [
       { id: 'act-shower', title: 'シャワー', defaultOn: true },
       { id: 'act-get-dressed', title: '着替え', defaultOn: true },
-      { id: 'act-style-hair', title: '髪を整える', defaultOn: false },
-      { id: 'act-dry-hair', title: '髪を乾かす', defaultOn: false },
+      { id: 'act-style-hair', title: 'ヘアセット', defaultOn: false },
+      { id: 'act-dry-hair', title: 'ヘアドライ', defaultOn: false },
     ],
   },
   {
@@ -121,8 +121,8 @@ export const V0_GENRE_CATEGORIES: readonly GenreCategoryDef[] = [
       { id: 'act-laundry', title: '洗濯', defaultOn: true },
       { id: 'act-take-out-trash', title: 'ゴミ捨て', defaultOn: true },
       { id: 'act-wash-dishes', title: '食器洗い', defaultOn: true },
-      { id: 'act-put-away-dishes', title: '食器しまう', defaultOn: false },
-      { id: 'act-fold-laundry', title: '洗濯物畳む', defaultOn: false },
+      { id: 'act-put-away-dishes', title: '食器収納', defaultOn: false },
+      { id: 'act-fold-laundry', title: '洗濯物たたみ', defaultOn: false },
     ],
   },
   {
@@ -131,7 +131,7 @@ export const V0_GENRE_CATEGORIES: readonly GenreCategoryDef[] = [
     color: CATEGORY_COLORS.reflection,
     actions: [
       { id: 'act-journal', title: 'ジャーナル', defaultOn: true },
-      { id: 'act-todo-today', title: '今日やること', defaultOn: true },
+      { id: 'act-todo-today', title: '予定整理', defaultOn: true },
       { id: 'act-read', title: '読書', defaultOn: true },
       { id: 'act-meditate', title: '瞑想', defaultOn: true },
     ],
@@ -151,10 +151,10 @@ export const V0_GENRE_CATEGORIES: readonly GenreCategoryDef[] = [
       { id: 'act-language', title: '語学', defaultOn: true },
       {
         id: 'act-online-course',
-        title: 'オンライン講座・動画学習',
+        title: 'オンライン学習',
         defaultOn: true,
       },
-      { id: 'act-review-notes', title: '復習・ノートまとめ', defaultOn: true },
+      { id: 'act-review-notes', title: 'ノート復習', defaultOn: true },
     ],
   },
 ];
