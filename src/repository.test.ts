@@ -957,6 +957,39 @@ describe('スキーマの不変条件', () => {
     expect(await titleOf('act-weigh')).toBe('体重測定');
     await teardown(db);
   });
+
+  test('#201: MIGRATIONS[16] が重複アクション act-light-walk を既存 DB から削除する (act-walking と重複解消)', async () => {
+    // v15 相当 (act-light-walk あり) を直接構築。seed は DELETE しないため、重複解消は
+    // MIGRATIONS[16] の DELETE で既存 DB からも撤去する。act-walking は残す。
+    const db = createBetterSqliteClient(':memory:');
+    await db.exec(`
+      CREATE TABLE categories (id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT NOT NULL, color TEXT NOT NULL, source TEXT NOT NULL, order_index INTEGER NOT NULL);
+      CREATE TABLE catalog_actions (id TEXT PRIMARY KEY, title TEXT NOT NULL, category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE, default_on INTEGER NOT NULL, position INTEGER NOT NULL, source TEXT NOT NULL, timer_seconds INTEGER);
+    `);
+    await db.run(
+      `INSERT INTO categories (id, name, type, color, source, order_index) VALUES ('cat-exercise', '運動', 'genre', '#fff', 'official', 0)`,
+    );
+    await db.run(
+      `INSERT INTO catalog_actions (id, title, category_id, default_on, position, source, timer_seconds) VALUES ('act-walking', 'ウォーキング', 'cat-exercise', 1, 1, 'official', NULL)`,
+    );
+    await db.run(
+      `INSERT INTO catalog_actions (id, title, category_id, default_on, position, source, timer_seconds) VALUES ('act-light-walk', '軽い散歩', 'cat-exercise', 1, 4, 'official', NULL)`,
+    );
+
+    await MIGRATIONS[16]!(db);
+
+    type Row = { id: string };
+    const remaining = await db.all<Row>(
+      `SELECT id FROM catalog_actions ORDER BY id`,
+    );
+    expect(remaining.map((r) => r.id)).toEqual(['act-walking']);
+
+    // 冪等性: 2 回目でも例外なく同じ結果 (存在しない行の DELETE は no-op)
+    await MIGRATIONS[16]!(db);
+    const after = await db.all<Row>(`SELECT id FROM catalog_actions`);
+    expect(after.map((r) => r.id)).toEqual(['act-walking']);
+    await teardown(db);
+  });
 });
 
 describe('deleteChain — チェーン削除 + 関連レコードの CASCADE', () => {

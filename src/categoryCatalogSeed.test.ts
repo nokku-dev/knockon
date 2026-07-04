@@ -78,13 +78,20 @@ describe('buildV0CategoryCatalog — ADR-0039 カタログの純粋展開 (#154)
     ]);
   });
 
-  test('追加アクション (水を飲む / 服薬 / 瞑想 / 軽い散歩) がカタログに存在する', () => {
+  test('追加アクション (水を飲む / 服薬 / 瞑想) がカタログに存在する', () => {
     const { actions } = buildV0CategoryCatalog();
     const titles = new Set(actions.map((a) => a.title));
     expect(titles.has('水を飲む')).toBe(true);
     expect(titles.has('服薬')).toBe(true);
     expect(titles.has('瞑想')).toBe(true);
-    expect(titles.has('軽い散歩')).toBe(true);
+  });
+
+  test('#201: 重複解消で act-light-walk (軽い散歩) はカタログから撤去され、act-walking (ウォーキング) のみ残る', () => {
+    const { actions } = buildV0CategoryCatalog();
+    const ids = actions.map((a) => a.id);
+    expect(ids).not.toContain('act-light-walk');
+    expect(ids).toContain('act-walking');
+    expect(actions.map((a) => a.title)).not.toContain('軽い散歩');
   });
 
   test('削除対象アクションがカタログに存在しない (コーヒー/白湯/お湯を沸かす/食器を水につける/プロテイン作る/5分掃除/風呂を沸かす/深呼吸)', () => {
