@@ -50,7 +50,7 @@ describe('buildV0CategoryCatalog — ADR-0039 カタログの純粋展開 (#154)
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  test('defaultOn は「(任意)」を反映 (体重計/サプリ/日焼け止め/筋トレ/髪系/食器しまう/洗濯物畳む = false)', () => {
+  test('defaultOn は「(任意)」を反映 (体重測定/サプリ/日焼け止め/筋トレ/髪系/食器収納/洗濯物たたみ = false)', () => {
     const { actions } = buildV0CategoryCatalog();
     const on = (id: string) => actions.find((a) => a.id === id)?.defaultOn;
     expect(on('act-brush-teeth')).toBe(true);
@@ -73,8 +73,8 @@ describe('buildV0CategoryCatalog — ADR-0039 カタログの純粋展開 (#154)
     expect(studyActions.map((a) => a.title)).toEqual([
       '勉強',
       '語学',
-      'オンライン講座・動画学習',
-      '復習・ノートまとめ',
+      'オンライン学習',
+      'ノート復習',
     ]);
   });
 
@@ -118,7 +118,7 @@ describe('buildV0CategoryCatalog — ADR-0039 カタログの純粋展開 (#154)
       'ストレッチ',
       '食事準備',
       '食事',
-      '今日やること',
+      '予定整理',
     ]);
   });
 
@@ -179,7 +179,7 @@ describe('seedCategoryCatalog — DB 投入 (#154)', () => {
       '歯磨き',
       '水を飲む',
       '服薬',
-      '体重計',
+      '体重測定',
       'サプリ',
     ]);
     await db.close?.();
@@ -196,7 +196,7 @@ describe('seedCategoryCatalog — DB 投入 (#154)', () => {
       '食器洗い',
       '入浴',
       'スキンケア',
-      '髪を乾かす',
+      'ヘアドライ',
       '読書',
       'ジャーナル',
       '歯磨き',
