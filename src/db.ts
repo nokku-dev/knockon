@@ -204,7 +204,7 @@ CREATE INDEX IF NOT EXISTS idx_recommended_items_category ON recommended_items(c
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 const DROP_SQL = `
 DROP TABLE IF EXISTS notes;
@@ -443,6 +443,17 @@ export const MIGRATIONS: Record<number, Migration> = {
         id,
       ]);
     }
+  },
+  // #201 (テンプレ重複解消): cat-exercise で act-light-walk「軽い散歩」が act-walking
+  // 「ウォーキング」と重複し両方 defaultOn だった。ウォーキングに一本化するため
+  // act-light-walk をカタログから撤去する。seed は DELETE しないので既存 DB (Taku
+  // ローカル含む) からも DELETE で撤去する。recommended_items から参照されていないため
+  // 後始末不要。live 側 nodes は actions テーブル参照で catalog_actions と別 = 無影響
+  // (ADR-0039)。存在しない行の DELETE は no-op なので再実行安全 (冪等)。
+  16: async (client) => {
+    await client.run(`DELETE FROM catalog_actions WHERE id = ?`, [
+      'act-light-walk',
+    ]);
   },
 };
 

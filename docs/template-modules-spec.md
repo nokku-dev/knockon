@@ -139,4 +139,4 @@ v0 カタログ（`src/categoryCatalogSeed.ts`）の `title` は文法を統一�
 
 **運用上の注意（既存 DB への反映）**: `title` を変えても、`seedCatalogAction` は `INSERT OR IGNORE` のため既存インストールには反映されない。リネームは必ず `MIGRATIONS[N]` に `UPDATE catalog_actions SET title = ? WHERE id = ?` を書き `SCHEMA_VERSION` を bump して追随させる（#196 は `MIGRATIONS[15]`）。ID（`act-*`）は不変に保つ（`recommended_items.actionId` 参照と live 分離の前提）。
 
-> #196 で「軽い散歩（act-light-walk）」の名詞化は保留した。同一 `cat-exercise` 内の「ウォーキング（act-walking）」と重複するため、リネームではなくアクションの取捨（片方削除）で解く別 Issue（#201）に切り出した。
+> #196 で「軽い散歩（act-light-walk）」の名詞化は保留し、#201 で決着。同一 `cat-exercise` 内の「ウォーキング（act-walking）」と重複し両方 defaultOn だったため、リネームではなく **act-light-walk をカタログから撤去**してウォーキングに一本化した（`MIGRATIONS[16]` で既存 DB からも DELETE）。

@@ -89,7 +89,6 @@ export const V0_GENRE_CATEGORIES: readonly GenreCategoryDef[] = [
       { id: 'act-walking', title: 'ウォーキング', defaultOn: true },
       { id: 'act-workout', title: '筋トレ', defaultOn: false },
       { id: 'act-drink-protein', title: 'プロテイン摂取', defaultOn: true },
-      { id: 'act-light-walk', title: '軽い散歩', defaultOn: true },
     ],
   },
   {
