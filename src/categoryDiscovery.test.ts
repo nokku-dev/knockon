@@ -56,7 +56,8 @@ describe('buildGenrePreview — genre カテゴリのプレビュー', () => {
   const category = cat('g', 'genre', 0);
   const actions: CatalogAction[] = [
     action('a2', 'g', 1, true),
-    action('a1', 'g', 0, false), // 任意
+    action('a1', 'g', 0, true),
+    action('a-optional', 'g', 2, false), // 任意 (defaultOn=false) → #191 で非表示
     action('other', 'other-cat', 0, true), // 別カテゴリ → 除外
   ];
 
@@ -66,10 +67,9 @@ describe('buildGenrePreview — genre カテゴリのプレビュー', () => {
     expect(preview.items.map((i) => i.actionId)).toEqual(['a1', 'a2']);
   });
 
-  test('optional = !defaultOn (任意フラグ)', () => {
+  test('defaultOn=false (旧「任意」) アクションはプレビューから除外される (#191)', () => {
     const preview = buildGenrePreview(category, actions);
-    expect(preview.items.find((i) => i.key === 'a1')?.optional).toBe(true);
-    expect(preview.items.find((i) => i.key === 'a2')?.optional).toBe(false);
+    expect(preview.items.some((i) => i.key === 'a-optional')).toBe(false);
   });
 
   test('別カテゴリのアクションは含まれない', () => {
@@ -104,10 +104,6 @@ describe('buildRecommendedPreview — おすすめカテゴリのプレビュー
     expect(preview.items[0].title).toBe('a-brush-title');
   });
 
-  test('optional は常に false (おすすめは初期全選択の束)', () => {
-    const preview = buildRecommendedPreview(category, items, actions);
-    expect(preview.items.every((i) => !i.optional)).toBe(true);
-  });
 });
 
 describe('allItemKeys / buildChainDraftFromCategorySelection', () => {

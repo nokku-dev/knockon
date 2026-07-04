@@ -79,14 +79,12 @@ const previewFixture = (): CategoryPreview => ({
       actionId: 'act-brush-teeth',
       title: '歯磨き',
       timerSeconds: null,
-      optional: false,
     },
     {
       key: 'r-1',
       actionId: 'act-face-wash',
       title: '洗顔',
       timerSeconds: null,
-      optional: false,
     },
   ],
 });
