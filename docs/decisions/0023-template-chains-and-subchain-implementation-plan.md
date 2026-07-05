@@ -76,6 +76,7 @@ superseded-by: []
 - `src/templateChains.ts` 新規: builtin テンプレ定義 (title + actions の list)
 - ChainEditScreen の Footer の `+ ノードを追加` の隣に **「+ テンプレから追加」** ボタン
 - テンプレ選択モーダル → 選択 → 各アクションを INSERT (新規 action として) + ノード末尾追加
+- **改定 ([ADR-0046](0046-template-picker-two-step-individual-action-selection.md))**: 上記動線条文は 2-step 個別選択 (step1 でテンプレを開く → step2 で checkbox 選択 → 「N件を追加」) に改定された (PR #137 / #173 で実装済み)。 本 ADR の他の条文 (PR-Y1/Y2/Y3 の 3 段階 / サブチェーン data モデル / テンプレ builtin スタート) は維持。 [K-005](../../KNOWLEDGE.md) 双方向リンク運用。
 
 ### PR-Y2 範囲
 
