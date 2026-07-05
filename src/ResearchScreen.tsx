@@ -68,12 +68,18 @@ export function ResearchScreen({
   };
 
   const confirmDelete = (note: NoteWithContext) => {
+    // Issue #200: 削除確定時に Modal も閉じる (削除後に存在しないメモの本文が Modal に残る不整合を回避)。
+    // 未保存の編集内容は silently 破棄する — K-010 受容判断 (削除は不可逆なので「編集を残したまま削除」は
+    // 矛盾動作。 Phase 1 N=1 で頻度が低く、 UI 表現より整合性を優先)。
     Alert.alert('メモを削除', 'このメモを削除しますか？', [
       { text: 'キャンセル', style: 'cancel' },
       {
         text: '削除',
         style: 'destructive',
-        onPress: () => onDeleteNote(note.id),
+        onPress: () => {
+          onDeleteNote(note.id);
+          setComposeOpen(false);
+        },
       },
     ]);
   };
@@ -98,12 +104,14 @@ export function ResearchScreen({
       ) : (
         <ScrollView contentContainerStyle={styles.listContent}>
           {notes.map((note) => (
+            // Issue #200: 長押し削除は撤去。 削除は編集モーダル内の「このメモを削除」に集約。
+            // Today アクション長押し (= メモ作成) と意味論を対称化する + 発見性を向上させる。
             <Pressable
               key={note.id}
               onPress={() => openEdit(note)}
-              onLongPress={() => confirmDelete(note)}
               accessibilityRole="button"
               accessibilityLabel={`メモ: ${note.content}`}
+              accessibilityHint="タップで編集"
               style={styles.card}
             >
               {/* 一覧は俯瞰目的なので本文は 6 行で省略 (全文はタップして編集で見る)。 */}
@@ -139,6 +147,9 @@ export function ResearchScreen({
         initialContent={editing?.content ?? ''}
         // 編集時は本文のみ更新 (紐付けは作成時固定) なので対象セレクタを隠す (K-030)。
         hideSelector={editing != null}
+        // Issue #200: 編集中のみ削除可 (作成モードでは onDelete 未指定でボタン非表示)。
+        // K-030 permission/state 分離: hideSelector とは独立した prop で表示制御する。
+        onDelete={editing ? () => confirmDelete(editing) : undefined}
         onCancel={() => setComposeOpen(false)}
         onSubmit={handleSubmit}
       />

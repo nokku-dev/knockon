@@ -13,6 +13,7 @@ import {
 
 import type { NoteChainOption } from './useNotesData';
 import {
+  COLOR_ACCENT,
   COLOR_BG,
   COLOR_FG,
   COLOR_FG_FAINT,
@@ -40,6 +41,10 @@ export type NoteComposeModalProps = {
   // 対象セレクタを隠す。編集時は本文のみ更新で紐付けは変えない (ADR-0044 最小スコープ) ため、
   // セレクタを出すと「変えても効かない」嘘 UI になる (K-030 同型) ので非表示にする。
   hideSelector?: boolean;
+  // 削除アクション (編集時のみ渡す)。 呼び出し側で Alert.alert 確認を出し、
+  // 確定時に自身で Modal を閉じる (= このコンポーネントは削除操作の起点だけ提供する)。
+  // Issue #200: `hideSelector` に相乗りせず独立 prop で表示制御する (K-030 permission/state 分離)。
+  onDelete?: () => void;
   onCancel: () => void;
   onSubmit: (nodeId: string | null, content: string) => Promise<void> | void;
 };
@@ -50,6 +55,7 @@ export const NoteComposeModal = ({
   initialNodeId = null,
   initialContent = '',
   hideSelector = false,
+  onDelete,
   onCancel,
   onSubmit,
 }: NoteComposeModalProps) => {
@@ -237,6 +243,25 @@ export const NoteComposeModal = ({
                 <Text style={styles.submitText}>保存</Text>
               </Pressable>
             </View>
+
+            {/* Issue #200: 削除は「保存 / キャンセル」と別セクションにしてセパレータで意味論的距離を作る。
+                destructive トークン (文字色のみ COLOR_ACCENT / 背景 COLOR_LINE_BG、 DESIGN-SYSTEM §1)
+                を再利用。 削除確定時の未保存編集は silently 破棄する (K-010 受容判断:
+                Phase 1 N=1 で頻度が低く、 削除は不可逆なので「編集を残したまま削除」は矛盾動作。
+                「削除したら編集も消える」は普遍的 UX と整合)。 */}
+            {onDelete && (
+              <>
+                <View style={styles.deleteSeparator} />
+                <Pressable
+                  onPress={onDelete}
+                  accessibilityRole="button"
+                  accessibilityLabel="このメモを削除"
+                  style={styles.deleteBtn}
+                >
+                  <Text style={styles.deleteBtnText}>このメモを削除</Text>
+                </Pressable>
+              </>
+            )}
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>
@@ -336,5 +361,24 @@ const styles = StyleSheet.create({
     color: COLOR_BG,
     fontSize: 14,
     fontWeight: '700',
+  },
+  // Issue #200: 「保存 / キャンセル」行と「削除」行の意味論的距離をセパレータで表現。
+  deleteSeparator: {
+    height: 1,
+    backgroundColor: COLOR_LINE_BG,
+    marginTop: 4,
+  },
+  // destructive action: 文字色のみ accent、 背景は LINE_BG (DESIGN-SYSTEM §1 / §5, PR-1.8a)。
+  deleteBtn: {
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: COLOR_LINE_BG,
+  },
+  deleteBtnText: {
+    color: COLOR_ACCENT,
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

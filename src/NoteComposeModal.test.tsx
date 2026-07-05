@@ -108,4 +108,51 @@ describe('NoteComposeModal (ADR-0044)', () => {
     fireEvent.press(getByLabelText('保存'));
     expect(onSubmit).toHaveBeenCalledWith('node-1', '水分メモ');
   });
+
+  // Issue #200: 編集モーダル内に「このメモを削除」ボタンを配置 (発見性向上 + 長押し撤去)。
+  // `hideSelector` と別軸の prop (`onDelete`) で表示制御する (K-030 permission/state 分離)。
+  test('onDelete 未指定なら「このメモを削除」ボタンを表示しない (作成モード / #200)', () => {
+    const { queryByLabelText } = render(
+      <NoteComposeModal
+        open
+        chainOptions={CHAIN_OPTIONS}
+        onCancel={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+    expect(queryByLabelText('このメモを削除')).toBeNull();
+  });
+
+  test('onDelete 指定時のみ「このメモを削除」ボタンを表示する (編集モード / #200)', () => {
+    const onDelete = jest.fn();
+    const { getByLabelText } = render(
+      <NoteComposeModal
+        open
+        chainOptions={CHAIN_OPTIONS}
+        initialContent="既存メモ"
+        hideSelector
+        onCancel={() => {}}
+        onSubmit={() => {}}
+        onDelete={onDelete}
+      />,
+    );
+    expect(getByLabelText('このメモを削除')).toBeTruthy();
+  });
+
+  test('削除ボタンをタップすると onDelete が発火する (#200)', () => {
+    const onDelete = jest.fn();
+    const { getByLabelText } = render(
+      <NoteComposeModal
+        open
+        chainOptions={CHAIN_OPTIONS}
+        initialContent="既存メモ"
+        hideSelector
+        onCancel={() => {}}
+        onSubmit={() => {}}
+        onDelete={onDelete}
+      />,
+    );
+    fireEvent.press(getByLabelText('このメモを削除'));
+    expect(onDelete).toHaveBeenCalledTimes(1);
+  });
 });
