@@ -642,6 +642,39 @@ describe('ChainDetail', () => {
     expect(queryByText(/累計/)).toBeNull();
   });
 
+  // Issue #190: 左の SVG ドット (spine カラム) は pointerEvents="none" で親 Pressable が
+  // 受けるべきタップを吸ってしまう。 Pressable 自体は paddingLeft=40 (SPINE_COLUMN_WIDTH+12)
+  // の内側から始まるため、 ドット位置 (x≈9) はどの touchable にも属さず「タップしても
+  // 反応しない」死角になっていた。 hitSlop.left で touchable を左に拡張してドットまで
+  // カバーする (レイアウトは変えない = 視覚的な密度を保つ)。
+  describe('Issue #190: ノードタップの hitSlop がドット領域までカバーする', () => {
+    test('NodeRow Pressable の hitSlop.left が spine カラム分以上ある (ドット位置 ~x=9 をカバー)', () => {
+      const { getByLabelText } = renderScreen();
+      const pressable = getByLabelText('水を飲む');
+      const hitSlop = pressable.props.hitSlop;
+      expect(hitSlop).toBeDefined();
+      // SPINE_COLUMN_WIDTH (28) + contentRow paddingLeft の gap (12) = 40 を最低カバーし、
+      // ドット (cx=9, r=7) の左端まで touchable 範囲を伸ばす。
+      const left = typeof hitSlop === 'number' ? hitSlop : hitSlop?.left;
+      expect(left).toBeGreaterThanOrEqual(40);
+    });
+
+    test('達成済みノードの Pressable も同じ hitSlop を持つ (状態問わずタップ可能)', () => {
+      const { getByLabelText } = renderScreen({ n1: true });
+      const pressable = getByLabelText('水を飲む');
+      const hitSlop = pressable.props.hitSlop;
+      const left = typeof hitSlop === 'number' ? hitSlop : hitSlop?.left;
+      expect(left).toBeGreaterThanOrEqual(40);
+    });
+
+    test('hitSlop 拡張後もタップ → onToggleNode が該当 nodeId で発火する (既存挙動非破壊)', () => {
+      const onToggleNode = jest.fn();
+      const { getByLabelText } = renderScreen({}, onToggleNode);
+      fireEvent.press(getByLabelText('水を飲む'));
+      expect(onToggleNode).toHaveBeenCalledWith('n1');
+    });
+  });
+
   // ADR-0044 (#181): ノード行の長押しで手動メモ導線 (onNoteLongPress) が発火する。
   test('ADR-0044: ノード行を長押しすると onNoteLongPress が該当 nodeId で呼ばれる', () => {
     const onNoteLongPress = jest.fn();
