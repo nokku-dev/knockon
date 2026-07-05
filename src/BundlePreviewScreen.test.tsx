@@ -18,14 +18,12 @@ const preview: CategoryPreview = {
       actionId: 'act-brush-teeth',
       title: '歯磨き',
       timerSeconds: null,
-      optional: false,
     },
     {
       key: 'act-weigh',
       actionId: 'act-weigh',
       title: '体重計',
       timerSeconds: null,
-      optional: true,
     },
   ],
 };
@@ -47,9 +45,9 @@ describe('BundlePreviewScreen (ADR-0039 新カテゴリモデル)', () => {
     expect(getByText('体重計')).toBeTruthy();
   });
 
-  test('optional アイテムは「任意」タグを持つ', () => {
-    const { getByText } = render(<BundlePreviewScreen {...baseProps} />);
-    expect(getByText('任意')).toBeTruthy();
+  test('「任意」ラベルは表示されない (#191)', () => {
+    const { queryByText } = render(<BundlePreviewScreen {...baseProps} />);
+    expect(queryByText('任意')).toBeNull();
   });
 
   test('アイテムタップで onToggleItem が該当 key で呼ばれる', () => {

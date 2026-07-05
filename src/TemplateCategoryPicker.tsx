@@ -240,7 +240,6 @@ export const TemplateCategoryPicker = ({
                 {checked && <Text style={styles.checkboxMark}>✓</Text>}
               </View>
               <Text style={styles.actionTitle}>{item.title}</Text>
-              {item.optional && <Text style={styles.optionalTag}>任意</Text>}
             </Pressable>
           );
         })}
@@ -353,7 +352,6 @@ const styles = StyleSheet.create({
   checkboxChecked: { backgroundColor: COLOR_GROW, borderColor: COLOR_GROW },
   checkboxMark: { color: COLOR_BG, fontSize: 14, fontWeight: '700' },
   actionTitle: { color: COLOR_FG, fontSize: 15, flex: 1 },
-  optionalTag: { color: COLOR_FG_FAINT, fontSize: 11 },
   footer: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
   submitBtn: {
     backgroundColor: COLOR_GROW,
