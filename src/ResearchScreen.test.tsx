@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 
 import { ResearchScreen } from './ResearchScreen';
@@ -92,5 +93,82 @@ describe('ResearchScreen', () => {
     expect(queryByLabelText('メモ入力')).toBeNull();
     fireEvent.press(getByLabelText('メモを追加'));
     expect(getByLabelText('メモ入力')).toBeTruthy();
+  });
+
+  // Issue #200: 削除導線を編集モーダル内のボタンに集約 (発見性向上 + 意味論対称化)。
+  describe('メモ削除フロー (#200)', () => {
+    it('カードをタップすると編集モーダルが開き、そこに「このメモを削除」が出る', () => {
+      const { getByText, getByLabelText } = render(
+        <ResearchScreen
+          notes={[makeNote({ content: '既存メモ' })]}
+          chainOptions={CHAIN_OPTIONS}
+          onAddNote={noop}
+          onEditNote={noop}
+          onDeleteNote={noop}
+        />,
+      );
+      fireEvent.press(getByText('既存メモ'));
+      expect(getByLabelText('このメモを削除')).toBeTruthy();
+    });
+
+    it('作成モード (FAB 起点) では「このメモを削除」を表示しない', () => {
+      const { getByLabelText, queryByLabelText } = render(
+        <ResearchScreen
+          notes={[]}
+          chainOptions={CHAIN_OPTIONS}
+          onAddNote={noop}
+          onEditNote={noop}
+          onDeleteNote={noop}
+        />,
+      );
+      fireEvent.press(getByLabelText('メモを追加'));
+      expect(queryByLabelText('このメモを削除')).toBeNull();
+    });
+
+    it('削除ボタン → Alert 表示 → 「削除」確定で onDeleteNote が呼び出される', () => {
+      const onDeleteNote = jest.fn();
+      const alertSpy = jest
+        .spyOn(Alert, 'alert')
+        .mockImplementation((_title, _msg, buttons) => {
+          // buttons[0] = キャンセル (style='cancel'), buttons[1] = 削除 (style='destructive')。
+          const destructive = buttons?.[1];
+          destructive?.onPress?.();
+        });
+      const { getByText, getByLabelText } = render(
+        <ResearchScreen
+          notes={[makeNote({ id: 'note-del', content: '消すメモ' })]}
+          chainOptions={CHAIN_OPTIONS}
+          onAddNote={noop}
+          onEditNote={noop}
+          onDeleteNote={onDeleteNote}
+        />,
+      );
+      fireEvent.press(getByText('消すメモ'));
+      fireEvent.press(getByLabelText('このメモを削除'));
+      expect(alertSpy).toHaveBeenCalled();
+      expect(onDeleteNote).toHaveBeenCalledWith('note-del');
+      alertSpy.mockRestore();
+    });
+
+    // 回帰防止: カード長押しでの削除経路は撤去済み。 長押しで削除が発火しないことを固定する。
+    // (Today アクション長押し = メモ作成 と意味論を対称化するため #200 で削除経路を 1 本化)。
+    it('カード長押しでは削除 Alert が発火しない (長押し撤去の回帰防止)', () => {
+      const alertSpy = jest
+        .spyOn(Alert, 'alert')
+        .mockImplementation(() => undefined);
+      const { getByText } = render(
+        <ResearchScreen
+          notes={[makeNote({ content: '長押ししてみる' })]}
+          chainOptions={CHAIN_OPTIONS}
+          onAddNote={noop}
+          onEditNote={noop}
+          onDeleteNote={noop}
+        />,
+      );
+      // React Native Testing Library の longPress イベント。 撤去後は何も起きない。
+      fireEvent(getByText('長押ししてみる'), 'longPress');
+      expect(alertSpy).not.toHaveBeenCalled();
+      alertSpy.mockRestore();
+    });
   });
 });
