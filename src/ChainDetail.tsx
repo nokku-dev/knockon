@@ -74,11 +74,17 @@ export type ChainDetailProps = {
 
 const SPINE_X = 9;
 const SPINE_COLUMN_WIDTH = 28;
+const CONTENT_ROW_PADDING_LEFT = SPINE_COLUMN_WIDTH + 12;
 const ANCHOR_ROW_HEIGHT = 36;
 const NODE_ROW_HEIGHT = 44;
 const MARKER_RADIUS = 7;
 const ANCHOR_DOT_RADIUS = 4;
 const SPINE_STROKE = 2;
+// Issue #190: 左の SVG ドットは pointerEvents="none" 越しに描かれるため、
+// ドット位置 (cx=SPINE_X≈9) は Pressable の layout box (paddingLeft=40 の内側) から外れ、
+// 「見た目のドットを押しても達成トグルが発火しない」死角になっていた。 hitSlop で
+// touchable を左に拡張してドット領域までカバーする (layout は変えない = 密度を保つ)。
+const NODE_HIT_SLOP_LEFT = CONTENT_ROW_PADDING_LEFT;
 
 // セレブレーション (PR-1.9): DESIGN-SYSTEM §4.3 達成ジェスチャ 1 セット。
 const KNOCK_DURATION_MS = 320;
@@ -376,6 +382,8 @@ const NodeRow = ({
         accessibilityState={{ checked: achieved }}
         accessibilityLabel={actionTitle}
         accessibilityHint={onLongPress ? '長押しでメモを追加' : undefined}
+        // Issue #190: 左の SVG ドット (cx=SPINE_X) を touchable 範囲に含める。
+        hitSlop={{ left: NODE_HIT_SLOP_LEFT }}
         // Issue #188: 長押し中の押下フィードバック (= 長押しメモ動線の発見性向上)。
         // onLongPress が定義されているときのみ opacity を落として「押されている」ことを
         // 視覚化する。 機能が無いノードでフィードバックを出すと「何かある」と誤誘導するため、
