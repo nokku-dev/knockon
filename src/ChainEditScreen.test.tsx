@@ -333,7 +333,7 @@ describe('ChainEditScreen', () => {
     expect(queryByLabelText('テンプレから追加')).toBeNull();
   });
 
-  test('カテゴリ選択 → 全件 追加 で onAddNodesFromCategory が全アイテムで呼ばれる', () => {
+  test('カテゴリ選択 → 全件 追加 で onAddNodesFromCategory が defaultOn=true アイテムで呼ばれる (#191)', () => {
     const onAddNodesFromCategory = jest.fn();
     const { getByLabelText } = render(
       <ChainEditScreen
@@ -347,13 +347,13 @@ describe('ChainEditScreen', () => {
     );
     fireEvent.press(getByLabelText('テンプレから追加'));
     fireEvent.press(getByLabelText('カテゴリ「水分・健康」を開く'));
-    fireEvent.press(getByLabelText('3件を追加'));
+    // 体重計 (defaultOn=false) は #191 で非表示 → 2 件のみ
+    fireEvent.press(getByLabelText('2件を追加'));
     expect(onAddNodesFromCategory).toHaveBeenCalledTimes(1);
     const [items] = onAddNodesFromCategory.mock.calls[0];
     expect(items).toEqual([
       { actionTitle: '水を飲む', timerSeconds: null },
       { actionTitle: '歯磨き', timerSeconds: null },
-      { actionTitle: '体重計', timerSeconds: null },
     ]);
   });
 
@@ -371,9 +371,8 @@ describe('ChainEditScreen', () => {
     );
     fireEvent.press(getByLabelText('テンプレから追加'));
     fireEvent.press(getByLabelText('カテゴリ「水分・健康」を開く'));
-    // 「歯磨き」と「体重計」を外す → 「水を飲む」だけ残る
+    // 「歯磨き」を外す → 「水を飲む」だけ残る (体重計は #191 で非表示)
     fireEvent.press(getByLabelText('アクション「歯磨き」'));
-    fireEvent.press(getByLabelText('アクション「体重計」'));
     fireEvent.press(getByLabelText('1件を追加'));
     expect(onAddNodesFromCategory).toHaveBeenCalledTimes(1);
     const [items] = onAddNodesFromCategory.mock.calls[0];

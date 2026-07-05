@@ -125,7 +125,7 @@ describe('TemplateCategoryPicker — step 1 (索引)', () => {
 });
 
 describe('TemplateCategoryPicker — step 2 (アクション個別選択)', () => {
-  test('genre カテゴリを開くと所属アクションが position 順で並ぶ', () => {
+  test('genre カテゴリを開くと defaultOn=true のアクションが position 順で並ぶ (#191)', () => {
     const { getByLabelText, queryByLabelText } = render(
       <TemplateCategoryPicker
         {...baseProps}
@@ -136,12 +136,13 @@ describe('TemplateCategoryPicker — step 2 (アクション個別選択)', () =
     fireEvent.press(getByLabelText('カテゴリ「水分・健康」を開く'));
     expect(getByLabelText('アクション「水を飲む」')).toBeTruthy();
     expect(getByLabelText('アクション「歯磨き」')).toBeTruthy();
-    expect(getByLabelText('アクション「体重計」')).toBeTruthy();
+    // 「体重計」は defaultOn=false (旧「任意」) なので非表示 (#191)
+    expect(queryByLabelText('アクション「体重計」')).toBeNull();
     // 別カテゴリのアクションは出ない
     expect(queryByLabelText('アクション「ストレッチ」')).toBeNull();
   });
 
-  test('genre: 初期は全アイテム選択済み (任意も含む)', () => {
+  test('genre: 初期は全アイテム選択済み', () => {
     const { getByLabelText } = render(
       <TemplateCategoryPicker
         {...baseProps}
@@ -156,13 +157,10 @@ describe('TemplateCategoryPicker — step 2 (アクション個別選択)', () =
     expect(
       getByLabelText('アクション「歯磨き」').props.accessibilityState?.checked,
     ).toBe(true);
-    expect(
-      getByLabelText('アクション「体重計」').props.accessibilityState?.checked,
-    ).toBe(true);
   });
 
-  test('genre: defaultOn=false アクションには「任意」タグが付く', () => {
-    const { getByLabelText, getAllByText } = render(
+  test('genre: 「任意」ラベルは表示されない (#191)', () => {
+    const { getByLabelText, queryByText } = render(
       <TemplateCategoryPicker
         {...baseProps}
         onSelect={() => {}}
@@ -170,8 +168,7 @@ describe('TemplateCategoryPicker — step 2 (アクション個別選択)', () =
       />,
     );
     fireEvent.press(getByLabelText('カテゴリ「水分・健康」を開く'));
-    // 「体重計」は任意。リスト内に「任意」タグが少なくとも 1 つ。
-    expect(getAllByText('任意').length).toBeGreaterThan(0);
+    expect(queryByText('任意')).toBeNull();
   });
 
   test('recommended カテゴリを開くと順序つき・重複ありで並ぶ', () => {
@@ -233,8 +230,8 @@ describe('TemplateCategoryPicker — step 2 (アクション個別選択)', () =
       />,
     );
     fireEvent.press(getByLabelText('カテゴリ「水分・健康」を開く'));
-    // タップは「歯磨き → 水を飲む」順だが追加順は position 昇順
-    fireEvent.press(getByLabelText('アクション「体重計」')); // 体重計を外す
+    // 「水を飲む」「歯磨き」の 2 件が defaultOn=true として表示され position 昇順で追加される
+    // (「体重計」は #191 で非表示)
     fireEvent.press(getByLabelText('2件を追加'));
     const [items] = onSelect.mock.calls[0];
     expect(items.map((i: { actionTitle: string }) => i.actionTitle)).toEqual([

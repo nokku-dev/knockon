@@ -62,7 +62,6 @@ export const BundlePreviewScreen = ({
             <Text style={[styles.itemTitle, !checked && styles.itemTitleOff]}>
               {item.title}
             </Text>
-            {item.optional && <Text style={styles.optionalTag}>任意</Text>}
           </Pressable>
         );
       })}
@@ -105,7 +104,6 @@ const styles = StyleSheet.create({
   markerOn: { color: COLOR_GROW },
   itemTitle: { color: COLOR_FG, fontSize: 15, flex: 1 },
   itemTitleOff: { color: COLOR_FG_SOFT },
-  optionalTag: { color: COLOR_FG_FAINT, fontSize: 11 },
   footer: {
     padding: 16,
     borderTopWidth: 0.5,

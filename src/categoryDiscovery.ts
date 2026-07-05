@@ -23,7 +23,6 @@ export type AdoptItem = {
   actionId: string;
   title: string;
   timerSeconds: number | null;
-  optional: boolean; // genre: 「(任意)」= !defaultOn の表示ヒント / recommended: 常に false。
 };
 
 export type CategoryPreview = {
@@ -50,12 +49,14 @@ export const listRecommendedCategories = (
     .sort((a, b) => a.orderIndex - b.orderIndex);
 
 // genre カテゴリ → プレビュー。所属アクションを position 昇順で AdoptItem 化する。
+// #191: `defaultOn=false` (旧「(任意)」ラベル対象) は「意味が伝わりにくい」ため
+// プレビューから除外する。DB 側の defaultOn 列は保持 (後で判断を覆せる余地を残す)。
 export const buildGenrePreview = (
   category: Category,
   actions: readonly CatalogAction[],
 ): CategoryPreview => {
   const items = actions
-    .filter((a) => a.categoryId === category.id)
+    .filter((a) => a.categoryId === category.id && a.defaultOn)
     .slice()
     .sort((a, b) => a.position - b.position)
     .map(
@@ -64,7 +65,6 @@ export const buildGenrePreview = (
         actionId: a.id,
         title: a.title,
         timerSeconds: a.timerSeconds,
-        optional: !a.defaultOn,
       }),
     );
   return { category, items };
@@ -90,7 +90,6 @@ export const buildRecommendedPreview = (
         actionId: action.id,
         title: action.title,
         timerSeconds: action.timerSeconds,
-        optional: false,
       };
     })
     .filter((i): i is AdoptItem => i !== null);
