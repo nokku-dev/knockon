@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { MetricsSection } from './MetricsSection';
@@ -55,61 +56,84 @@ export const AnalyticsScreen = ({
   metricsTrendDates,
   onRetractSettlement,
   footer,
-}: AnalyticsScreenProps) => (
-  <ScrollView contentContainerStyle={styles.scroll}>
-    <Text style={styles.heading}>ログ</Text>
-    {/* 定着 N・育成中 M カウント (単調増加の Celebrate 主役)。 これから (fresh) は
-        カウントに出さない = 未着手を数字で指差さない。 */}
-    <Text
-      style={styles.counts}
-      accessibilityLabel={`定着 ${counts.settled}・育成中 ${counts.growing}`}
-    >
-      <Text style={styles.countSettled}>定着 {counts.settled}</Text>
-      <Text style={styles.countSep}>・</Text>
-      <Text style={styles.countGrowing}>育成中 {counts.growing}</Text>
-    </Text>
+}: AnalyticsScreenProps) => {
+  // ステージ群は開閉可能 (数が増えても畳める・ユーザー判断)。 初期は全グループ畳む
+  // (= 見出し + 件数だけ並ぶコンパクト表示、 見たいステージをタップで開く)。 開閉状態は
+  // ローカル state (= app config でも観測データでもない一時的 UI 状態、 永続化しない)。
+  const [collapsed, setCollapsed] = useState<Record<SettlementStage, boolean>>({
+    settled: true,
+    growing: true,
+    fresh: true,
+  });
+  const toggle = (stage: SettlementStage) =>
+    setCollapsed((c) => ({ ...c, [stage]: !c[stage] }));
 
-    {nodes.length === 0 ? (
-      <Text style={styles.empty}>
-        まだ定着ポートフォリオに載るノードがありません。 {'\n'}
-        チェーンタブでアクションを作り、 Today で積み上げていくと、 {'\n'}
-        ここに「これから / 育成中 / 定着」が並びます。
+  return (
+    <ScrollView contentContainerStyle={styles.scroll}>
+      <Text style={styles.heading}>ログ</Text>
+      {/* 定着 N・育成中 M カウント (単調増加の Celebrate 主役)。 これから (fresh) は
+          カウントに出さない = 未着手を数字で指差さない。 */}
+      <Text
+        style={styles.counts}
+        accessibilityLabel={`定着 ${counts.settled}・育成中 ${counts.growing}`}
+      >
+        <Text style={styles.countSettled}>定着 {counts.settled}</Text>
+        <Text style={styles.countSep}>・</Text>
+        <Text style={styles.countGrowing}>育成中 {counts.growing}</Text>
       </Text>
-    ) : (
-      STAGE_ORDER.map((stage) => {
-        const group = nodes.filter((n) => n.stage === stage);
-        if (group.length === 0) return null;
-        return (
-          <View key={stage} style={styles.group}>
-            <Text
-              style={styles.groupHead}
-              accessibilityLabel={`${STAGE_LABEL[stage]} ${group.length} 件`}
-            >
-              {STAGE_LABEL[stage]}
-            </Text>
-            {group.map((n) => (
-              <PortfolioNodeRow
-                key={`${n.chainId}:${n.nodeId}`}
-                node={n}
-                onRetractSettlement={onRetractSettlement}
-              />
-            ))}
-          </View>
-        );
-      })
-    )}
 
-    {metricsSeries && onAddMetric && (
-      <MetricsSection
-        series={metricsSeries}
-        onAddMetric={onAddMetric}
-        onEditKinds={onEditKinds}
-        trendDates={metricsTrendDates}
-      />
-    )}
-    {footer}
-  </ScrollView>
-);
+      {nodes.length === 0 ? (
+        <Text style={styles.empty}>
+          まだ定着ポートフォリオに載るノードがありません。 {'\n'}
+          チェーンタブでアクションを作り、 Today で積み上げていくと、 {'\n'}
+          ここに「これから / 育成中 / 定着」が並びます。
+        </Text>
+      ) : (
+        STAGE_ORDER.map((stage) => {
+          const group = nodes.filter((n) => n.stage === stage);
+          if (group.length === 0) return null;
+          const isCollapsed = collapsed[stage];
+          return (
+            <View key={stage} style={styles.group}>
+              <Pressable
+                testID={`portfolio-group-${stage}`}
+                onPress={() => toggle(stage)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: !isCollapsed }}
+                accessibilityLabel={`${STAGE_LABEL[stage]} ${group.length} 件`}
+                style={styles.groupHeadRow}
+              >
+                <Text style={styles.groupChevron}>
+                  {isCollapsed ? '▸' : '▾'}
+                </Text>
+                <Text style={styles.groupHead}>{STAGE_LABEL[stage]}</Text>
+                <Text style={styles.groupCount}>{group.length}</Text>
+              </Pressable>
+              {!isCollapsed &&
+                group.map((n) => (
+                  <PortfolioNodeRow
+                    key={`${n.chainId}:${n.nodeId}`}
+                    node={n}
+                    onRetractSettlement={onRetractSettlement}
+                  />
+                ))}
+            </View>
+          );
+        })
+      )}
+
+      {metricsSeries && onAddMetric && (
+        <MetricsSection
+          series={metricsSeries}
+          onAddMetric={onAddMetric}
+          onEditKinds={onEditKinds}
+          trendDates={metricsTrendDates}
+        />
+      )}
+      {footer}
+    </ScrollView>
+  );
+};
 
 const PortfolioNodeRow = ({
   node,
@@ -181,11 +205,27 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   group: { marginBottom: 20 },
+  groupHeadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+  },
+  groupChevron: {
+    color: COLOR_FG_FAINT,
+    fontSize: 12,
+    width: 14,
+  },
   groupHead: {
     color: COLOR_FG,
     fontSize: 14,
     fontWeight: '700',
-    marginBottom: 8,
+  },
+  groupCount: {
+    color: COLOR_FG_FAINT,
+    fontSize: 13,
+    fontWeight: '400',
+    fontVariant: ['tabular-nums'],
   },
   nodeRow: {
     backgroundColor: COLOR_SURFACE,
