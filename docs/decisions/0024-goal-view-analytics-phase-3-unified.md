@@ -152,3 +152,5 @@ PR-Z1 単独で「チェーン詳細 + 定着」(= 元の Phase 3 スコープ) 
 - **定着判定の閾値決定**: PR-Z1 で実数値を決めるが、検証で違和感あれば再調整 ([K-014](../../KNOWLEDGE.md): 実機 → SPEC 改訂は正規ルート)
 - **分析タブの追加は禁止 UI に該当しないか確認**: streak 表示 / 格子 / ヒートマップ / 弱い輪の指差し は引き続き禁止 ([CLAUDE.md §5](../../CLAUDE.md))
 - **PR-Z3b 後 Notion datasource 名は CLAUDE.local.md (gitignore) に閉じる**: 本番リポに secret を含めない
+
+- **追記 (ADR-0047)**: 分析 IA が「達成率ダッシュボード」から「**定着ポートフォリオ**」に組み替えられた ([ADR-0047](./0047-settlement-lifecycle-and-log-portfolio.md))。達成率グラフは撤去、60D マトリクス ([ADR-0037](./0037-analytics-date-matrix.md)) は存置し定着バンド派生描画を追加、メトリクス節は別軸で存置。0024 が確定した「メトリクスは任意 + 疎結合 + read-only」構造は維持。

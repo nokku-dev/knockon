@@ -94,3 +94,4 @@ Issue #103 で Today カード (チェーン単位) と ChainDetail ノード行
 - **実装レビューのガードレール更新**: 今後「Today / 分析に連続日数の数字を出す」提案は本 ADR で弾く。再導入したい場合は本 ADR を supersede する新 ADR が必要。
 - **関連 Issue #115 (分析マトリクス)**: マトリクス上でも streak の数字・色強調は載せない、という前提を本 ADR が固定する。
 - **追補 (#174)**: 上記「一般原則: 失われうるか (+/-) 判定基準」セクションを追加し、レビュー観点と過去判断対応表を本 ADR 内で機械的に参照できるようにした。`src/onboardingChecklist.ts` / `src/OnboardingChecklistCard.tsx` / `src/TodayScreen.tsx` のコードコメントが既に「ADR-0036 +/- 判定基準」と参照していた前提を、ADR 本文側で正規化した位置づけ ([SPEC.md](../../SPEC.md) §3 / [CLAUDE.md](../../CLAUDE.md) §4 / [KNOWLEDGE.md](../../KNOWLEDGE.md) K-038 と同期)。
+- **追補 (ADR-0047)**: 分析タブの**達成率グラフ (= 比率)** を [ADR-0047](./0047-settlement-lifecycle-and-log-portfolio.md) で撤去し、定着ポートフォリオに組み替えた。達成率は本 ADR §一般原則の「(−) 失われうる指標 (比率)」に該当しており、撤去は本原則への収束 (潜在矛盾の解消)。定着ポートフォリオの主指標「定着 N 個」は単調増加 (+) で本判定軸に適合。

@@ -70,3 +70,4 @@ Issue #142 で「やるだけ増える / リセットされない累計」を To
 - **PR #152 で残るのは「全体累計」のみ**: 「単位の表記」と「ノード単位の有無」が異なる Issue #142 の最終形を本 ADR で固定する。
 - **撤回時の対称義務 (ADR-0036 継承)**: 将来本案 (= 全体累計の表示も含めて累計表示そのものを撤回する) を撤回するなら、`countAchievedBefore` / `countAchievedInMap` / TodayScreen の累計表示 / `TodayData.achievedBeforeToday` / `useTodayData.ts` の集計コード / SPEC §3 / DESIGN-SYSTEM §0 の追記文を **同時に削除する**ことを本 ADR で予約する。
 - **関連 ADR との関係**: ADR-0036 (連続日数の非表示) と並立し、面別の数字表示ルールを確立する — Today で出すのは「アプリ全体としての単調増加な総和」のみ、ノード単位の数値評価は分析ビューに、連続性を煽る数字は出さない、の 3 点で完結。
+- **追記 (ADR-0047)**: 定着ポートフォリオ ([ADR-0047](./0047-settlement-lifecycle-and-log-portfolio.md)) で Celebrate 主役に「**定着 N 個**」が加わる。累計達成 N 個 (本 ADR・実タップベース) と併存し、両方とも単調増加 (+) で [ADR-0036](./0036-rescind-today-streak-display.md) 判定軸に適合。累計 = 実行の総和、定着 = 根付いた数、と別軸を見せる (どちらも失われない)。
