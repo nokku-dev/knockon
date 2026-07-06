@@ -10,6 +10,8 @@ superseded-by: []
 
 # 研究画面の手動メモ — `notes` データ軸の追加 (node_id 単一 nullable / ON DELETE SET NULL)
 
+> **[ADR-0049](0049-exclude-research-tab-from-release-scope.md) による部分改訂**: 研究タブ自体は v1 リリースでは `href: null` で **非表示** (リリーススコープ外)。本 ADR の `notes` データモデル・Today 長押しメモ作成・`ON DELETE SET NULL` は維持され、メモは保存され続ける (一覧表示のみ研究タブ再有効化まで見えない)。
+
 ## 文脈
 
 Issue #181 (Graft POST 01KVW1200H744PTEP41JE7SDG5): 研究タブ (#175 で空スケルトン追加済み)
