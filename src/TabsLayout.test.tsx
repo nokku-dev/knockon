@@ -1,8 +1,8 @@
 import { render } from '@testing-library/react-native';
 
-// ADR-0047: ログタブを定着ポートフォリオへ組み替え、 リリーススコープに復帰
-// (#194 / ADR-0045 の href: null 非表示を反転)。 4 タブ (Today / チェーン / ログ / 研究)
-// すべて可視であることを機械検証する。
+// ADR-0047: ログタブを定着ポートフォリオへ組み替えリリースに復帰 (href: null 撤去)。
+// ADR-0049: 研究 (メモ) タブをリリーススコープから除外 (href: null で非表示)。
+// → リリース時の可視タブは Today / チェーン / ログ の 3 本。研究は href: null。
 // expo-router の Tabs.Screen に渡る props を記録して可視/非表示を機械検証する。
 
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
@@ -38,14 +38,20 @@ describe('TabsLayout タブ可視性 (#194)', () => {
     render(<TabsLayout />);
   });
 
-  it('ログ (分析) タブは可視に復帰 (ADR-0047 で href: null を撤去)', () => {
+  it('ログ (分析) タブは可視 (ADR-0047 で href: null を撤去)', () => {
     const analytics = screenCalls.find((c) => c.name === 'analytics');
     expect(analytics).toBeDefined();
     expect(analytics?.options?.href).toBeUndefined();
   });
 
-  it('Today / チェーン / ログ / 研究 の 4 タブすべて可視 (href を潰さない)', () => {
-    for (const name of ['index', 'chains', 'analytics', 'research']) {
+  it('研究タブは href: null で非表示 (ADR-0049 リリーススコープ除外)', () => {
+    const research = screenCalls.find((c) => c.name === 'research');
+    expect(research).toBeDefined();
+    expect(research?.options?.href).toBeNull();
+  });
+
+  it('リリース時の可視タブは Today / チェーン / ログ の 3 本 (href を潰さない)', () => {
+    for (const name of ['index', 'chains', 'analytics']) {
       const opts = optionsFor(name);
       expect(opts).toBeDefined();
       expect(opts?.href).toBeUndefined();

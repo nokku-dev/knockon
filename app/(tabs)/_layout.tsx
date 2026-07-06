@@ -55,7 +55,12 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="research"
         options={{
-          // #175 (PR-A): 研究タブ新設。 当面は固定文言の空スケルトン。
+          // ADR-0049: 研究 (メモ) タブをリリーススコープから除外 (href: null で非表示)。
+          // 自動インサイトは未実装で、 手動メモ一覧はコア体験 (If-Then チェーン + Today) の
+          // 外側のため、 ミニマルリリースに絞る (ADR-0045 と同型の非破壊・無移行の隠し)。
+          // ルート/画面コード・notes データモデルは残す。 Today 長押しのメモ作成も残る
+          // (書けるが一覧は再有効化まで見えない)。 出荷後は href: null を外す 1 行で復帰。
+          href: null,
           title: '研究',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bulb-outline" color={color} size={size} />
