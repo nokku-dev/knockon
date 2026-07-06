@@ -6,12 +6,14 @@ import {
   countSettlementStages,
   effectiveTodayIsoDate,
   nodeSettlementStage,
+  settlementStageMovements,
 } from './domain';
 import type {
   Achievement,
   IsoDate,
   SettlementStage,
   SettlementStageCounts,
+  SettlementStageMovements,
 } from './domain';
 import {
   getAction,
@@ -39,8 +41,10 @@ export type SettlementPortfolioNode = {
 
 export type AnalyticsData = {
   today: IsoDate;
-  // 上部カウント (単調増加の Celebrate 主役)。 fresh も持つが画面は「定着 N・育成中 M」だけ出す。
+  // 上部カウント (クロス断面スナップショット)。 fresh も持つが画面は定着/もう少し/育成中を出す。
   counts: SettlementStageCounts;
+  // 先週からの流入数 (定着入り / もう少しで定着入り・Celebrate フロー)。
+  movements: SettlementStageMovements;
   nodes: SettlementPortfolioNode[];
 };
 
@@ -85,14 +89,23 @@ const loadAnalytics = async (): Promise<AnalyticsData> => {
     }
   }
 
+  const allPortfolioNodeIds = portfolioNodes.map((n) => n.nodeId);
   const counts = countSettlementStages(
-    portfolioNodes.map((n) => n.nodeId),
+    allPortfolioNodeIds,
     allRecords,
     retractions,
     today,
   );
+  // 先週 (7 日前) から定着 / もう少しで定着へ入った個数 (流入・Celebrate フロー)。
+  const movements = settlementStageMovements(
+    allPortfolioNodeIds,
+    allRecords,
+    retractions,
+    today,
+    7,
+  );
 
-  return { today, counts, nodes: portfolioNodes };
+  return { today, counts, movements, nodes: portfolioNodes };
 };
 
 export type UseAnalyticsDataResult = {

@@ -48,6 +48,7 @@ export default function AnalyticsTab() {
         <AnalyticsScreen
           today={data.today}
           counts={data.counts}
+          movements={data.movements}
           nodes={data.nodes}
           onRetractSettlement={(_chainId, nodeId) => retract(nodeId)}
           metricsSeries={metrics.data?.series}
