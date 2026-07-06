@@ -524,3 +524,108 @@ export const isNodeEstablished = (
   );
   return count >= minAchievedDays;
 };
+
+// ── 定着ライフサイクル (ADR-0047) ──────────────────────────────────────────
+// 定着を「生涯マイルストーン (latch)」として派生する。isNodeEstablished (14D ローリング)
+// との違い: 一度バーに到達したら以後も定着扱い (崩れうる (−) を排し Celebrate 主と整合)。
+// システムは降格させない。ユーザーの「取り下げ」だけが定着をリセットできる (観測事実軸)。
+
+// 定着取り下げ = ユーザーが「最近やれてない」と感じたときに定着を取り下げる観測事実。
+// 正準データの 5 軸目 (achievements / anchor_firings / metrics / notes に続く)。
+// retractedAt: ISO-like 文字列 (秒精度)。判定では日付部分 (YYYY-MM-DD) のみ使う。
+export type SettlementRetraction = {
+  nodeId: string;
+  retractedAt: IsoDate;
+};
+
+// これから (未着手) / 育成中 (実タップあり・未定着) / 定着 (latch)。
+export type SettlementStage = 'fresh' | 'growing' | 'settled';
+
+// ノードの最新取り下げ日 (YYYY-MM-DD)。なければ null。
+const lastRetractionDateForNode = (
+  retractions: readonly SettlementRetraction[],
+  nodeId: string,
+): IsoDate | null => {
+  let latest: IsoDate | null = null;
+  for (const r of retractions) {
+    if (r.nodeId !== nodeId) continue;
+    const date = r.retractedAt.slice(0, 10);
+    if (latest === null || date > latest) latest = date;
+  }
+  return latest;
+};
+
+// 定着 (latch): 取り下げ以降に、windowDays 窓で minAchievedDays 以上を満たした窓が
+// 「過去に一度でも」存在するか。履歴は不変なのでこの存在判定は単調増加 (= latch)。
+// auto 達成レコードは書かない (ADR-0047 ハイブリッド) ため achievements は実タップのみ。
+export const isNodeSettled = (
+  achievements: readonly Achievement[],
+  retractions: readonly SettlementRetraction[],
+  nodeId: string,
+  today: IsoDate,
+  options?: EstablishedOptions,
+): boolean => {
+  const windowDays = options?.windowDays ?? DEFAULT_ESTABLISHED_WINDOW_DAYS;
+  const minAchievedDays =
+    options?.minAchievedDays ?? DEFAULT_ESTABLISHED_MIN_ACHIEVED;
+  const lastRetraction = lastRetractionDateForNode(retractions, nodeId);
+  // 取り下げ以降 かつ 今日以前の達成日のみを対象にする。
+  const eligible: IsoDate[] = [];
+  for (const a of achievements) {
+    if (a.nodeId !== nodeId || !a.achieved) continue;
+    if (a.date > today) continue;
+    if (lastRetraction !== null && a.date <= lastRetraction) continue;
+    eligible.push(a.date);
+  }
+  if (eligible.length < minAchievedDays) return false;
+  const eligibleSet = new Set(eligible);
+  // 窓の右端は達成日に置けば WLOG (それ以外へ動かしても達成数は増えない)。
+  for (const end of eligible) {
+    const windowSet = new Set(recentDateRange(end, windowDays));
+    let count = 0;
+    for (const d of eligibleSet) if (windowSet.has(d)) count++;
+    if (count >= minAchievedDays) return true;
+  }
+  return false;
+};
+
+// ステージ分類: 定着 > 育成中 (実タップ ≥1・過去含む) > これから (未着手)。
+// 取り下げ済みノードは過去の実タップが残るため育成中に戻る (fresh には落ちない)。
+export const nodeSettlementStage = (
+  achievements: readonly Achievement[],
+  retractions: readonly SettlementRetraction[],
+  nodeId: string,
+  today: IsoDate,
+  options?: EstablishedOptions,
+): SettlementStage => {
+  if (isNodeSettled(achievements, retractions, nodeId, today, options)) {
+    return 'settled';
+  }
+  for (const a of achievements) {
+    if (a.nodeId === nodeId && a.achieved && a.date <= today) return 'growing';
+  }
+  return 'fresh';
+};
+
+// ポートフォリオ上部のステージ別カウント (単調増加の Celebrate 主役)。
+export type SettlementStageCounts = {
+  fresh: number;
+  growing: number;
+  settled: number;
+};
+
+export const countSettlementStages = (
+  nodeIds: readonly string[],
+  achievements: readonly Achievement[],
+  retractions: readonly SettlementRetraction[],
+  today: IsoDate,
+  options?: EstablishedOptions,
+): SettlementStageCounts => {
+  const counts: SettlementStageCounts = { fresh: 0, growing: 0, settled: 0 };
+  for (const nodeId of nodeIds) {
+    counts[
+      nodeSettlementStage(achievements, retractions, nodeId, today, options)
+    ]++;
+  }
+  return counts;
+};
