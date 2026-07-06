@@ -1,56 +1,104 @@
 import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { LineChart } from './LineChart';
 import { MetricsSection } from './MetricsSection';
 import {
+  COLOR_ACCENT,
   COLOR_FG,
   COLOR_FG_FAINT,
   COLOR_FG_SOFT,
-  COLOR_GROW,
+  COLOR_LINE_BG,
+  COLOR_STAR,
   COLOR_SURFACE,
 } from './tokens';
-import type { IsoDate } from './domain';
-import type { AnalyticsChainData } from './useAnalyticsData';
+import type { IsoDate, SettlementStage, SettlementStageCounts } from './domain';
+import type { SettlementPortfolioNode } from './useAnalyticsData';
 import type { MetricSeries } from './useMetricsData';
 
-// PR-Z2 (ADR-0024 §3b): 達成率ダッシュボード画面。 active な全チェーンを
-// カードで並べ、 各カードに「14D 達成率 (%) + 折れ線グラフ」を表示。
-// streak / 警告色 / 赤い未達アラートは使わない (反 streak / Celebrate 主)。
+// ADR-0047: ログ画面 = 定着ポートフォリオ。 達成率ダッシュボード (= 比率・ADR-0036 の (−)
+// 禁則) から組み替え。 上部に「定着 N・育成中 M」カウント (単調増加の Celebrate 主役)、
+// 本体はステージ別 (定着 / 育成中 / これから) グルーピング一覧で「どれが定着・どれが未定着か」
+// を見せる。 達成率グラフは撤去。 メトリクス節 (身体指標) は別軸で存置。
 
 export type AnalyticsScreenProps = {
-  chains: readonly AnalyticsChainData[];
-  windowDays: number;
+  today: IsoDate;
+  counts: SettlementStageCounts;
+  nodes: readonly SettlementPortfolioNode[];
   metricsSeries?: readonly MetricSeries[];
   onAddMetric?: (metricKey: string, value: number) => Promise<void> | void;
   // PR-CC (ADR-0026): 「種別を編集」ボタン押下動線。 未指定なら非表示。
   onEditKinds?: () => void;
   // #110: メトリクス日別遷移グラフの x 軸日付配列 (14D)。
   metricsTrendDates?: readonly IsoDate[];
-  // #63: 末尾に差し込む追加セクション (日々の詳細)。同じ ScrollView 内に置く。
+  // ADR-0047: 定着ノードの「定着を取り下げる」導線 (Today 長押しメニューと併置・両導線)。
+  onRetractSettlement?: (chainId: string, nodeId: string) => void;
+  // 末尾に差し込む追加セクション (60D マトリクス)。同じ ScrollView 内に置く。
   footer?: ReactNode;
 };
 
+// 表示順: 定着 (Celebrate) を先頭に、 育成中、 これから。 これから (未着手) は指差さない
+// トーンで最後に静かに置く (Celebrate 主 / マイナスを指差さない)。
+const STAGE_ORDER: readonly SettlementStage[] = ['settled', 'growing', 'fresh'];
+const STAGE_LABEL: Record<SettlementStage, string> = {
+  settled: '定着',
+  growing: '育成中',
+  fresh: 'これから',
+};
+
 export const AnalyticsScreen = ({
-  chains,
-  windowDays,
+  today: _today,
+  counts,
+  nodes,
   metricsSeries,
   onAddMetric,
   onEditKinds,
   metricsTrendDates,
+  onRetractSettlement,
   footer,
 }: AnalyticsScreenProps) => (
   <ScrollView contentContainerStyle={styles.scroll}>
-    <Text style={styles.heading}>分析</Text>
-    <Text style={styles.subheading}>過去 {windowDays} 日の達成率</Text>
-    {chains.length === 0 ? (
+    <Text style={styles.heading}>ログ</Text>
+    {/* 定着 N・育成中 M カウント (単調増加の Celebrate 主役)。 これから (fresh) は
+        カウントに出さない = 未着手を数字で指差さない。 */}
+    <Text
+      style={styles.counts}
+      accessibilityLabel={`定着 ${counts.settled}・育成中 ${counts.growing}`}
+    >
+      <Text style={styles.countSettled}>定着 {counts.settled}</Text>
+      <Text style={styles.countSep}>・</Text>
+      <Text style={styles.countGrowing}>育成中 {counts.growing}</Text>
+    </Text>
+
+    {nodes.length === 0 ? (
       <Text style={styles.empty}>
-        アクティブなチェーンがありません。 {'\n'}
-        チェーンタブから新規作成すると、 ここに達成率と推移が表示されます。
+        まだ定着ポートフォリオに載るノードがありません。 {'\n'}
+        チェーンタブでアクションを作り、 Today で積み上げていくと、 {'\n'}
+        ここに「これから / 育成中 / 定着」が並びます。
       </Text>
     ) : (
-      chains.map((c) => <AnalyticsChainCard key={c.chain.id} data={c} />)
+      STAGE_ORDER.map((stage) => {
+        const group = nodes.filter((n) => n.stage === stage);
+        if (group.length === 0) return null;
+        return (
+          <View key={stage} style={styles.group}>
+            <Text
+              style={styles.groupHead}
+              accessibilityLabel={`${STAGE_LABEL[stage]} ${group.length} 件`}
+            >
+              {STAGE_LABEL[stage]}
+            </Text>
+            {group.map((n) => (
+              <PortfolioNodeRow
+                key={`${n.chainId}:${n.nodeId}`}
+                node={n}
+                onRetractSettlement={onRetractSettlement}
+              />
+            ))}
+          </View>
+        );
+      })
     )}
+
     {metricsSeries && onAddMetric && (
       <MetricsSection
         series={metricsSeries}
@@ -63,28 +111,49 @@ export const AnalyticsScreen = ({
   </ScrollView>
 );
 
-const AnalyticsChainCard = ({ data }: { data: AnalyticsChainData }) => {
-  const { chain, anchor, nodeCount, stats, series } = data;
-  // 達成率の rounding 判断: Math.round で四捨五入 (= 99.5% は 100% 表示)。
-  // Celebrate 主の核と整合 (= 達成側に寄せる)、 K-010 同型の暗黙にしない判断。
-  // 切り捨て (Math.floor) に変えると「実態より厳しい表示」となり Augmentation 原則と逆行。
-  const rate =
-    stats.applicableDays === 0
-      ? 0
-      : Math.round((stats.achievedDays / stats.applicableDays) * 100);
+const PortfolioNodeRow = ({
+  node,
+  onRetractSettlement,
+}: {
+  node: SettlementPortfolioNode;
+  onRetractSettlement?: (chainId: string, nodeId: string) => void;
+}) => {
+  const settled = node.stage === 'settled';
+  const confirmRetract = () => {
+    Alert.alert(
+      node.actionTitle,
+      '定着を取り下げると、 再び実行を積んで定着バーを満たすまで育成中に戻ります。',
+      [
+        {
+          text: '定着を取り下げる',
+          style: 'destructive',
+          onPress: () => onRetractSettlement?.(node.chainId, node.nodeId),
+        },
+        { text: 'キャンセル', style: 'cancel' },
+      ],
+    );
+  };
   return (
-    <View style={styles.card} accessibilityLabel={`${chain.title} ${rate}%`}>
-      <View style={styles.cardHead}>
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {chain.title}
+    <View style={styles.nodeRow}>
+      <View style={styles.nodeMain}>
+        <Text style={styles.nodeTitle} numberOfLines={1}>
+          {node.actionTitle}
         </Text>
-        <Text style={styles.cardRate}>{rate}%</Text>
+        <Text style={styles.nodeChain} numberOfLines={1}>
+          {node.chainTitle}
+        </Text>
       </View>
-      <Text style={styles.cardMeta}>
-        {anchor.title} · {nodeCount} ノード · 達成 {stats.achievedDays} /{' '}
-        対象 {stats.applicableDays} 日
-      </Text>
-      <LineChart series={series} width={300} height={64} />
+      {settled && <Text style={styles.nodeStar}>★</Text>}
+      {settled && onRetractSettlement && (
+        <Pressable
+          onPress={confirmRetract}
+          accessibilityRole="button"
+          accessibilityLabel={`${node.actionTitle} の定着を取り下げる`}
+          style={styles.retractBtn}
+        >
+          <Text style={styles.retractBtnText}>取り下げ</Text>
+        </Pressable>
+      )}
     </View>
   );
 };
@@ -96,46 +165,64 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     letterSpacing: -0.5,
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  subheading: {
-    color: COLOR_FG_FAINT,
-    fontSize: 13,
-    marginBottom: 20,
+  counts: {
+    marginBottom: 24,
+    fontSize: 15,
+    fontVariant: ['tabular-nums'],
   },
+  countSettled: { color: COLOR_STAR, fontWeight: '700' },
+  countSep: { color: COLOR_FG_FAINT },
+  countGrowing: { color: COLOR_FG_SOFT, fontWeight: '700' },
   empty: {
     color: COLOR_FG_FAINT,
     fontSize: 14,
     lineHeight: 22,
   },
-  card: {
+  group: { marginBottom: 20 },
+  groupHead: {
+    color: COLOR_FG,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  nodeRow: {
     backgroundColor: COLOR_SURFACE,
     borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    gap: 8,
-  },
-  cardHead: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 8,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
+    alignItems: 'center',
+    gap: 10,
   },
-  cardTitle: {
+  nodeMain: { flex: 1 },
+  nodeTitle: {
     color: COLOR_FG,
-    fontSize: 16,
-    fontWeight: '700',
-    flex: 1,
-    marginRight: 8,
+    fontSize: 15,
+    fontWeight: '600',
   },
-  cardRate: {
-    color: COLOR_GROW,
-    fontSize: 22,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  cardMeta: {
+  nodeChain: {
     color: COLOR_FG_SOFT,
     fontSize: 12,
+    marginTop: 2,
+  },
+  nodeStar: {
+    color: COLOR_STAR,
+    fontSize: 15,
+  },
+  // 取り下げは destructive: 文字色のみ accent、 背景は LINE_BG に抑える
+  // (DESIGN-SYSTEM §1 の destructive action ルール / マイナスを派手にしない)。
+  retractBtn: {
+    backgroundColor: COLOR_LINE_BG,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  retractBtnText: {
+    color: COLOR_ACCENT,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
-

@@ -17,8 +17,15 @@ import { useTodayData } from '../../src/useTodayData';
 import { persistNewNote } from '../../src/useNotesData';
 
 export default function TodayTab() {
-  const { data, error, loading, handleToggle, markNodeAchieved, dismissChecklist } =
-    useTodayData();
+  const {
+    data,
+    error,
+    loading,
+    handleToggle,
+    markNodeAchieved,
+    dismissChecklist,
+    retractSettlement,
+  } = useTodayData();
   // ADR-0044 (#181): Today アクション長押しからのメモ作成。 研究タブの useNotesData と
   // 同じ永続化関数を共有する (= 生成ロジックの二重化回避)。 メモ一覧は研究タブで focus
   // 時に再ロードされるため、 Today 側で再描画する必要はない (= setRefreshTick 不要)。
@@ -93,6 +100,7 @@ export default function TodayTab() {
           checklistAddedAction={data.checklistAddedAction}
           onDismissChecklist={dismissChecklist}
           onAddNote={handleAddNote}
+          onRetractSettlement={retractSettlement}
         />
       )}
     </SafeAreaView>

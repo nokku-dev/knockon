@@ -43,12 +43,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="analytics"
         options={{
-          // #194 (ADR-0045): 分析 (ログ) タブをリリーススコープから除外し、
-          // ミニマルリリースに絞る。 href: null でタブバーから非表示にしつつ、
-          // ルート/コード自体は残す (Today が analyticsDerivation を共有 /
-          // 出荷後に無移行で再有効化できる)。 ADR-0024 の分析取り込みを部分的に覆す。
-          href: null,
-          // #175 (PR-A): 「分析」→「ログ」リネーム時のラベル。 再有効化時に使う。
+          // ADR-0047: ログタブを定着ポートフォリオへ組み替え、 リリーススコープに復帰
+          // (#194 / ADR-0045 の `href: null` 非表示を反転)。 達成率 (= 比率) から
+          // 「定着 N・育成中 M」+ ステージ別一覧に変えたことでリリースに載せる価値が生まれた。
           title: 'ログ',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bar-chart-outline" color={color} size={size} />

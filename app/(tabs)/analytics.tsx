@@ -12,14 +12,16 @@ import { useAnalyticsData } from '../../src/useAnalyticsData';
 import { useDateMatrix } from '../../src/useDateMatrix';
 import { useMetricsData } from '../../src/useMetricsData';
 
-// PR-Z2 (ADR-0024 §3b) + PR-Z3a (§3c) + PR-CC (ADR-0026): 分析タブ。
-// - active チェーンの 14D 達成率カード (Z2)
-// - メトリクス手入力セクション (Z3a、 任意入力)
-// - メトリクス種別の編集モーダル (CC、 ADR-0026)
-// 派生計算のみで動く (永続化は metrics + metric_kinds の観測値のみ、 ADR-0001 維持)。
+// ADR-0047: ログタブ = 定着ポートフォリオ。
+// - active チェーンのノードを「これから / 育成中 / 定着」でグルーピング表示 (率グラフは撤去)
+// - メトリクス手入力セクション (Z3a、 任意入力) / 種別編集モーダル (CC、 ADR-0026)
+// - 60D 達成マトリクス (footer、 #115 / ADR-0037) は存置
+// 派生計算のみで動く (永続化は metrics + metric_kinds + 定着取り下げの観測値のみ、 ADR-0001 維持)。
 
 export default function AnalyticsTab() {
-  const { data, error, loading } = useAnalyticsData();
+  // 定着ポートフォリオ + 「定着を取り下げる」(自前の楽観更新 retract を持つ。 Today の重い
+  // load を巻き込まないためログ側で完結させる)。
+  const { data, error, loading, retract } = useAnalyticsData();
   const metrics = useMetricsData();
   // #115 (ADR-0037): 達成マトリクス (60 日窓)。 ノード × 日付の俯瞰を表示専用で出す。
   // #128: 旧「日々の詳細」(チップ列 + 1 日スナップショット) はマトリクスと重複するため廃止。
@@ -44,8 +46,10 @@ export default function AnalyticsTab() {
         <Text style={styles.error}>{errorMessage}</Text>
       ) : data ? (
         <AnalyticsScreen
-          chains={data.chains}
-          windowDays={data.windowDays}
+          today={data.today}
+          counts={data.counts}
+          nodes={data.nodes}
+          onRetractSettlement={(_chainId, nodeId) => retract(nodeId)}
           metricsSeries={metrics.data?.series}
           onAddMetric={metrics.addMetric}
           onEditKinds={() => setKindsEditorOpen(true)}
