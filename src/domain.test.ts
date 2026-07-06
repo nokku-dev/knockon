@@ -26,6 +26,7 @@ import {
   nodeSettlementStage,
   recentDateRange,
   resolveActionForDate,
+  settlementStageMovements,
   shouldSeed,
   sortChainsForDisplay,
   summarizeVariantDays,
@@ -938,6 +939,85 @@ describe('countSettlementStages (ADR-0047: ポートフォリオ上部のステ�
       [],
       '2026-05-30',
     );
-    expect(counts).toEqual({ fresh: 1, growing: 1, settled: 1 });
+    expect(counts).toEqual({ fresh: 1, growing: 1, almost: 0, settled: 1 });
+  });
+});
+
+// ADR-0047 追補 (#205, 2026-07-07): もう少しで定着 (almost) ステージ + 週次流入数。
+describe('nodeSettlementStage almost (もう少しで定着: 14D 窓で達成 8〜9 日)', () => {
+  // today=2026-05-30 の直近 14D (5/17..5/30) 内に達成日を作る。
+  const recentDays = (n: number): string[] =>
+    Array.from({ length: n }, (_, i) => `2026-05-${String(17 + i).padStart(2, '0')}`);
+
+  it('14D 窓で達成 8 日・未定着 → almost', () => {
+    const records = achievedOn('n1', recentDays(8));
+    expect(nodeSettlementStage(records, [], 'n1', '2026-05-30')).toBe('almost');
+  });
+
+  it('14D 窓で達成 9 日・未定着 → almost', () => {
+    const records = achievedOn('n1', recentDays(9));
+    expect(nodeSettlementStage(records, [], 'n1', '2026-05-30')).toBe('almost');
+  });
+
+  it('14D 窓で達成 7 日 → まだ growing (閾値 8 未満)', () => {
+    const records = achievedOn('n1', recentDays(7));
+    expect(nodeSettlementStage(records, [], 'n1', '2026-05-30')).toBe('growing');
+  });
+
+  it('14D 窓で達成 10 日 → 定着 (almost ではなく settled)', () => {
+    const records = achievedOn('n1', recentDays(10));
+    expect(nodeSettlementStage(records, [], 'n1', '2026-05-30')).toBe('settled');
+  });
+
+  it('取り下げ以降の窓で 8 日なら almost (取り下げ前の達成は算入しない)', () => {
+    // 取り下げ 5/16。 その後 5/17..5/24 の 8 日で almost。
+    const records = achievedOn('n1', recentDays(8));
+    const retractions = [retraction('n1', '2026-05-16T09:00:00')];
+    expect(nodeSettlementStage(records, retractions, 'n1', '2026-05-30')).toBe(
+      'almost',
+    );
+  });
+});
+
+describe('settlementStageMovements (先週からの定着 / もう少しで定着 への流入数)', () => {
+  const recentFrom = (start: number, n: number): string[] =>
+    Array.from({ length: n }, (_, i) => `2026-05-${String(start + i).padStart(2, '0')}`);
+
+  it('今週 latch 定着したノードを intoSettled に数える', () => {
+    // 5/17..5/26 の 10 日で 5/26 に定着到達。 7 日前 (5/23) 時点では未定着。
+    const records = achievedOn('n1', recentFrom(17, 10));
+    const m = settlementStageMovements(['n1'], records, [], '2026-05-30', 7);
+    expect(m.intoSettled).toBe(1);
+    expect(m.intoAlmost).toBe(0);
+  });
+
+  it('先に定着済みで今週も定着のままなら intoSettled に数えない', () => {
+    const records = achievedOn('n1', TEN_DAYS_APRIL); // 4 月に定着済み
+    const m = settlementStageMovements(['n1'], records, [], '2026-05-30', 7);
+    expect(m.intoSettled).toBe(0);
+  });
+
+  it('下位から almost へ上がったノードを intoAlmost に数える', () => {
+    // 5/23..5/30 の 8 日で今 almost。 7 日前 (5/23) では 1 日のみ = growing。
+    const records = achievedOn('n1', recentFrom(23, 8));
+    const m = settlementStageMovements(['n1'], records, [], '2026-05-30', 7);
+    expect(m.intoAlmost).toBe(1);
+    expect(m.intoSettled).toBe(0);
+  });
+
+  it('複数ノードを合算する', () => {
+    const records = [
+      ...achievedOn('s1', recentFrom(17, 10)), // 今週 settled
+      ...achievedOn('a1', recentFrom(23, 8)), // 今週 almost
+      ...achievedOn('g1', ['2026-05-29']), // growing のまま
+    ];
+    const m = settlementStageMovements(
+      ['s1', 'a1', 'g1'],
+      records,
+      [],
+      '2026-05-30',
+      7,
+    );
+    expect(m).toEqual({ intoSettled: 1, intoAlmost: 1 });
   });
 });

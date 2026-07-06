@@ -12,7 +12,12 @@ import {
   COLOR_STAR,
   COLOR_SURFACE,
 } from './tokens';
-import type { IsoDate, SettlementStage, SettlementStageCounts } from './domain';
+import type {
+  IsoDate,
+  SettlementStage,
+  SettlementStageCounts,
+  SettlementStageMovements,
+} from './domain';
 import type { SettlementPortfolioNode } from './useAnalyticsData';
 import type { MetricSeries } from './useMetricsData';
 
@@ -24,6 +29,8 @@ import type { MetricSeries } from './useMetricsData';
 export type AnalyticsScreenProps = {
   today: IsoDate;
   counts: SettlementStageCounts;
+  // ADR-0047 追補: 先週から「定着」「もう少しで定着」へ新たに入った個数 (流入・Celebrate)。
+  movements?: SettlementStageMovements;
   nodes: readonly SettlementPortfolioNode[];
   metricsSeries?: readonly MetricSeries[];
   onAddMetric?: (metricKey: string, value: number) => Promise<void> | void;
@@ -37,11 +44,17 @@ export type AnalyticsScreenProps = {
   footer?: ReactNode;
 };
 
-// 表示順: 定着 (Celebrate) を先頭に、 育成中、 これから。 これから (未着手) は指差さない
-// トーンで最後に静かに置く (Celebrate 主 / マイナスを指差さない)。
-const STAGE_ORDER: readonly SettlementStage[] = ['settled', 'growing', 'fresh'];
+// 表示順: 定着 (Celebrate) を先頭に、 もう少しで定着、 育成中、 これから。 これから (未着手)
+// は指差さないトーンで最後に静かに置く (Celebrate 主 / マイナスを指差さない)。
+const STAGE_ORDER: readonly SettlementStage[] = [
+  'settled',
+  'almost',
+  'growing',
+  'fresh',
+];
 const STAGE_LABEL: Record<SettlementStage, string> = {
   settled: '定着',
+  almost: 'もう少しで定着',
   growing: '育成中',
   fresh: 'これから',
 };
@@ -49,6 +62,7 @@ const STAGE_LABEL: Record<SettlementStage, string> = {
 export const AnalyticsScreen = ({
   today: _today,
   counts,
+  movements,
   nodes,
   metricsSeries,
   onAddMetric,
@@ -62,6 +76,7 @@ export const AnalyticsScreen = ({
   // ローカル state (= app config でも観測データでもない一時的 UI 状態、 永続化しない)。
   const [collapsed, setCollapsed] = useState<Record<SettlementStage, boolean>>({
     settled: true,
+    almost: true,
     growing: true,
     fresh: true,
   });
@@ -71,16 +86,42 @@ export const AnalyticsScreen = ({
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <Text style={styles.heading}>ログ</Text>
-      {/* 定着 N・育成中 M カウント (単調増加の Celebrate 主役)。 これから (fresh) は
-          カウントに出さない = 未着手を数字で指差さない。 */}
+      {/* 定着 N・もう少しで定着 P・育成中 M カウント (クロス断面スナップショット・Celebrate
+          主役)。 これから (fresh) はカウントに出さない = 未着手を数字で指差さない。 */}
       <Text
         style={styles.counts}
-        accessibilityLabel={`定着 ${counts.settled}・育成中 ${counts.growing}`}
+        accessibilityLabel={`定着 ${counts.settled}・もう少しで定着 ${counts.almost}・育成中 ${counts.growing}`}
       >
         <Text style={styles.countSettled}>定着 {counts.settled}</Text>
         <Text style={styles.countSep}>・</Text>
+        <Text style={styles.countAlmost}>もう少しで定着 {counts.almost}</Text>
+        <Text style={styles.countSep}>・</Text>
         <Text style={styles.countGrowing}>育成中 {counts.growing}</Text>
       </Text>
+
+      {/* ADR-0047 追補: 先週からの流入 (= 上方向に移動した個数・Celebrate フロー)。 増減では
+          なく「今週入った数」だけ。 動きが無い週は出さない (0 を指差さない / 静かに保つ)。 */}
+      {movements && (movements.intoSettled > 0 || movements.intoAlmost > 0) && (
+        <Text
+          style={styles.movement}
+          accessibilityLabel={`今週 定着入り ${movements.intoSettled}・もう少しで定着入り ${movements.intoAlmost}`}
+        >
+          今週{' '}
+          {movements.intoSettled > 0 && (
+            <Text style={styles.movementSettled}>
+              定着入り +{movements.intoSettled}
+            </Text>
+          )}
+          {movements.intoSettled > 0 && movements.intoAlmost > 0 && (
+            <Text style={styles.countSep}>・</Text>
+          )}
+          {movements.intoAlmost > 0 && (
+            <Text style={styles.movementAlmost}>
+              もう少しで定着入り +{movements.intoAlmost}
+            </Text>
+          )}
+        </Text>
+      )}
 
       {nodes.length === 0 ? (
         <Text style={styles.empty}>
@@ -192,13 +233,22 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   counts: {
-    marginBottom: 24,
+    marginBottom: 6,
     fontSize: 15,
     fontVariant: ['tabular-nums'],
   },
   countSettled: { color: COLOR_STAR, fontWeight: '700' },
   countSep: { color: COLOR_FG_FAINT },
+  countAlmost: { color: COLOR_FG, fontWeight: '700' },
   countGrowing: { color: COLOR_FG_SOFT, fontWeight: '700' },
+  movement: {
+    marginBottom: 24,
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
+    color: COLOR_FG_FAINT,
+  },
+  movementSettled: { color: COLOR_STAR },
+  movementAlmost: { color: COLOR_FG_SOFT },
   empty: {
     color: COLOR_FG_FAINT,
     fontSize: 14,
