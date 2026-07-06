@@ -312,6 +312,7 @@ describe('スキーマの不変条件', () => {
         'nodes',
         'notes',
         'recommended_items',
+        'settlement_retractions',
       ].sort(),
     );
     await teardown(db);
@@ -340,6 +341,30 @@ describe('スキーマの不変条件', () => {
     const nodeFk = fks.find((f) => f.from === 'node_id');
     expect(nodeFk?.table).toBe('nodes');
     expect(nodeFk?.on_delete).toBe('SET NULL');
+    await teardown(db);
+  });
+
+  // ADR-0047: 定着取り下げ。観測した事実軸 (派生値ではない)。定着ステータス自体は保存しない。
+  test('settlement_retractions テーブル (ADR-0047): カラムは node_id / retracted_at の 2 固定、 派生値カラム禁止', async () => {
+    const db = await setup();
+    type ColumnRow = { name: string };
+    const cols = await db.all<ColumnRow>(
+      `PRAGMA table_info(settlement_retractions)`,
+    );
+    const colNames = cols.map((c) => c.name).sort();
+    expect(colNames).toEqual(['node_id', 'retracted_at']);
+    await teardown(db);
+  });
+
+  test('settlement_retractions.node_id は ON DELETE CASCADE (ノード削除で取り下げ事実も消す)', async () => {
+    const db = await setup();
+    type FkRow = { table: string; from: string; to: string; on_delete: string };
+    const fks = await db.all<FkRow>(
+      `PRAGMA foreign_key_list(settlement_retractions)`,
+    );
+    const nodeFk = fks.find((f) => f.from === 'node_id');
+    expect(nodeFk?.table).toBe('nodes');
+    expect(nodeFk?.on_delete).toBe('CASCADE');
     await teardown(db);
   });
 
