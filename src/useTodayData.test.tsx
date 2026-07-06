@@ -64,6 +64,9 @@ jest.mock('./repository', () => {
   recordAnchorFiring: jest.fn(async () => undefined),
   recordAchievement: jest.fn(async () => undefined),
   countAchievedBefore: jest.fn(async () => 0),
+  // ADR-0047 追補: effective 累計用のアプリ全体ローダ。
+  listAllNodeIds: jest.fn(async () => ['n1']),
+  listAllAchievements: jest.fn(async () => tenDaysApril),
   };
 });
 

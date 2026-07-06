@@ -5,6 +5,7 @@ import { nodeDateMatrixCells } from './analyticsDerivation';
 import type { DateMatrixCell } from './analyticsDerivation';
 import { getExpoSqliteClient } from './db.expo';
 import {
+  countEffectiveAchievedTotal,
   effectiveTodayIsoDate,
   isAnchorFiringToday,
   isNodeSettled,
@@ -29,10 +30,11 @@ import {
   getLocationPermissionStatus,
 } from './location';
 import {
-  countAchievedBefore,
   getAction,
   getAnchor,
   listAchievementsForNodes,
+  listAllAchievements,
+  listAllNodeIds,
   listAnchorFiringsForDate,
   listChains,
   listNodes,
@@ -83,10 +85,10 @@ export type TodayData = {
   // ADR-0047: 全ノードの定着取り下げ事実 (正準 5 軸目)。 定着判定 (isNodeSettled) の
   // 引数。 アプリ全体で 1 度だけ load し、 楽観更新 (retractSettlement) で追記する。
   retractions: readonly SettlementRetraction[];
-  // #142 (ADR-0041): アプリ全体の「今日より前の累計達成ノード数」(SQL COUNT のベース)。
-  // 表示側で今日の達成数 (全チェーン合算) を足して「累計 N 個達成 (+今日M)」を出す。
-  // 今日分を含めないので楽観更新で base は変化せず、 タップ即時 +1 は各チェーンの
-  // achievements 合算が担う。
+  // #142 (ADR-0041) + ADR-0047 追補: アプリ全体の「今日より前の effective 累計」
+  // (= 実タップ達成 + 定着 auto 日の派生集計・レコード非書込)。 表示側で今日の effective
+  // 達成数 (全 active チェーンの 実タップ OR 定着 の合算) を足して「累計 N 個達成 (+今日M)」を出す。
+  // 今日分を含めないので楽観更新で base は変化せず、 タップ即時 +1 は各チェーンの effective 合算が担う。
   achievedBeforeToday: number;
   // #165 (ADR-0042 P1): 立ち上げチェックリストの表示判定に使う app_settings 由来の値。
   // onboarding 完了済みか (= まだ onboarding 中は出さない)、dismiss 時刻 (null = 未 dismiss)、
@@ -229,9 +231,20 @@ const loadToday = async (): Promise<TodayData> => {
     chains.map((c) => loadChainForToday(c, today, now, retractions)),
   );
   const valid = loaded.filter((x): x is TodayChainData => x !== null);
-  // #142 (ADR-0041): アプリ全体の「今日より前の累計達成ノード数」。 ノード横断・全期間なので
-  // チェーンごとの集計とは別に 1 回だけ SQL COUNT する (active/非 active 問わず全 record)。
-  const achievedBeforeToday = await countAchievedBefore(db, today);
+  // #142 (ADR-0041) + ADR-0047 追補 (2026-07-07): アプリ全体の「今日より前の effective 累計」。
+  // 「派生で数える」= 実タップ達成 + 定着 auto 日 (定着後の未タップ日) を数える。 表示側で
+  // 今日の effective 達成数を足す。 定着 latch は数ヶ月前の窓も参照するため全ノード・全達成を
+  // load して派生 (countEffectiveAchievedTotal)。 upTo = 昨日 (今日分は表示側で加算)。
+  // K-010 受容: N=1 では件数少なく体感問題なし。 多ノード化で遅延が出たら SQL 近似を判断。
+  const yesterday = recentDateRange(today, 2)[0] ?? today;
+  const allNodeIds = await listAllNodeIds(db);
+  const allAchievements = await listAllAchievements(db, today);
+  const achievedBeforeToday = countEffectiveAchievedTotal(
+    allNodeIds,
+    allAchievements,
+    retractions,
+    yesterday,
+  );
   // 表示順: 時刻アンカー (time 昇順) → place (createdAt 昇順) → behavior (createdAt 昇順)
   // (PR feat/chain-sort-by-anchor-time、 ユーザー判断)
   return {

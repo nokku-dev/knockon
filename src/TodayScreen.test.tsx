@@ -90,6 +90,7 @@ const buildChainData = (
   title: string,
   nodes: TodayNode[],
   achievements: AchievementMap = {},
+  settled: Set<string> = new Set<string>(),
 ): TodayChainData => ({
   chain: buildChain(id, title),
   anchor: buildAnchor(`${id}-anchor`, '起点'),
@@ -97,7 +98,7 @@ const buildChainData = (
   achievements,
   anchorFiredToday: false,
   achievementHistory: [],
-  nodeIdsSettled: new Set<string>(),
+  nodeIdsSettled: settled,
   nodeRecentCells: new Map(),
 });
 
@@ -185,6 +186,33 @@ describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {
       expect(getByTestId('today-cumulative-total').props.children).toEqual([
         '累計 ',
         '1,202',
+        ' 個達成 (+',
+        2,
+        ')',
+      ]);
+    });
+
+    test('ADR-0047追補: 定着ノードは実レコード無しでも +今日 に数える (auto-✓)', () => {
+      // n1 = 実達成、 n2 = 定着 (auto・レコード無し) → 今日 = 2。
+      const chains: TodayChainData[] = [
+        buildChainData(
+          'c1',
+          '朝',
+          [fireNode('n1', '水'), fireNode('n2', 'ストレッチ')],
+          { n1: true },
+          new Set(['n2']),
+        ),
+      ];
+      const { getByTestId } = render(
+        <TodayScreen
+          chains={chains}
+          achievedBeforeToday={100}
+          onToggleNode={() => {}}
+        />,
+      );
+      expect(getByTestId('today-cumulative-total').props.children).toEqual([
+        '累計 ',
+        '102',
         ' 個達成 (+',
         2,
         ')',
