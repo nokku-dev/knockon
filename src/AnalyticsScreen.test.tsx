@@ -28,7 +28,7 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { getByText } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 0, growing: 0, settled: 0 }}
+        counts={{ fresh: 0, growing: 0, almost: 0, settled: 0 }}
         nodes={[]}
       />,
     );
@@ -39,7 +39,7 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { getByLabelText } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 4, growing: 2, settled: 3 }}
+        counts={{ fresh: 4, growing: 2, almost: 0, settled: 3 }}
         nodes={[node('c1', 'n1', 'A', 'C1', 'settled')]}
       />,
     );
@@ -57,7 +57,7 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { getByText, queryByText } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 1, growing: 1, settled: 1 }}
+        counts={{ fresh: 1, growing: 1, almost: 0, settled: 1 }}
         nodes={nodes}
       />,
     );
@@ -76,7 +76,7 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { getByTestId, queryByText } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 0, growing: 0, settled: 1 }}
+        counts={{ fresh: 0, growing: 0, almost: 0, settled: 1 }}
         nodes={nodes}
       />,
     );
@@ -93,7 +93,7 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { getByLabelText, getByTestId } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 0, growing: 0, settled: 1 }}
+        counts={{ fresh: 0, growing: 0, almost: 0, settled: 1 }}
         nodes={[node('c1', 'n1', '水を飲む', '朝', 'settled')]}
         onRetractSettlement={onRetractSettlement}
       />,
@@ -115,7 +115,7 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { queryByLabelText, getByTestId } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 1, growing: 1, settled: 0 }}
+        counts={{ fresh: 1, growing: 1, almost: 0, settled: 0 }}
         nodes={[
           node('c1', 'n2', 'ストレッチ', '朝', 'growing'),
           node('c2', 'n3', '読書', '夜', 'fresh'),
@@ -127,5 +127,55 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     fireEvent.press(getByTestId('portfolio-group-growing'));
     fireEvent.press(getByTestId('portfolio-group-fresh'));
     expect(queryByLabelText(/を取り下げる/)).toBeNull();
+  });
+
+  // ADR-0047 追補 (2026-07-07): もう少しで定着ステージ + 週次流入。
+  test('「もう少しで定着」グループが表示され、 開くとノードが出る', () => {
+    const { getByText, getByTestId, queryByText } = render(
+      <AnalyticsScreen
+        today="2026-07-06"
+        counts={{ fresh: 0, growing: 0, almost: 1, settled: 0 }}
+        nodes={[node('c1', 'n1', 'ランニング', '朝', 'almost')]}
+      />,
+    );
+    expect(getByText('もう少しで定着')).toBeTruthy();
+    expect(queryByText('ランニング')).toBeNull(); // 初期は畳み
+    fireEvent.press(getByTestId('portfolio-group-almost'));
+    expect(queryByText('ランニング')).toBeTruthy();
+  });
+
+  test('上部カウントに「もう少しで定着 P」を含む', () => {
+    const { getByLabelText } = render(
+      <AnalyticsScreen
+        today="2026-07-06"
+        counts={{ fresh: 0, growing: 1, almost: 2, settled: 3 }}
+        nodes={[node('c1', 'n1', 'A', 'C1', 'settled')]}
+      />,
+    );
+    expect(getByLabelText(/もう少しで定着 2/)).toBeTruthy();
+  });
+
+  test('週次流入: 定着入り・もう少しで定着入りの個数を表示 (流入 > 0 のとき)', () => {
+    const { getByLabelText } = render(
+      <AnalyticsScreen
+        today="2026-07-06"
+        counts={{ fresh: 0, growing: 0, almost: 1, settled: 1 }}
+        movements={{ intoSettled: 2, intoAlmost: 3 }}
+        nodes={[node('c1', 'n1', 'A', 'C1', 'settled')]}
+      />,
+    );
+    expect(getByLabelText('今週 定着入り 2・もう少しで定着入り 3')).toBeTruthy();
+  });
+
+  test('週次流入が両方 0 なら流入行は出さない (0 を指差さない)', () => {
+    const { queryByLabelText } = render(
+      <AnalyticsScreen
+        today="2026-07-06"
+        counts={{ fresh: 1, growing: 0, almost: 0, settled: 0 }}
+        movements={{ intoSettled: 0, intoAlmost: 0 }}
+        nodes={[node('c1', 'n1', 'A', 'C1', 'fresh')]}
+      />,
+    );
+    expect(queryByLabelText(/今週/)).toBeNull();
   });
 });

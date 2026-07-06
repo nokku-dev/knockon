@@ -538,8 +538,14 @@ export type SettlementRetraction = {
   retractedAt: IsoDate;
 };
 
-// これから (未着手) / 育成中 (実タップあり・未定着) / 定着 (latch)。
-export type SettlementStage = 'fresh' | 'growing' | 'settled';
+// これから (未着手) / 育成中 (実タップあり・未定着) / もう少しで定着 (定着バー直前) / 定着 (latch)。
+// ADR-0047 追補 (#205, 2026-07-07): 育成中と定着の間に「もう少しで定着」を追加。 現在の
+// 14D 窓 (取り下げ以降・今日以前) で ALMOST 閾値以上の達成があるが未定着のノード。
+export type SettlementStage = 'fresh' | 'growing' | 'almost' | 'settled';
+
+// もう少しで定着: 14D 窓で達成 8〜9 日 (定着バー = 10 日の直前 2 日ぶん、 ユーザー判断
+// 2026-07-07)。 10 日以上なら定着 (latch) 側に入るため、 実質 [8, 9] を拾う閾値。
+const DEFAULT_ALMOST_MIN_ACHIEVED = 8;
 
 // ノードの最新取り下げ日 (YYYY-MM-DD)。なければ null。
 const lastRetractionDateForNode = (
@@ -589,8 +595,12 @@ export const isNodeSettled = (
   return false;
 };
 
-// ステージ分類: 定着 > 育成中 (実タップ ≥1・過去含む) > これから (未着手)。
-// 取り下げ済みノードは過去の実タップが残るため育成中に戻る (fresh には落ちない)。
+// ステージ分類: 定着 > もう少しで定着 > 育成中 (実タップ ≥1) > これから (未着手)。
+// - 定着: latch (isNodeSettled)。
+// - もう少しで定着: 未定着だが、 現在の 14D 窓 (取り下げ以降・今日以前) で eligible 達成が
+//   ALMOST 閾値以上 (8〜9 日)。 未定着なので窓内 eligible は必ず 10 未満 (10 なら定着側)。
+// - 育成中: 実タップが 1 つでもある (過去含む)。 取り下げ済みノードもここに戻る。
+// - これから: 実タップが皆無。
 export const nodeSettlementStage = (
   achievements: readonly Achievement[],
   retractions: readonly SettlementRetraction[],
@@ -601,16 +611,28 @@ export const nodeSettlementStage = (
   if (isNodeSettled(achievements, retractions, nodeId, today, options)) {
     return 'settled';
   }
+  const windowDays = options?.windowDays ?? DEFAULT_ESTABLISHED_WINDOW_DAYS;
+  const lastRetraction = lastRetractionDateForNode(retractions, nodeId);
+  const windowSet = new Set(recentDateRange(today, windowDays));
+  const eligibleInWindow = new Set<IsoDate>();
+  let hasAnyTap = false;
   for (const a of achievements) {
-    if (a.nodeId === nodeId && a.achieved && a.date <= today) return 'growing';
+    if (a.nodeId !== nodeId || !a.achieved || a.date > today) continue;
+    hasAnyTap = true;
+    // もう少しで定着は「現在有効な (取り下げ以降の) 窓」で測る (isNodeSettled と同じ eligibility)。
+    if (lastRetraction !== null && a.date <= lastRetraction) continue;
+    if (windowSet.has(a.date)) eligibleInWindow.add(a.date);
   }
+  if (eligibleInWindow.size >= DEFAULT_ALMOST_MIN_ACHIEVED) return 'almost';
+  if (hasAnyTap) return 'growing';
   return 'fresh';
 };
 
-// ポートフォリオ上部のステージ別カウント (単調増加の Celebrate 主役)。
+// ポートフォリオ上部のステージ別カウント (クロス断面のスナップショット)。
 export type SettlementStageCounts = {
   fresh: number;
   growing: number;
+  almost: number;
   settled: number;
 };
 
@@ -621,11 +643,62 @@ export const countSettlementStages = (
   today: IsoDate,
   options?: EstablishedOptions,
 ): SettlementStageCounts => {
-  const counts: SettlementStageCounts = { fresh: 0, growing: 0, settled: 0 };
+  const counts: SettlementStageCounts = {
+    fresh: 0,
+    growing: 0,
+    almost: 0,
+    settled: 0,
+  };
   for (const nodeId of nodeIds) {
     counts[
       nodeSettlementStage(achievements, retractions, nodeId, today, options)
     ]++;
   }
   return counts;
+};
+
+// 先週 (daysAgo 日前) から「定着」「もう少しで定着」へ新たに入ったノード数 (= 流入数)。
+// 増減 (net) ではなく上方向への移動個数のみ数える Celebrate 系フロー指標 (ユーザー判断
+// 2026-07-07)。 定着 latch は単調増加なので intoSettled は「今週定着した個数」。 almost は
+// 単調でないため「下位 (これから/育成中) から almost へ上がった個数」だけを数える (settled
+// からの降格 = 下方向は数えない = マイナスを指差さない)。
+export type SettlementStageMovements = {
+  intoSettled: number;
+  intoAlmost: number;
+};
+
+const STAGE_RANK: Record<SettlementStage, number> = {
+  fresh: 0,
+  growing: 1,
+  almost: 2,
+  settled: 3,
+};
+
+export const settlementStageMovements = (
+  nodeIds: readonly string[],
+  achievements: readonly Achievement[],
+  retractions: readonly SettlementRetraction[],
+  today: IsoDate,
+  daysAgo = 7,
+  options?: EstablishedOptions,
+): SettlementStageMovements => {
+  // daysAgo 日前の日付 (recentDateRange(today, daysAgo+1) の先頭 = today - daysAgo)。
+  const range = recentDateRange(today, daysAgo + 1);
+  const prevDate = range[0] ?? today;
+  let intoSettled = 0;
+  let intoAlmost = 0;
+  for (const nodeId of nodeIds) {
+    const now = nodeSettlementStage(achievements, retractions, nodeId, today, options);
+    const prev = nodeSettlementStage(
+      achievements,
+      retractions,
+      nodeId,
+      prevDate,
+      options,
+    );
+    if (now === 'settled' && prev !== 'settled') intoSettled++;
+    // almost への「上方向」流入のみ (settled からの降格は数えない)。
+    if (now === 'almost' && STAGE_RANK[prev] < STAGE_RANK.almost) intoAlmost++;
+  }
+  return { intoSettled, intoAlmost };
 };
