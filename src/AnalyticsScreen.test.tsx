@@ -48,32 +48,49 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     expect(getByLabelText(/育成中 2/)).toBeTruthy();
   });
 
-  test('ステージ別にノードがグルーピング表示される (定着 / 育成中 / これから)', () => {
+  test('ステージ別の見出しは常に表示され、 初期は全グループ畳まれている (ノード非表示)', () => {
     const nodes = [
       node('c1', 'n1', '水を飲む', '朝', 'settled'),
       node('c1', 'n2', 'ストレッチ', '朝', 'growing'),
       node('c2', 'n3', '読書', '夜', 'fresh'),
     ];
-    const { getByText } = render(
+    const { getByText, queryByText } = render(
       <AnalyticsScreen
         today="2026-07-06"
         counts={{ fresh: 1, growing: 1, settled: 1 }}
         nodes={nodes}
       />,
     );
-    expect(getByText('水を飲む')).toBeTruthy();
-    expect(getByText('ストレッチ')).toBeTruthy();
-    expect(getByText('読書')).toBeTruthy();
-    // グループ見出し
+    // グループ見出しは常に表示
     expect(getByText('定着')).toBeTruthy();
     expect(getByText('育成中')).toBeTruthy();
     expect(getByText('これから')).toBeTruthy();
+    // 初期は全畳み → ノード本体は非表示
+    expect(queryByText('水を飲む')).toBeNull();
+    expect(queryByText('ストレッチ')).toBeNull();
+    expect(queryByText('読書')).toBeNull();
+  });
+
+  test('見出しタップでそのグループが開き、 再タップで畳める', () => {
+    const nodes = [node('c1', 'n1', '水を飲む', '朝', 'settled')];
+    const { getByTestId, queryByText } = render(
+      <AnalyticsScreen
+        today="2026-07-06"
+        counts={{ fresh: 0, growing: 0, settled: 1 }}
+        nodes={nodes}
+      />,
+    );
+    expect(queryByText('水を飲む')).toBeNull();
+    fireEvent.press(getByTestId('portfolio-group-settled'));
+    expect(queryByText('水を飲む')).toBeTruthy();
+    fireEvent.press(getByTestId('portfolio-group-settled'));
+    expect(queryByText('水を飲む')).toBeNull();
   });
 
   test('定着ノードに取り下げ導線があり、 確認後 onRetractSettlement が呼ばれる', () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const onRetractSettlement = jest.fn();
-    const { getByLabelText } = render(
+    const { getByLabelText, getByTestId } = render(
       <AnalyticsScreen
         today="2026-07-06"
         counts={{ fresh: 0, growing: 0, settled: 1 }}
@@ -81,6 +98,8 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
         onRetractSettlement={onRetractSettlement}
       />,
     );
+    // 初期は畳まれているので、 定着グループを開いてから取り下げボタンを押す。
+    fireEvent.press(getByTestId('portfolio-group-settled'));
     fireEvent.press(getByLabelText('水を飲む の定着を取り下げる'));
     expect(alertSpy).toHaveBeenCalledTimes(1);
     const buttons = alertSpy.mock.calls[0][2] as AlertButton[];
@@ -91,9 +110,9 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     alertSpy.mockRestore();
   });
 
-  test('育成中 / これからノードには取り下げ導線を出さない', () => {
+  test('育成中 / これからノードには取り下げ導線を出さない (開いても出ない)', () => {
     const onRetractSettlement = jest.fn();
-    const { queryByLabelText } = render(
+    const { queryByLabelText, getByTestId } = render(
       <AnalyticsScreen
         today="2026-07-06"
         counts={{ fresh: 1, growing: 1, settled: 0 }}
@@ -104,6 +123,9 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
         onRetractSettlement={onRetractSettlement}
       />,
     );
+    // グループを開いても育成中 / これからには取り下げボタンが無いこと。
+    fireEvent.press(getByTestId('portfolio-group-growing'));
+    fireEvent.press(getByTestId('portfolio-group-fresh'));
     expect(queryByLabelText(/を取り下げる/)).toBeNull();
   });
 });
