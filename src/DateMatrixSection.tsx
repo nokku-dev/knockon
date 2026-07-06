@@ -52,12 +52,16 @@ export type DateMatrixSectionProps = {
   rows: readonly DateMatrixChainGroup[];
   dates: readonly IsoDate[]; // 昇順 (最新が末尾)
   today: IsoDate | null;
+  // ADR-0047: 「定着バンド」。 nodeId → その日時点で定着している日付集合 (表示層の派生・
+  // レコード非生成)。 定着した期間のセル背後に控えめな帯を敷く (実タップの緑セルはその上)。
+  settledByNode?: Record<string, ReadonlySet<IsoDate>>;
 };
 
 export const DateMatrixSection = ({
   rows,
   dates,
   today,
+  settledByNode,
 }: DateMatrixSectionProps) => {
   const scrollRef = useRef<ScrollView>(null);
 
@@ -122,29 +126,35 @@ export const DateMatrixSection = ({
                 <View key={chain.chainId}>
                   {/* チェーンヘッダー行ぶんのスペーサ (左の chainHeaderCell と高さを揃える)。 */}
                   <View style={{ height: CHAIN_HEADER_HEIGHT }} />
-                  {chain.nodes.map((node) => (
-                    <View key={node.nodeId} style={styles.cellRow}>
-                      {node.cells.map((cell) => (
-                        <View
-                          key={cell.date}
-                          accessible
-                          accessibilityLabel={`${node.label} ${monthDay(cell.date)} ${cellState(cell)}`}
-                          style={styles.slot}
-                        >
-                          <View
-                            style={[
-                              styles.cell,
-                              cell.achieved
-                                ? styles.cellAchieved
-                                : cell.skipped
-                                  ? styles.cellSkip
-                                  : styles.cellMiss,
-                            ]}
-                          />
-                        </View>
-                      ))}
-                    </View>
-                  ))}
+                  {chain.nodes.map((node) => {
+                    const settledDates = settledByNode?.[node.nodeId];
+                    return (
+                      <View key={node.nodeId} style={styles.cellRow}>
+                        {node.cells.map((cell) => {
+                          const settled = settledDates?.has(cell.date) ?? false;
+                          return (
+                            <View
+                              key={cell.date}
+                              accessible
+                              accessibilityLabel={`${node.label} ${monthDay(cell.date)} ${cellState(cell)}${settled ? ' 定着' : ''}`}
+                              style={[styles.slot, settled && styles.slotSettled]}
+                            >
+                              <View
+                                style={[
+                                  styles.cell,
+                                  cell.achieved
+                                    ? styles.cellAchieved
+                                    : cell.skipped
+                                      ? styles.cellSkip
+                                      : styles.cellMiss,
+                                ]}
+                              />
+                            </View>
+                          );
+                        })}
+                      </View>
+                    );
+                  })}
                 </View>
               ))}
             </View>
@@ -183,6 +193,12 @@ const styles = StyleSheet.create({
     width: CELL_SLOT,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // ADR-0047: 定着バンド。 定着期間のセル背後に控えめな星系の帯を敷く (連続セルで横一帯)。
+  // 塗り率の段階ではなく on/off の一色 (= 二値マトリクスの趣旨を保つ)。 latch は (+) 指標
+  // なので反 streak 原則と両立 (DESIGN-SYSTEM §0 / ADR-0036 §一般原則)。 alpha は控えめ。
+  slotSettled: {
+    backgroundColor: 'rgba(242, 193, 75, 0.12)',
   },
   dateLabel: {
     color: COLOR_FG_FAINT,

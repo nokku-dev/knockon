@@ -1,6 +1,13 @@
-import type { Achievement, Action, IsoDate, Node } from './domain';
+import type {
+  Achievement,
+  Action,
+  IsoDate,
+  Node,
+  SettlementRetraction,
+} from './domain';
 import {
   isNodeAchievedOn,
+  isNodeSettled,
   recentDateRange,
   resolveActionForDate,
 } from './domain';
@@ -194,3 +201,20 @@ export const dateMatrixForWindow = (
       return { nodeId: node.id, label, cells };
     }),
   }));
+
+// ADR-0047: 60D マトリクスの「定着バンド」用派生。 windowDates のうち「その日時点でノードが
+// 定着 (latch) している」日付だけを返す (= 表示層で帯を敷く対象日)。 レコードは生成しない
+// (K-002 / ADR-0001)。 latch 判定は数ヶ月前の定着窓も参照するため、 60D 窓ではなく全期間
+// 達成履歴 (fullHistory) を渡す必要がある。 純粋関数 (isNodeSettled を各日について評価)。
+// 注 (簡略化): retractions は「現在の最新取り下げ」で解釈するため、 取り下げより前の
+// 過去に一度定着していた期間は帯を出さない (= 現在有効な定着スパンのみ帯にする)。 N=1 で
+// 取り下げが稀なうちは実害なし。 厳密な履歴帯が要れば「as-of 取り下げ」に拡張する。
+export const settledDatesForNode = (
+  fullHistory: readonly Achievement[],
+  retractions: readonly SettlementRetraction[],
+  nodeId: string,
+  windowDates: readonly IsoDate[],
+): IsoDate[] =>
+  windowDates.filter((date) =>
+    isNodeSettled(fullHistory, retractions, nodeId, date),
+  );
