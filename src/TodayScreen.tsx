@@ -9,7 +9,6 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ChainCard } from './ChainCard';
 import { ChainDetail } from './ChainDetail';
 import { NoteComposeModal } from './NoteComposeModal';
-import { countAchievedInMap } from './domain';
 import type { NoteChainOption } from './useNotesData';
 import { InAppNotificationToast } from './InAppNotificationToast';
 import { OnboardingChecklistCard } from './OnboardingChecklistCard';
@@ -148,11 +147,24 @@ export const TodayScreen = ({
     if (idx === -1) setOpenChainId(null);
   }, []);
 
-  // #142: アプリ全体の累計達成ノード数「累計 N 回 (+今日)」。 今日の達成数は全チェーンの
-  // achievements を合算 (countAchievedInMap) し、 base (今日より前の累計) と足す。 今日分を
-  // base と分離しているので、 タップでの楽観更新 (achievements 変化) が即座に両方へ反映される。
+  // #142 + ADR-0047 追補: 累計「累計 N 個達成 (+今日M)」。 今日の effective 達成数 =
+  // 実タップ達成 OR 定着 (auto-✓) の合算 (定着ノードはタップしなくても today +1)。 base
+  // (今日より前の effective 累計) と足す。 base と分離しているので、 実タップの楽観更新
+  // (achievements 変化) が即座に両方へ反映される (定着ノードは tap 不可なので変化しない)。
+  // 休む日 (kind='skip') は達成対象外なので数えない。
   const todayAchievedCount = useMemo(
-    () => chains.reduce((acc, c) => acc + countAchievedInMap(c.achievements), 0),
+    () =>
+      chains.reduce(
+        (acc, c) =>
+          acc +
+          c.nodes.filter(
+            (n) =>
+              n.kind !== 'skip' &&
+              ((c.achievements[n.node.id] ?? false) ||
+                c.nodeIdsSettled.has(n.node.id)),
+          ).length,
+        0,
+      ),
     [chains],
   );
   const cumulativeTotal = achievedBeforeToday + todayAchievedCount;
