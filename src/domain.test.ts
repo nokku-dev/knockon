@@ -5,11 +5,13 @@ import type {
   AnchorFiring,
   Chain,
   Node,
+  SettlementRetraction,
 } from './domain';
 import {
   countAchievedDaysInWindow,
   countAchievedInMap,
   countAchievedNodesOn,
+  countSettlementStages,
   distanceMeters,
   effectiveTodayIsoDate,
   getWeekdayKey,
@@ -17,9 +19,11 @@ import {
   isAnchorFiringToday,
   isNodeAchievedOn,
   isNodeEstablished,
+  isNodeSettled,
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
   lastAchievedNodeIndex,
+  nodeSettlementStage,
   recentDateRange,
   resolveActionForDate,
   shouldSeed,
@@ -822,5 +826,118 @@ describe('isNodeEstablished (定着判定: ADR-0024 PR-Z1 / 14D 中 10 日以上
       return { nodeId: 'n1', date: `2026-04-${day}`, achieved: true };
     });
     expect(isNodeEstablished(records, 'n1', '2026-05-19')).toBe(false);
+  });
+});
+
+// ADR-0047: 定着ライフサイクル (latch 定着 + 取り下げ事実軸 + ステージ分類)
+const achievedOn = (nodeId: string, dates: readonly string[]): Achievement[] =>
+  dates.map((date) => ({ nodeId, date, achieved: true }));
+
+const retraction = (
+  nodeId: string,
+  retractedAt: string,
+): SettlementRetraction => ({ nodeId, retractedAt });
+
+// '2026-04-01'..'2026-04-10' の連続 10 日 (14D 窓に収まり定着バーを満たす)
+const TEN_DAYS_APRIL = Array.from(
+  { length: 10 },
+  (_, i) => `2026-04-${String(i + 1).padStart(2, '0')}`,
+);
+
+describe('isNodeSettled (ADR-0047: 定着=生涯マイルストーン latch・派生)', () => {
+  it('過去に一度バー到達すれば、直近が空でも定着のまま (latch)', () => {
+    const records = achievedOn('n1', TEN_DAYS_APRIL);
+    // rolling 版は今日時点で false になる (対比)
+    expect(isNodeEstablished(records, 'n1', '2026-05-30')).toBe(false);
+    // latch 版は true を維持
+    expect(isNodeSettled(records, [], 'n1', '2026-05-30')).toBe(true);
+  });
+
+  it('一度もバーに到達しなければ未定着', () => {
+    const records = achievedOn('n1', TEN_DAYS_APRIL.slice(0, 9)); // 9 日のみ
+    expect(isNodeSettled(records, [], 'n1', '2026-05-30')).toBe(false);
+  });
+
+  it('達成が皆無なら未定着', () => {
+    expect(isNodeSettled([], [], 'n1', '2026-05-30')).toBe(false);
+  });
+
+  it('取り下げ以降に達成がなければ定着はリセットされる', () => {
+    const records = achievedOn('n1', TEN_DAYS_APRIL);
+    const retractions = [retraction('n1', '2026-04-15T10:00:00')];
+    expect(isNodeSettled(records, retractions, 'n1', '2026-05-30')).toBe(false);
+  });
+
+  it('取り下げ後に再びバーを満たせば再定着する', () => {
+    const reGrow = Array.from(
+      { length: 10 },
+      (_, i) => `2026-05-${String(i + 1).padStart(2, '0')}`,
+    );
+    const records = achievedOn('n1', [...TEN_DAYS_APRIL, ...reGrow]);
+    const retractions = [retraction('n1', '2026-04-15T10:00:00')];
+    expect(isNodeSettled(records, retractions, 'n1', '2026-05-30')).toBe(true);
+  });
+
+  it('取り下げ前の達成は再定着の窓に算入しない', () => {
+    // 取り下げ 2026-05-05。前 4 日 + 後 5 日 = 計 9 だが、後だけでは 5 < 10
+    const records = achievedOn('n1', [
+      '2026-05-01',
+      '2026-05-02',
+      '2026-05-03',
+      '2026-05-04',
+      '2026-05-06',
+      '2026-05-07',
+      '2026-05-08',
+      '2026-05-09',
+      '2026-05-10',
+    ]);
+    const retractions = [retraction('n1', '2026-05-05T09:00:00')];
+    expect(isNodeSettled(records, retractions, 'n1', '2026-05-30')).toBe(false);
+  });
+
+  it('別ノードの達成は混線しない', () => {
+    const records = achievedOn('n2', TEN_DAYS_APRIL);
+    expect(isNodeSettled(records, [], 'n1', '2026-05-30')).toBe(false);
+  });
+});
+
+describe('nodeSettlementStage (ADR-0047: これから / 育成中 / 定着)', () => {
+  it('達成が皆無なら fresh (これから)', () => {
+    expect(nodeSettlementStage([], [], 'n1', '2026-05-30')).toBe('fresh');
+  });
+
+  it('実タップはあるが未定着なら growing (育成中)', () => {
+    const records = achievedOn('n1', ['2026-05-28', '2026-05-29']);
+    expect(nodeSettlementStage(records, [], 'n1', '2026-05-30')).toBe('growing');
+  });
+
+  it('latch 定着なら settled', () => {
+    const records = achievedOn('n1', TEN_DAYS_APRIL);
+    expect(nodeSettlementStage(records, [], 'n1', '2026-05-30')).toBe('settled');
+  });
+
+  it('取り下げ済みノードは過去の実タップが残るので growing に戻る (fresh に落ちない)', () => {
+    const records = achievedOn('n1', TEN_DAYS_APRIL);
+    const retractions = [retraction('n1', '2026-04-15T10:00:00')];
+    expect(nodeSettlementStage(records, retractions, 'n1', '2026-05-30')).toBe(
+      'growing',
+    );
+  });
+});
+
+describe('countSettlementStages (ADR-0047: ポートフォリオ上部のステージ別カウント)', () => {
+  it('各ノードをステージ別に集計する', () => {
+    const records = [
+      ...achievedOn('settled1', TEN_DAYS_APRIL),
+      ...achievedOn('growing1', ['2026-05-29']),
+      // fresh1 は達成なし
+    ];
+    const counts = countSettlementStages(
+      ['settled1', 'growing1', 'fresh1'],
+      records,
+      [],
+      '2026-05-30',
+    );
+    expect(counts).toEqual({ fresh: 1, growing: 1, settled: 1 });
   });
 });

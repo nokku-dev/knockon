@@ -7,7 +7,7 @@ import { getExpoSqliteClient } from './db.expo';
 import {
   effectiveTodayIsoDate,
   isAnchorFiringToday,
-  isNodeEstablished,
+  isNodeSettled,
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
   recentDateRange,
@@ -22,6 +22,7 @@ import type {
   Anchor,
   Chain,
   IsoDate,
+  SettlementRetraction,
 } from './domain';
 import {
   getCurrentPosition,
@@ -39,6 +40,7 @@ import {
   recordAnchorFiring,
 } from './repository';
 import { getAppSettings, updateAppSettings } from './settingsRepository';
+import { insertRetraction, listRetractions } from './settlementRepository';
 import type { TodayNode } from './ChainDetail';
 
 // #125 / ADR-0038: Today ChainDetail のノード行右端に直近 7 日間の達成グリフマトリクスを
@@ -58,12 +60,16 @@ export type TodayChainData = {
   achievements: AchievementMap;
   // ADR-0012: アンカー発火イベントモデル (時刻/場所共通の 1 日 1 回不可逆)。
   anchorFiredToday: boolean;
-  // PR-Z1 (ADR-0024 §3a): 14D ウィンドウの達成記録 (派生値の元データ)。
-  // 楽観更新時に nodeIdsEstablished を再計算するために保持。 永続化はしない。
-  recentAchievements: readonly Achievement[];
-  // PR-Z1 (ADR-0024 §3a): 定着判定済みノード ID の集合 (派生値)。 14D ウィンドウで
-  // 10 日以上達成しているノードを派生計算。 楽観更新時は recentAchievements 経由で再計算。
-  nodeIdsEstablished: ReadonlySet<string>;
+  // ADR-0047: このチェーンのノード群の「今日以前・全期間」達成履歴 (派生値の元データ)。
+  // 定着 latch (isNodeSettled) は数ヶ月前の定着窓も参照するため 14D では不足 → 全期間保持。
+  // 表示系 (今日マップ / 7D マトリクス / 14D スパイン) は同じ配列を日付フィルタして使う。
+  // 楽観更新時に nodeIdsSettled / マトリクスを再計算するために保持。 永続化はしない。
+  achievementHistory: readonly Achievement[];
+  // ADR-0047: 定着 (settled) 済みノード ID の集合 (派生値・latch)。 取り下げ以降に 14D 窓で
+  // 10 日以上を満たした窓が過去に一度でも存在すれば定着 (isNodeSettled)。 旧 nodeIdsEstablished
+  // (14D ローリング) から latch 定着へ置換。 星 ★ の表示に使う。 楽観更新時は
+  // recentAchievements + retractions 経由で再計算。 auto 達成レコードは書かない (K-002)。
+  nodeIdsSettled: ReadonlySet<string>;
   // #125: ノード行右端の直近 7 日間グリフマトリクス用セル列 (派生値)。 楽観更新時は
   // recentAchievements 経由で再計算 (今日のセルがタップで即時反映される)。
   nodeRecentCells: ReadonlyMap<string, readonly DateMatrixCell[]>;
@@ -74,6 +80,9 @@ export type TodayChainData = {
 export type TodayData = {
   today: IsoDate;
   chains: TodayChainData[];
+  // ADR-0047: 全ノードの定着取り下げ事実 (正準 5 軸目)。 定着判定 (isNodeSettled) の
+  // 引数。 アプリ全体で 1 度だけ load し、 楽観更新 (retractSettlement) で追記する。
+  retractions: readonly SettlementRetraction[];
   // #142 (ADR-0041): アプリ全体の「今日より前の累計達成ノード数」(SQL COUNT のベース)。
   // 表示側で今日の達成数 (全チェーン合算) を足して「累計 N 個達成 (+今日M)」を出す。
   // 今日分を含めないので楽観更新で base は変化せず、 タップ即時 +1 は各チェーンの
@@ -94,7 +103,7 @@ export type TodayData = {
 const recomputeNodeRecentCells = (
   target: TodayChainData,
   nodeId: string,
-  nextRecent: readonly Achievement[],
+  nextHistory: readonly Achievement[],
   today: IsoDate,
 ): ReadonlyMap<string, readonly DateMatrixCell[]> => {
   const targetTodayNode = target.nodes.find((n) => n.node.id === nodeId);
@@ -103,7 +112,7 @@ const recomputeNodeRecentCells = (
   const nextMap = new Map(target.nodeRecentCells);
   nextMap.set(
     nodeId,
-    nodeDateMatrixCells(matrixDates, targetTodayNode.action, nodeId, nextRecent),
+    nodeDateMatrixCells(matrixDates, targetTodayNode.action, nodeId, nextHistory),
   );
   return nextMap;
 };
@@ -134,6 +143,7 @@ const loadChainForToday = async (
   chain: Chain,
   today: IsoDate,
   now: Date,
+  retractions: readonly SettlementRetraction[],
 ): Promise<TodayChainData | null> => {
   const db = await getExpoSqliteClient();
   const anchor = await getAnchor(db, chain.anchorId);
@@ -153,21 +163,23 @@ const loadChainForToday = async (
     }),
   );
   const validNodes = withActions.filter((x): x is TodayNode => x !== null);
-  // PR-Z1 (ADR-0024 §3a): 定着判定のため 14D 範囲で記録取得。 today 単独取得から拡張。
-  // 14D 取得を要求しているのは定着判定だけだが、 同じクエリでまとめて済ませる
-  // (パフォーマンス影響: チェーン × 14 行 × ノード数、 N=1 規模で無視できる)。
-  const recentWindow = recentDateRange(today, 14);
-  const windowStart = recentWindow[0] ?? today;
+  // ADR-0047: 定着 (settled) は latch (取り下げ以降に 14D 窓で 10 日達成した窓が過去に
+  // 一度でも存在すれば定着)。 latch 判定は 14D 窓では不足する (数ヶ月前に定着し直近タップが
+  // 無いノードを取りこぼす) ため、 このノード群の全期間達成を取得して isNodeSettled に渡す。
+  // fromDate を省くと全期間取得。 N=1 では行数は年単位でも数百程度で無視できる。
+  // 表示系 (toAchievementMap = 今日 / matrix = 7D / スパイン = 14D) は同じ配列を内部で
+  // 日付フィルタして使う (単一の真実ソース)。 today 以前に限定 (未来の record は派生に含めない)。
   const records = await listAchievementsForNodes(
     db,
     validNodes.map((n) => n.node.id),
-    windowStart,
+    undefined,
     today,
   );
-  const nodeIdsEstablished = new Set<string>();
+  const recentWindow = recentDateRange(today, 14);
+  const nodeIdsSettled = new Set<string>();
   for (const n of validNodes) {
-    if (isNodeEstablished(records, n.node.id, today)) {
-      nodeIdsEstablished.add(n.node.id);
+    if (isNodeSettled(records, retractions, n.node.id, today)) {
+      nodeIdsSettled.add(n.node.id);
     }
   }
   // #125: 7D ウィンドウ (recentWindow の末尾 7 件) で各ノードのマトリクスセル列を派生。
@@ -196,8 +208,8 @@ const loadChainForToday = async (
     nodes: validNodes,
     achievements: toAchievementMap(records, today),
     anchorFiredToday,
-    recentAchievements: records,
-    nodeIdsEstablished,
+    achievementHistory: records,
+    nodeIdsSettled,
     nodeRecentCells,
   };
 };
@@ -209,9 +221,12 @@ const loadToday = async (): Promise<TodayData> => {
   // ADR-0028: リセット時刻 (設定可) を考慮した「今日」。 デフォルト '00:00' で既存挙動互換。
   const settings = await getAppSettings(db);
   const today = effectiveTodayIsoDate(now, settings.resetTime);
+  // ADR-0047: 定着取り下げ事実を 1 度だけ全件 load し、 各チェーンの定着判定に渡す
+  // (isNodeSettled はノード別に最新取り下げで解釈する)。
+  const retractions = await listRetractions(db);
   // ADR-0020: 全 active チェーンを並べる (旧コードの chains[0] バグを修正)。
   const loaded = await Promise.all(
-    chains.map((c) => loadChainForToday(c, today, now)),
+    chains.map((c) => loadChainForToday(c, today, now, retractions)),
   );
   const valid = loaded.filter((x): x is TodayChainData => x !== null);
   // #142 (ADR-0041): アプリ全体の「今日より前の累計達成ノード数」。 ノード横断・全期間なので
@@ -222,6 +237,7 @@ const loadToday = async (): Promise<TodayData> => {
   return {
     today,
     chains: sortChainsForDisplay(valid),
+    retractions,
     achievedBeforeToday,
     onboardingCompleted: settings.onboardingCompleted,
     checklistDismissedAt: settings.checklistDismissedAt,
@@ -245,6 +261,10 @@ export type UseTodayDataResult = {
   // #165 (ADR-0042 P1): 立ち上げチェックリストを閉じる。dismiss 時刻を app_settings に
   // 永続化し、 ローカル state を即時更新 (= タップで即座に消える楽観更新)。
   dismissChecklist: () => Promise<void>;
+  // ADR-0047: 定着を「取り下げる」観測事実を記録。 システムは降格させず本人だけが取り下げる
+  // (マイナスを指差さない / Augmentation)。 取り下げ以降は再び実タップで定着バーを満たすまで
+  // 育成中に戻る。 楽観更新で当該ノードを即 nodeIdsSettled から外す。
+  retractSettlement: (chainId: string, nodeId: string) => Promise<void>;
 };
 
 export const useTodayData = (): UseTodayDataResult => {
@@ -308,12 +328,12 @@ export const useTodayData = (): UseTodayDataResult => {
   );
 
   // 楽観更新: タップで UI を即時反転 → 非同期で永続化 (K-010 受容判断)。
-  // PR-Z1: recentAchievements + nodeIdsEstablished も同時に再計算
-  // (定着到達 / 解除を即時反映、 円→星マーカー切替が当該タップで起きる)。
+  // achievementHistory + nodeIdsSettled も同時に再計算 (定着到達 / 解除を即時反映、
+  // ★ 星の表示切替が当該タップで起きる、 ADR-0047 latch)。
   //
   // 計算量 (K-010 受容判断の明示): 1 タップで以下のコピーが走る:
-  //   - target.recentAchievements.map(...) → 14D × 全ノード = 数十件規模 (Phase 1 N=1)
-  //   - new Set(target.nodeIdsEstablished) → ノード数規模
+  //   - target.achievementHistory.map(...) → 全期間 × 全ノード = 数十〜数百件規模 (Phase 1 N=1)
+  //   - new Set(target.nodeIdsSettled) → ノード数規模
   //   - setData の chains.map(...) → 全 active チェーン数
   // Phase 1 では体感影響なし。 PR-Z2 で windowDays が 31D に拡張 / 複数デバイス同期で
   // 並行操作が増えた段階で「functional update + Map 化」「タップキューイング」を
@@ -329,31 +349,33 @@ export const useTodayData = (): UseTodayDataResult => {
       );
       const nextAchieved = nextAchievements[nodeId] ?? false;
       // recentAchievements: 今日の該当ノード record を更新 (なければ追加)。
-      const hadTodayRecord = target.recentAchievements.some(
+      const hadTodayRecord = target.achievementHistory.some(
         (r) => r.nodeId === nodeId && r.date === data.today,
       );
-      const nextRecent: readonly Achievement[] = hadTodayRecord
-        ? target.recentAchievements.map((r) =>
+      const nextHistory: readonly Achievement[] = hadTodayRecord
+        ? target.achievementHistory.map((r) =>
             r.nodeId === nodeId && r.date === data.today
               ? { ...r, achieved: nextAchieved }
               : r,
           )
         : [
-            ...target.recentAchievements,
+            ...target.achievementHistory,
             { nodeId, date: data.today, achieved: nextAchieved },
           ];
       // 定着判定再計算: 対象ノードのみ集合に add/delete (他ノードは変化なし)。
-      const nextEstablished = new Set(target.nodeIdsEstablished);
-      if (isNodeEstablished(nextRecent, nodeId, data.today)) {
-        nextEstablished.add(nodeId);
+      // ADR-0047: 定着 (latch) を再計算。 タップで 10 日目の窓が成立すれば add、 取り下げ済みで
+      // 未再定着なら false のまま。 未タップに戻して窓が崩れれば delete (派生は履歴に忠実)。
+      const nextSettled = new Set(target.nodeIdsSettled);
+      if (isNodeSettled(nextHistory, data.retractions, nodeId, data.today)) {
+        nextSettled.add(nodeId);
       } else {
-        nextEstablished.delete(nodeId);
+        nextSettled.delete(nodeId);
       }
       // #125: 直近 7 日間マトリクスを対象ノードのみ再計算 (他ノードは変化なし)。
-      const nextRecentCells = recomputeNodeRecentCells(
+      const nextHistoryCells = recomputeNodeRecentCells(
         target,
         nodeId,
-        nextRecent,
+        nextHistory,
         data.today,
       );
       setData((prev) =>
@@ -365,9 +387,9 @@ export const useTodayData = (): UseTodayDataResult => {
                   ? {
                       ...c,
                       achievements: nextAchievements,
-                      recentAchievements: nextRecent,
-                      nodeIdsEstablished: nextEstablished,
-                      nodeRecentCells: nextRecentCells,
+                      achievementHistory: nextHistory,
+                      nodeIdsSettled: nextSettled,
+                      nodeRecentCells: nextHistoryCells,
                     }
                   : c,
               ),
@@ -402,30 +424,32 @@ export const useTodayData = (): UseTodayDataResult => {
         ...target.achievements,
         [nodeId]: achieved,
       };
-      const hadTodayRecord = target.recentAchievements.some(
+      const hadTodayRecord = target.achievementHistory.some(
         (r) => r.nodeId === nodeId && r.date === data.today,
       );
-      const nextRecent: readonly Achievement[] = hadTodayRecord
-        ? target.recentAchievements.map((r) =>
+      const nextHistory: readonly Achievement[] = hadTodayRecord
+        ? target.achievementHistory.map((r) =>
             r.nodeId === nodeId && r.date === data.today
               ? { ...r, achieved }
               : r,
           )
         : [
-            ...target.recentAchievements,
+            ...target.achievementHistory,
             { nodeId, date: data.today, achieved },
           ];
-      const nextEstablished = new Set(target.nodeIdsEstablished);
-      if (isNodeEstablished(nextRecent, nodeId, data.today)) {
-        nextEstablished.add(nodeId);
+      // ADR-0047: 定着 (latch) を再計算。 タップで 10 日目の窓が成立すれば add、 取り下げ済みで
+      // 未再定着なら false のまま。 未タップに戻して窓が崩れれば delete (派生は履歴に忠実)。
+      const nextSettled = new Set(target.nodeIdsSettled);
+      if (isNodeSettled(nextHistory, data.retractions, nodeId, data.today)) {
+        nextSettled.add(nodeId);
       } else {
-        nextEstablished.delete(nodeId);
+        nextSettled.delete(nodeId);
       }
       // #125: 直近 7 日間マトリクスを対象ノードのみ再計算。
-      const nextRecentCells = recomputeNodeRecentCells(
+      const nextHistoryCells = recomputeNodeRecentCells(
         target,
         nodeId,
-        nextRecent,
+        nextHistory,
         data.today,
       );
       setData((prev) =>
@@ -437,9 +461,9 @@ export const useTodayData = (): UseTodayDataResult => {
                   ? {
                       ...c,
                       achievements: nextAchievements,
-                      recentAchievements: nextRecent,
-                      nodeIdsEstablished: nextEstablished,
-                      nodeRecentCells: nextRecentCells,
+                      achievementHistory: nextHistory,
+                      nodeIdsSettled: nextSettled,
+                      nodeRecentCells: nextHistoryCells,
                     }
                   : c,
               ),
@@ -477,5 +501,63 @@ export const useTodayData = (): UseTodayDataResult => {
     }
   }, []);
 
-  return { data, error, loading, handleToggle, markNodeAchieved, dismissChecklist };
+  // ADR-0047: 定着を「取り下げる」。 取り下げ時刻を観測事実として記録し、 楽観更新で当該
+  // ノードを即 nodeIdsSettled から外す (取り下げ以降に達成が無ければ isNodeSettled は false)。
+  // 取り下げは日付粒度で最新を採用するが、 retracted_at は秒精度で保存 (同日再定着の窓境界を
+  // 厳密にするため)。 K-010 と同型の受容判断で rollback は入れない (失敗は次 focus で再 load)。
+  const retractSettlement = useCallback(
+    async (chainId: string, nodeId: string) => {
+      if (!data) return;
+      const target = data.chains.find((c) => c.chain.id === chainId);
+      if (!target) return;
+      const retraction: SettlementRetraction = {
+        nodeId,
+        retractedAt: new Date().toISOString(),
+      };
+      const nextRetractions = [...data.retractions, retraction];
+      const nextSettled = new Set(target.nodeIdsSettled);
+      if (
+        isNodeSettled(
+          target.achievementHistory,
+          nextRetractions,
+          nodeId,
+          data.today,
+        )
+      ) {
+        nextSettled.add(nodeId);
+      } else {
+        nextSettled.delete(nodeId);
+      }
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              retractions: [...prev.retractions, retraction],
+              chains: prev.chains.map((c) =>
+                c.chain.id === chainId
+                  ? { ...c, nodeIdsSettled: nextSettled }
+                  : c,
+              ),
+            }
+          : prev,
+      );
+      try {
+        const db = await getExpoSqliteClient();
+        await insertRetraction(db, retraction);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [data],
+  );
+
+  return {
+    data,
+    error,
+    loading,
+    handleToggle,
+    markNodeAchieved,
+    dismissChecklist,
+    retractSettlement,
+  };
 };

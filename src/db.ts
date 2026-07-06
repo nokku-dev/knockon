@@ -182,9 +182,22 @@ CREATE TABLE IF NOT EXISTS notes (
   updated_at TEXT NOT NULL
 );
 
+-- ADR-0047: 定着取り下げ。ユーザーが「最近やれてない」と感じたときに定着を取り下げる
+-- 観測した事実軸 (派生値ではない、ADR-0012 anchor_firings / ADR-0044 notes と同型)。
+-- 1 ノードが生涯で複数回 取り下げ↔再定着しうるため PRIMARY KEY (node_id, retracted_at)。
+-- 定着ステータス自体は保存しない (派生・latch)。保存するのは取り下げ事実のみ (ADR-0001 維持)。
+-- retracted_at: ISO-like (秒精度)。ON DELETE CASCADE: ノード削除で取り下げ事実も無意味 =
+--   一緒に消す (achievements / anchor_firings と同型、notes の SET NULL とは別: 本文がない)。
+CREATE TABLE IF NOT EXISTS settlement_retractions (
+  node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  retracted_at TEXT NOT NULL,
+  PRIMARY KEY (node_id, retracted_at)
+);
+
 CREATE INDEX IF NOT EXISTS idx_nodes_chain_order ON nodes(chain_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_notes_node ON notes(node_id);
 CREATE INDEX IF NOT EXISTS idx_notes_created ON notes(created_at);
+CREATE INDEX IF NOT EXISTS idx_settlement_retractions_node ON settlement_retractions(node_id);
 CREATE INDEX IF NOT EXISTS idx_achievements_date ON achievements(date);
 CREATE INDEX IF NOT EXISTS idx_anchor_firings_date ON anchor_firings(date);
 CREATE INDEX IF NOT EXISTS idx_metrics_key_date ON metrics(metric_key, recorded_at);
@@ -204,9 +217,10 @@ CREATE INDEX IF NOT EXISTS idx_recommended_items_category ON recommended_items(c
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 const DROP_SQL = `
+DROP TABLE IF EXISTS settlement_retractions;
 DROP TABLE IF EXISTS notes;
 DROP TABLE IF EXISTS recommended_items;
 DROP TABLE IF EXISTS catalog_actions;
@@ -454,6 +468,18 @@ export const MIGRATIONS: Record<number, Migration> = {
     await client.run(`DELETE FROM catalog_actions WHERE id = ?`, [
       'act-light-walk',
     ]);
+  },
+  // ADR-0047: 定着取り下げ用 settlement_retractions テーブルを新設 (新規テーブル CREATE のみ、
+  // 既存データ無変更 = 非破壊)。定着ライフサイクル再設計で「取り下げ」を観測事実軸として保存する。
+  17: async (client) => {
+    await client.exec(`
+      CREATE TABLE IF NOT EXISTS settlement_retractions (
+        node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+        retracted_at TEXT NOT NULL,
+        PRIMARY KEY (node_id, retracted_at)
+      );
+      CREATE INDEX IF NOT EXISTS idx_settlement_retractions_node ON settlement_retractions(node_id);
+    `);
   },
 };
 

@@ -57,6 +57,10 @@ export type TodayScreenProps = {
   // ADR-0044 (#181): Today アクション長押し → 手動メモ作成。 親 (index.tsx) が永続化を担う。
   // 未指定 → 長押しメモ動線は無効 (= ChainDetail の onNoteLongPress も渡さない)。
   onAddNote?: (nodeId: string | null, content: string) => void | Promise<void>;
+  // ADR-0047: 定着ノードの長押しメニューから「定着を取り下げる」。 親 (index.tsx) が
+  // retractSettlement を渡す。 未指定 → 取り下げ導線は無効 (定着ノードの長押しは従来どおり
+  // 直接メモ作成)。
+  onRetractSettlement?: (chainId: string, nodeId: string) => void;
 };
 
 export const TodayScreen = ({
@@ -71,6 +75,7 @@ export const TodayScreen = ({
   checklistAddedAction = false,
   onDismissChecklist,
   onAddNote,
+  onRetractSettlement,
 }: TodayScreenProps) => {
   const [openChainId, setOpenChainId] = useState<string | null>(null);
   // ADR-0044 (#181): アクション長押しで開くメモ作成 Modal。 対象ノードを保持。
@@ -283,7 +288,7 @@ export const TodayScreen = ({
                 nodes={openChain.nodes}
                 achievements={openChain.achievements}
                 anchorFiredToday={openChain.anchorFiredToday}
-                nodeIdsEstablished={openChain.nodeIdsEstablished}
+                nodeIdsSettled={openChain.nodeIdsSettled}
                 nodeRecentCells={openChain.nodeRecentCells}
                 onToggleNode={(nodeId) => onToggleNode(openChain.chain.id, nodeId)}
                 onNoteLongPress={
@@ -292,6 +297,12 @@ export const TodayScreen = ({
                         setNoteTargetNodeId(nodeId);
                         setNoteModalOpen(true);
                       }
+                    : undefined
+                }
+                onRetractSettlement={
+                  onRetractSettlement
+                    ? (nodeId) =>
+                        onRetractSettlement(openChain.chain.id, nodeId)
                     : undefined
                 }
                 onStartTimer={(nodeId, durationSeconds, actionTitle) => {

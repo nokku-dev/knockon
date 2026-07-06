@@ -1,5 +1,6 @@
 import { fireEvent, render } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
+import type { AlertButton } from 'react-native';
 
 import type { DateMatrixCell } from './analyticsDerivation';
 import type {
@@ -240,7 +241,7 @@ describe('ChainDetail', () => {
   });
 
   // Issue #118: 左の SVG マーカーは定着済みでも常に円 (星マークは連続回数の近くに小さく移動)
-  test('nodeIdsEstablished に含まれるノードでも左マーカーは円のまま (#118)', () => {
+  test('nodeIdsSettled に含まれるノードでも左マーカーは円のまま (#118)', () => {
     const { getByTestId, queryByTestId } = render(
       <ChainDetail
         chain={chain}
@@ -248,7 +249,7 @@ describe('ChainDetail', () => {
         nodes={todayNodes}
         achievements={{ n1: true }}
         onToggleNode={() => {}}
-        nodeIdsEstablished={new Set(['n1'])}
+        nodeIdsSettled={new Set(['n1'])}
       />,
     );
     // n1 は定着済みだが、 左マーカーは円のまま (SVG 星は出さない)
@@ -271,7 +272,7 @@ describe('ChainDetail', () => {
           nodes={todayNodes}
           achievements={{ n1: true }}
           onToggleNode={() => {}}
-          nodeIdsEstablished={new Set(['n1'])}
+          nodeIdsSettled={new Set(['n1'])}
         />,
       );
       const star = getByTestId('node-row-star-n1');
@@ -286,7 +287,7 @@ describe('ChainDetail', () => {
           nodes={todayNodes}
           achievements={{ n1: false }}
           onToggleNode={() => {}}
-          nodeIdsEstablished={new Set(['n1'])}
+          nodeIdsSettled={new Set(['n1'])}
         />,
       );
       const star = getByTestId('node-row-star-n1');
@@ -301,7 +302,7 @@ describe('ChainDetail', () => {
           nodes={todayNodes}
           achievements={{}}
           onToggleNode={() => {}}
-          nodeIdsEstablished={new Set(['n1'])}
+          nodeIdsSettled={new Set(['n1'])}
         />,
       );
       const star = getByTestId('node-row-star-n1');
@@ -316,7 +317,7 @@ describe('ChainDetail', () => {
           nodes={todayNodes}
           achievements={{ n1: false, n2: false, n3: false }}
           onToggleNode={() => {}}
-          nodeIdsEstablished={new Set(['n1', 'n2', 'n3'])}
+          nodeIdsSettled={new Set(['n1', 'n2', 'n3'])}
         />,
       );
       expect(queryByText('☆')).toBeNull();
@@ -330,7 +331,7 @@ describe('ChainDetail', () => {
           nodes={todayNodes}
           achievements={{ n1: true }}
           onToggleNode={() => {}}
-          nodeIdsEstablished={new Set(['n1'])}
+          nodeIdsSettled={new Set(['n1'])}
         />,
       );
       // n2 / n3 は未定着 → 星なし
@@ -338,7 +339,7 @@ describe('ChainDetail', () => {
       expect(queryByTestId('node-row-star-n3')).toBeNull();
     });
 
-    test('nodeIdsEstablished 未指定なら星なし', () => {
+    test('nodeIdsSettled 未指定なら星なし', () => {
       const { queryByTestId } = render(
         <ChainDetail
           chain={chain}
@@ -352,7 +353,7 @@ describe('ChainDetail', () => {
     });
   });
 
-  test('nodeIdsEstablished が未指定なら全ノード円マーカー (定着なし)', () => {
+  test('nodeIdsSettled が未指定なら全ノード円マーカー (定着なし)', () => {
     const { getByTestId, queryByTestId } = render(
       <ChainDetail
         chain={chain}
@@ -695,6 +696,65 @@ describe('ChainDetail', () => {
   test('ADR-0044: onNoteLongPress 未指定なら長押しでエラーにならない (動線無効)', () => {
     const { getByLabelText } = renderScreen();
     expect(() => fireEvent(getByLabelText('水を飲む'), 'longPress')).not.toThrow();
+  });
+
+  // ADR-0047: 定着ノードの長押しは「メモを追加 / 定着を取り下げる」の Alert メニューを出す。
+  describe('ADR-0047: 定着ノードの長押しメニュー (取り下げ導線)', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    test('定着ノードを長押しすると Alert メニューが出て「定着を取り下げる」で onRetractSettlement が呼ばれる', () => {
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+      const onRetractSettlement = jest.fn();
+      const onNoteLongPress = jest.fn();
+      const { getByLabelText } = render(
+        <ChainDetail
+          chain={chain}
+          anchor={anchor}
+          nodes={todayNodes}
+          achievements={{}}
+          onToggleNode={() => {}}
+          onNoteLongPress={onNoteLongPress}
+          onRetractSettlement={onRetractSettlement}
+          nodeIdsSettled={new Set(['n2'])}
+        />,
+      );
+      fireEvent(getByLabelText('ストレッチ'), 'longPress');
+      expect(alertSpy).toHaveBeenCalledTimes(1);
+      // 第 1 引数はアクション名、 第 3 引数はボタン配列。
+      expect(alertSpy.mock.calls[0][0]).toBe('ストレッチ');
+      const buttons = alertSpy.mock.calls[0][2] as AlertButton[];
+      const retractBtn = buttons.find((b) => b.text === '定着を取り下げる');
+      expect(retractBtn).toBeDefined();
+      expect(retractBtn?.style).toBe('destructive');
+      // メニューの「定着を取り下げる」を押すと該当 nodeId で取り下げが呼ばれる。
+      retractBtn?.onPress?.();
+      expect(onRetractSettlement).toHaveBeenCalledWith('n2');
+      // メモ導線もメニューに含まれ、 直接メモは開かない (メニュー経由)。
+      expect(onNoteLongPress).not.toHaveBeenCalled();
+      expect(buttons.some((b) => b.text === 'メモを追加')).toBe(true);
+    });
+
+    test('未定着ノードの長押しは従来どおり直接メモ作成 (メニューを出さない)', () => {
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+      const onRetractSettlement = jest.fn();
+      const onNoteLongPress = jest.fn();
+      const { getByLabelText } = render(
+        <ChainDetail
+          chain={chain}
+          anchor={anchor}
+          nodes={todayNodes}
+          achievements={{}}
+          onToggleNode={() => {}}
+          onNoteLongPress={onNoteLongPress}
+          onRetractSettlement={onRetractSettlement}
+          nodeIdsSettled={new Set<string>()}
+        />,
+      );
+      fireEvent(getByLabelText('ストレッチ'), 'longPress');
+      expect(alertSpy).not.toHaveBeenCalled();
+      expect(onNoteLongPress).toHaveBeenCalledWith('n2');
+      expect(onRetractSettlement).not.toHaveBeenCalled();
+    });
   });
 
   // Issue #188: 長押し中はノード Pressable に押下スタイル (opacity 低下) を適用する。
