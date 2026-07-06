@@ -70,4 +70,22 @@ describe('DateMatrixSection (#115 / ADR-0037)', () => {
     const { queryByText } = render(<DateMatrixSection {...baseProps} />);
     expect(queryByText(/日連続/)).toBeNull();
   });
+
+  // ADR-0047: 定着バンド。 settledByNode で指定された日付のセルに「定着」a11y が付く。
+  test('定着バンド: settledByNode の日付セルに a11y ラベル「定着」が付与される', () => {
+    const settledByNode = { n1: new Set(['2026-05-18', '2026-05-19']) };
+    const { getByLabelText } = render(
+      <DateMatrixSection {...baseProps} settledByNode={settledByNode} />,
+    );
+    // 定着期間内: 達成状態と併記される (帯は達成/未達の上に敷く別レイヤー)。
+    expect(getByLabelText('起きる 5/18 未達 定着')).toBeTruthy();
+    expect(getByLabelText('起きる 5/19 達成 定着')).toBeTruthy();
+    // 定着前の日付には付かない。
+    expect(getByLabelText('起きる 5/17 達成')).toBeTruthy();
+  });
+
+  test('定着バンド: settledByNode 未指定なら「定着」ラベルは出ない (既存挙動互換)', () => {
+    const { queryByLabelText } = render(<DateMatrixSection {...baseProps} />);
+    expect(queryByLabelText(/定着/)).toBeNull();
+  });
 });

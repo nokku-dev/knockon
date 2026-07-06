@@ -1,7 +1,7 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
-import { dateMatrixForWindow } from './analyticsDerivation';
+import { dateMatrixForWindow, settledDatesForNode } from './analyticsDerivation';
 import type { DateMatrixChainGroup } from './analyticsDerivation';
 import { getExpoSqliteClient } from './db.expo';
 import { effectiveTodayIsoDate, recentDateRange } from './domain';
@@ -13,6 +13,7 @@ import {
   listNodes,
 } from './repository';
 import { getAppSettings } from './settingsRepository';
+import { listRetractions } from './settlementRepository';
 
 // #115 (ADR-0037): 分析タブの達成マトリクス用データ。 過去 60 日 (8 週) のノード × 日付を
 // 一括ロードし、 dateMatrixForWindow (純粋) でマトリクス化する。
@@ -26,6 +27,8 @@ export type UseDateMatrixResult = {
   today: IsoDate | null;
   dates: IsoDate[]; // 昇順 60 日 (最新が末尾)
   rows: DateMatrixChainGroup[];
+  // ADR-0047: 「定着バンド」用。 nodeId → その日時点で定着している window 日付集合 (派生・表示層)。
+  settledByNode: Record<string, ReadonlySet<IsoDate>>;
   loading: boolean;
   error: string | null;
 };
@@ -34,12 +37,12 @@ const loadDateMatrix = async (): Promise<{
   today: IsoDate;
   dates: IsoDate[];
   rows: DateMatrixChainGroup[];
+  settledByNode: Record<string, ReadonlySet<IsoDate>>;
 }> => {
   const db = await getExpoSqliteClient();
   const settings = await getAppSettings(db);
   const today = effectiveTodayIsoDate(new Date(), settings.resetTime);
   const dates = recentDateRange(today, DATE_MATRIX_WINDOW_DAYS); // 昇順
-  const from = dates[0];
   const to = dates[dates.length - 1];
 
   const chains = await listChains(db, 'active');
@@ -53,9 +56,13 @@ const loadDateMatrix = async (): Promise<{
     }),
   );
 
-  // 全ノードの達成記録を 60 日範囲で 1 クエリ取得 (新規クエリ不要、 ADR-0001 派生のみ維持)。
+  // 全ノードの達成記録を取得 (ADR-0001 派生のみ維持)。 定着 latch (定着バンド) は数ヶ月前の
+  // 定着窓も参照するため、 60D 窓ではなく全期間 (fromDate 省略) を today まで取得する。 マトリクス
+  // セル (達成/未達/休) 側は windowDates で内部フィルタされるので同じ配列を流用 (単一ソース)。
   const allNodeIds = groups.flatMap((g) => g.nodes.map((n) => n.id));
-  const achievements = await listAchievementsForNodes(db, allNodeIds, from, to);
+  const achievements = await listAchievementsForNodes(db, allNodeIds, undefined, to);
+  // ADR-0047: 定着取り下げ事実を全件取得し、 定着バンドの派生に渡す。
+  const retractions = await listRetractions(db);
 
   // action は actionId ごとに 1 度だけ解決 (重複はキャッシュ)。
   const actionsById: Record<string, Action> = {};
@@ -77,13 +84,25 @@ const loadDateMatrix = async (): Promise<{
     actionsById,
     achievements,
   );
-  return { today, dates, rows };
+
+  // ADR-0047: 各ノードの「定着バンド」対象日を派生 (表示層のみ・レコード非生成)。
+  const settledByNode: Record<string, ReadonlySet<IsoDate>> = {};
+  for (const nodeId of allNodeIds) {
+    settledByNode[nodeId] = new Set(
+      settledDatesForNode(achievements, retractions, nodeId, dates),
+    );
+  }
+
+  return { today, dates, rows, settledByNode };
 };
 
 export const useDateMatrix = (): UseDateMatrixResult => {
   const [today, setToday] = useState<IsoDate | null>(null);
   const [dates, setDates] = useState<IsoDate[]>([]);
   const [rows, setRows] = useState<DateMatrixChainGroup[]>([]);
+  const [settledByNode, setSettledByNode] = useState<
+    Record<string, ReadonlySet<IsoDate>>
+  >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,6 +119,7 @@ export const useDateMatrix = (): UseDateMatrixResult => {
           setToday(r.today);
           setDates(r.dates);
           setRows(r.rows);
+          setSettledByNode(r.settledByNode);
           setError(null);
         } catch (e: unknown) {
           if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -113,5 +133,5 @@ export const useDateMatrix = (): UseDateMatrixResult => {
     }, []),
   );
 
-  return { today, dates, rows, loading, error };
+  return { today, dates, rows, settledByNode, loading, error };
 };

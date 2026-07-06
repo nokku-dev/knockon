@@ -63,6 +63,7 @@ export default function AnalyticsTab() {
               rows={matrix.rows}
               dates={matrix.dates}
               today={matrix.today}
+              settledByNode={matrix.settledByNode}
             />
           }
         />
