@@ -1,120 +1,147 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
-import {
-  chainAchievementStats,
-  dailyChainAchievementSeries,
-} from './analyticsDerivation';
-import type { ChainStats, DailyChainPoint } from './analyticsDerivation';
 import { getExpoSqliteClient } from './db.expo';
 import {
+  countSettlementStages,
   effectiveTodayIsoDate,
-  recentDateRange,
-  sortChainsForDisplay,
+  nodeSettlementStage,
 } from './domain';
-import type { Action, Anchor, Chain, IsoDate } from './domain';
+import type {
+  Achievement,
+  IsoDate,
+  SettlementStage,
+  SettlementStageCounts,
+} from './domain';
 import {
   getAction,
-  getAnchor,
   listAchievementsForNodes,
   listChains,
   listNodes,
 } from './repository';
 import { getAppSettings } from './settingsRepository';
+import { insertRetraction, listRetractions } from './settlementRepository';
 
-// PR-Z2 (ADR-0024 §3b): 達成率ダッシュボード用のデータ集約。
-// active な全チェーンの 14D 達成率 + 日別系列 + ノード数 をまとめて返す。
+// ADR-0047: ログ画面 = 定着ポートフォリオ。 旧「達成率ダッシュボード」(PR-Z2) を組み替え、
+// active な全チェーンのノードを「これから / 育成中 / 定着」の 3 ステージに派生分類する。
+// 達成率 (= 比率・ADR-0036 (−) 禁則) は撤去。 保存は事実のみ、 分類は表示時の派生関数
+// (isNodeSettled / nodeSettlementStage、 派生値カラム禁止・ADR-0001 / K-006)。
 
-export type AnalyticsWindowDays = 14;
-const ANALYTICS_WINDOW_DAYS: AnalyticsWindowDays = 14;
-
-export type AnalyticsChainData = {
-  chain: Chain;
-  anchor: Anchor;
-  nodeCount: number;
-  stats: ChainStats;
-  series: DailyChainPoint[];
+// ポートフォリオ 1 行分。 chainId / nodeId は取り下げ導線が使う。 actionTitle / chainTitle は
+// 表示用 (保存せず派生解決)。 stage は nodeSettlementStage の派生結果。
+export type SettlementPortfolioNode = {
+  chainId: string;
+  nodeId: string;
+  actionTitle: string;
+  chainTitle: string;
+  stage: SettlementStage;
 };
 
 export type AnalyticsData = {
   today: IsoDate;
-  windowDays: AnalyticsWindowDays;
-  chains: AnalyticsChainData[];
+  // 上部カウント (単調増加の Celebrate 主役)。 fresh も持つが画面は「定着 N・育成中 M」だけ出す。
+  counts: SettlementStageCounts;
+  nodes: SettlementPortfolioNode[];
 };
 
 const loadAnalytics = async (): Promise<AnalyticsData> => {
   const db = await getExpoSqliteClient();
   const settings = await getAppSettings(db);
   const today = effectiveTodayIsoDate(new Date(), settings.resetTime);
-  const window = recentDateRange(today, ANALYTICS_WINDOW_DAYS);
-  const windowStart = window[0] ?? today;
+  // ADR-0047: 定着判定 (latch) は取り下げ事実を参照する。 全件を 1 度だけ load。
+  const retractions = await listRetractions(db);
 
-  // active なチェーンだけ集計 (stocked は別軸の意思決定で休止中のため分析から除外)。
+  // active なチェーンだけ (stocked は休止中のため portfolio から除外、 Today と同じ方針)。
   const chains = await listChains(db, 'active');
 
-  // K-010 同型の受容判断: chain 間は Promise.all で並列だが、 chain 内は逐次 (anchor →
-   // nodes → 各 action → achievements)。 Phase 1 N=1 規模で集計 ~10ms / 体感問題なし。
-   // 多人数 / 多チェーン (PR-Z3+ 出荷後レイヤー) で遅延が出たら chain 内も並列化 + action
-   // を全チェーン横断キャッシュにする判断トリガー。
-  const results = await Promise.all(
-    chains.map(async (chain) => {
-      const anchor = await getAnchor(db, chain.anchorId);
-      if (!anchor) return null;
-      const nodes = await listNodes(db, chain.id);
-      // action を 1 回ずつだけ fetch (1 chain 内で重複しないので Map 経由)。
-      const actionMap = new Map<string, Action>();
-      for (const node of nodes) {
-        if (actionMap.has(node.actionId)) continue;
-        const action = await getAction(db, node.actionId);
-        if (action) actionMap.set(node.actionId, action);
-      }
-      const records = await listAchievementsForNodes(
-        db,
-        nodes.map((n) => n.id),
-        windowStart,
-        today,
-      );
-      const stats = chainAchievementStats(
-        records,
-        nodes,
-        actionMap,
-        today,
-        ANALYTICS_WINDOW_DAYS,
-      );
-      const series = dailyChainAchievementSeries(
-        records,
-        nodes,
-        actionMap,
-        today,
-        ANALYTICS_WINDOW_DAYS,
-      );
-      return {
-        chain,
-        anchor,
-        nodeCount: nodes.length,
-        stats,
-        series,
-      } as AnalyticsChainData;
-    }),
-  );
-  const valid = results.filter((x): x is AnalyticsChainData => x !== null);
-  return {
+  const portfolioNodes: SettlementPortfolioNode[] = [];
+  // counts は全チェーン横断で数えるため、 全達成記録を貫通で貯める (nodeSettlementStage /
+  // countSettlementStages は nodeId で filter するので混在しても混線しない)。
+  const allRecords: Achievement[] = [];
+
+  // K-010 同型の受容判断: chain 間逐次 (N=1 規模で体感問題なし)。 多チェーンで遅延が出たら
+  // Promise.all + action 横断キャッシュへ。 定着 latch のため達成は全期間取得 (14D では不足)。
+  for (const chain of chains) {
+    // Today と同様、 一時停止 (active=false) ノードは portfolio から外す (= 外すが残す)。
+    const nodes = (await listNodes(db, chain.id)).filter(
+      (n) => n.active !== false,
+    );
+    const records = await listAchievementsForNodes(
+      db,
+      nodes.map((n) => n.id),
+      undefined,
+      today,
+    );
+    allRecords.push(...records);
+    for (const node of nodes) {
+      const action = await getAction(db, node.actionId);
+      portfolioNodes.push({
+        chainId: chain.id,
+        nodeId: node.id,
+        actionTitle: action?.title ?? '(不明なアクション)',
+        chainTitle: chain.title,
+        stage: nodeSettlementStage(records, retractions, node.id, today),
+      });
+    }
+  }
+
+  const counts = countSettlementStages(
+    portfolioNodes.map((n) => n.nodeId),
+    allRecords,
+    retractions,
     today,
-    windowDays: ANALYTICS_WINDOW_DAYS,
-    chains: sortChainsForDisplay(valid),
-  };
+  );
+
+  return { today, counts, nodes: portfolioNodes };
 };
 
 export type UseAnalyticsDataResult = {
   data: AnalyticsData | null;
   error: string | null;
   loading: boolean;
+  // ADR-0047: 定着ポートフォリオから定着を取り下げる。 楽観更新でノードを settled → growing に
+  // 移し (取り下げ直後は isNodeSettled が false・過去タップが残るので growing 確定)、 counts も
+  // settled--/growing++。 永続化は insertRetraction。 K-010 同型で rollback は入れない。
+  retract: (nodeId: string) => Promise<void>;
 };
 
 export const useAnalyticsData = (): UseAnalyticsDataResult => {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const retract = useCallback(async (nodeId: string) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      let changed = false;
+      const nodes = prev.nodes.map((n) => {
+        if (n.nodeId === nodeId && n.stage === 'settled') {
+          changed = true;
+          return { ...n, stage: 'growing' as SettlementStage };
+        }
+        return n;
+      });
+      if (!changed) return prev;
+      return {
+        ...prev,
+        nodes,
+        counts: {
+          ...prev.counts,
+          settled: prev.counts.settled - 1,
+          growing: prev.counts.growing + 1,
+        },
+      };
+    });
+    try {
+      const db = await getExpoSqliteClient();
+      await insertRetraction(db, {
+        nodeId,
+        retractedAt: new Date().toISOString(),
+      });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -141,5 +168,5 @@ export const useAnalyticsData = (): UseAnalyticsDataResult => {
     }, []),
   );
 
-  return { data, error, loading };
+  return { data, error, loading, retract };
 };
