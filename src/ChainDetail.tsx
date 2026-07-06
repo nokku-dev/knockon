@@ -48,10 +48,11 @@ export type TodayNode = {
 // 旧 TodayScreen の中身 (アンカー行 + チェーンタイトル + スパイン + ノードリスト)
 // を切り出した。 「Today」見出しと scroll wrap は呼び出し側 (TodayScreen) が担当。
 //
-// ADR-0047: 定着済み (settled = latch) のノードはアクション名の右に小さな ★ を表示。
-// 定着判定は親 (useTodayData) で派生計算し、 nodeIdsSettled として渡す (= ChainDetail は
-// 判定責務を持たず view 専念、 純粋関数結果の表示係)。 タップは従来通り有効 (ユーザー判断)、
-// 達成は実タップのまま (auto 達成レコードは書かない = K-002)。
+// ADR-0047: 定着済み (settled = latch) のノードはアクション名の右に小さな ★ を表示し、
+// Today で **auto-✓ (タップ不要)** 扱いにする (2026-07-07 追補・ユーザー判断: 記録の手間を
+// 減らす)。 表示上の達成 (effective) = 実レコード OR 定着。 タップは no-op (達成レコードを
+// 書かない = K-002)。 定着判定は親 (useTodayData) で派生し nodeIdsSettled で渡す
+// (ChainDetail は判定責務を持たず view 専念)。
 export type ChainDetailProps = {
   chain: Chain;
   anchor: Anchor;
@@ -155,7 +156,14 @@ export const ChainDetail = ({
   nodeRecentCells,
 }: ChainDetailProps) => {
   const domainNodes = nodes.map((n) => n.node);
-  const lastAchievedIdx = lastAchievedNodeIndex(domainNodes, achievements);
+  // ADR-0047 追補 (2026-07-07): 定着ノードは Today で auto-✓ (タップ不要・達成レコード非書込)。
+  // 表示上の達成 (effective) = 実レコード OR 定着 (latch)。 スパインの伸び・マーカーの塗り・
+  // ✓ はこの effective 値で描く。 実タップ記録 (achievements) は書き換えない (K-002)。
+  const effectiveAchievements: Record<string, boolean> = { ...achievements };
+  for (const { node } of nodes) {
+    if (nodeIdsSettled?.has(node.id)) effectiveAchievements[node.id] = true;
+  }
+  const lastAchievedIdx = lastAchievedNodeIndex(domainNodes, effectiveAchievements);
   const anchorCenterY = ANCHOR_ROW_HEIGHT / 2;
   const nodeMarkerCenterY = (idx: number) =>
     ANCHOR_ROW_HEIGHT + idx * NODE_ROW_HEIGHT + NODE_ROW_HEIGHT / 2;
@@ -256,7 +264,7 @@ export const ChainDetail = ({
                 key={node.id}
                 nodeId={node.id}
                 cy={nodeMarkerCenterY(idx)}
-                achieved={achievements[node.id] ?? false}
+                achieved={effectiveAchievements[node.id] ?? false}
               />
             ),
           )}
@@ -281,9 +289,12 @@ export const ChainDetail = ({
               key={node.id}
               nodeId={node.id}
               actionTitle={label}
-              achieved={achievements[node.id] ?? false}
+              achieved={effectiveAchievements[node.id] ?? false}
               settled={nodeIdsSettled?.has(node.id) ?? false}
-              onPress={() => onToggleNode(node.id)}
+              // 定着ノードは auto-✓ でタップ不要 → onPress を no-op に (K-002: レコード非書込)。
+              onPress={() => {
+                if (!nodeIdsSettled?.has(node.id)) onToggleNode(node.id);
+              }}
               onLongPress={makeNodeLongPress(
                 node.id,
                 label,
@@ -420,13 +431,15 @@ const NodeRow = ({
 
   const minutes = timerSeconds != null ? Math.round(timerSeconds / 60) : null;
 
+  // ADR-0047 追補 (2026-07-07): 定着ノードは auto-✓ でタップ不要。 タップは no-op にする
+  // (達成レコードを書かない・K-002)。 長押しメニュー (メモ / 取り下げ) は引き続き有効。
   return (
     <View style={[styles.contentRow, styles.nodeRowContainer, { height: NODE_ROW_HEIGHT }]}>
       <Pressable
         onPress={onPress}
         onLongPress={onLongPress}
         accessibilityRole="checkbox"
-        accessibilityState={{ checked: achieved }}
+        accessibilityState={{ checked: achieved, disabled: settled }}
         accessibilityLabel={actionTitle}
         accessibilityHint={
           onLongPress
