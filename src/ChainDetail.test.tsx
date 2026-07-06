@@ -108,6 +108,7 @@ describe('ChainDetail', () => {
     const { getByLabelText } = renderScreen({});
     expect(getByLabelText('水を飲む').props.accessibilityState).toEqual({
       checked: false,
+      disabled: false,
     });
   });
 
@@ -115,6 +116,48 @@ describe('ChainDetail', () => {
     const { getByLabelText } = renderScreen({ n1: true });
     expect(getByLabelText('水を飲む').props.accessibilityState).toEqual({
       checked: true,
+      disabled: false,
+    });
+  });
+
+  // ADR-0047 追補 (2026-07-07): 定着ノードは Today で auto-✓ (タップ不要・レコード非書込)。
+  describe('定着ノードの auto-✓ (タップ不要)', () => {
+    const renderWithSettled = (
+      achievements: AchievementMap,
+      settled: Set<string>,
+      onToggleNode: (id: string) => void = () => {},
+    ) =>
+      render(
+        <ChainDetail
+          chain={chain}
+          anchor={anchor}
+          nodes={todayNodes}
+          achievements={achievements}
+          nodeIdsSettled={settled}
+          onToggleNode={onToggleNode}
+        />,
+      );
+
+    test('定着ノードは実レコードが無くても checked=true (auto-✓) かつ disabled=true', () => {
+      const { getByLabelText } = renderWithSettled({}, new Set(['n1']));
+      expect(getByLabelText('水を飲む').props.accessibilityState).toEqual({
+        checked: true,
+        disabled: true,
+      });
+    });
+
+    test('定着ノードをタップしても onToggleNode は呼ばれない (no-op・記録を書かない)', () => {
+      const onToggleNode = jest.fn();
+      const { getByLabelText } = renderWithSettled({}, new Set(['n1']), onToggleNode);
+      fireEvent.press(getByLabelText('水を飲む'));
+      expect(onToggleNode).not.toHaveBeenCalled();
+    });
+
+    test('未定着ノードは従来どおりタップで onToggleNode が呼ばれる', () => {
+      const onToggleNode = jest.fn();
+      const { getByLabelText } = renderWithSettled({}, new Set(['n1']), onToggleNode);
+      fireEvent.press(getByLabelText('ストレッチ'));
+      expect(onToggleNode).toHaveBeenCalledWith('n2');
     });
   });
 
