@@ -5,6 +5,7 @@ import {
   dateMatrixForWindow,
   nodeAchievementStats,
   nodeDateMatrixCells,
+  settledDatesForNode,
 } from './analyticsDerivation';
 
 const buildNode = (id: string, actionId: string): Node => ({
@@ -378,5 +379,46 @@ describe('nodeDateMatrixCells (#125: Today アクション行右端の小マト�
 
   test('windowDates が空 → 空セル配列', () => {
     expect(nodeDateMatrixCells([], buildAction('a1'), 'n1', [])).toEqual([]);
+  });
+});
+
+describe('settledDatesForNode (ADR-0047: 60D マトリクスの定着バンド用派生)', () => {
+  // 2026-04-01..10 の 10 日達成で 14D 窓の定着バーを満たす (latch)。
+  const tenDaysApril: Achievement[] = Array.from({ length: 10 }, (_, i) => ({
+    nodeId: 'n1',
+    date: `2026-04-${String(i + 1).padStart(2, '0')}`,
+    achieved: true,
+  }));
+
+  test('定着到達日以降の window 日付だけがバンド対象になる', () => {
+    // window: 4/9, 4/10, 4/11。 4/10 で 10 日目 = 定着到達。 4/9 時点は 9 日で未定着。
+    const dates = ['2026-04-09', '2026-04-10', '2026-04-11'];
+    const settled = settledDatesForNode(tenDaysApril, [], 'n1', dates);
+    expect(settled).toEqual(['2026-04-10', '2026-04-11']);
+  });
+
+  test('latch: 直近に達成が無くても定着後の日付はバンド対象のまま', () => {
+    const dates = ['2026-05-29', '2026-05-30'];
+    const settled = settledDatesForNode(tenDaysApril, [], 'n1', dates);
+    expect(settled).toEqual(['2026-05-29', '2026-05-30']);
+  });
+
+  test('未定着ノードはバンド無し (空配列)', () => {
+    const nineDays = tenDaysApril.slice(0, 9);
+    const dates = ['2026-05-29', '2026-05-30'];
+    expect(settledDatesForNode(nineDays, [], 'n1', dates)).toEqual([]);
+  });
+
+  test('取り下げ以降・未再定着ならバンドは出ない (現在有効な定着スパンのみ)', () => {
+    const retractions = [{ nodeId: 'n1', retractedAt: '2026-04-15T10:00:00' }];
+    const dates = ['2026-05-29', '2026-05-30'];
+    expect(settledDatesForNode(tenDaysApril, retractions, 'n1', dates)).toEqual(
+      [],
+    );
+  });
+
+  test('別ノードの達成は混ざらない', () => {
+    const dates = ['2026-05-29', '2026-05-30'];
+    expect(settledDatesForNode(tenDaysApril, [], 'nX', dates)).toEqual([]);
   });
 });
