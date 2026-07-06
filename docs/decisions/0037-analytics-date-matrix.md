@@ -74,3 +74,4 @@ ADR-0004 / DESIGN-SYSTEM §0/§5 / CLAUDE.md の「格子 / ヒートマップ�
 - [ADR-0036](./0036-rescind-today-streak-display.md): streak 撤回。本マトリクスも streak の数字を載せない前提を共有。
 - [ADR-0001](./0001-chain-data-model.md): 正準データ (派生のみ・保存しない根拠)。
 - [K-016](../../KNOWLEDGE.md): マイナスを指差さない表示。
+- **追記 (ADR-0047)**: [ADR-0047](./0047-settlement-lifecycle-and-log-portfolio.md) の定着ポートフォリオ化で、60D マトリクスは存置しつつ**定着後を表示層で「定着バンド」として派生描画**する (達成レコードは書かない = honest)。マトリクスの意味が「実行」から「実行 + 定着状態」の 2 層になる。二値セル語彙・段階塗り率なしの原則は不変。

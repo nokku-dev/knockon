@@ -3,12 +3,14 @@ id: 45
 date: 2026-07-03
 project: knockon
 tags: [scope, ux]
-status: accepted
+status: superseded
 supersedes: []
-superseded-by: []
+superseded-by: [0047]
 ---
 
 # 分析 (ログ) タブを v1 リリーススコープから除外しミニマルリリースに絞る (ADR-0024 §スコープを部分的に覆し)
+
+> **superseded by [ADR-0047](0047-settlement-lifecycle-and-log-portfolio.md)**: ログ画面を達成率ダッシュボードから「定着ポートフォリオ」に組み替えた結果、率でなく定着を見せる価値が生まれたため、本 ADR の「ログタブを `href: null` で非表示」判断は 0047 で反転された (v1 リリースに表示)。データ保全・非破壊の方針自体は 0047 に引き継がれる。
 
 ## 文脈
 
