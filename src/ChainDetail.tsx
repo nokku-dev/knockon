@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { AlertButton } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedProps,
@@ -47,9 +48,10 @@ export type TodayNode = {
 // 旧 TodayScreen の中身 (アンカー行 + チェーンタイトル + スパイン + ノードリスト)
 // を切り出した。 「Today」見出しと scroll wrap は呼び出し側 (TodayScreen) が担当。
 //
-// PR-Z1 (ADR-0024 §3a): 定着済み (14D 中 10 日以上達成) のノードは円→塗り星に切替。
-// 定着判定は親 (TodayScreen / useTodayData) で派生計算し、 nodeIdsEstablished として
-// 渡す (= ChainDetail は判定責務を持たず view 専念、 純粋関数結果の表示係)。
+// ADR-0047: 定着済み (settled = latch) のノードはアクション名の右に小さな ★ を表示。
+// 定着判定は親 (useTodayData) で派生計算し、 nodeIdsSettled として渡す (= ChainDetail は
+// 判定責務を持たず view 専念、 純粋関数結果の表示係)。 タップは従来通り有効 (ユーザー判断)、
+// 達成は実タップのまま (auto 達成レコードは書かない = K-002)。
 export type ChainDetailProps = {
   chain: Chain;
   anchor: Anchor;
@@ -60,7 +62,11 @@ export type ChainDetailProps = {
   // NoteComposeModal を制御する責務。 未指定 → 長押しメモ動線は無効 (既存挙動互換)。
   onNoteLongPress?: (nodeId: string) => void;
   anchorFiredToday?: boolean;
-  nodeIdsEstablished?: ReadonlySet<string>;
+  nodeIdsSettled?: ReadonlySet<string>;
+  // ADR-0047: 定着ノードの長押しメニューから「定着を取り下げる」導線。 未指定 → 取り下げ無効。
+  // 定着済みノードの長押しは「メモを追加 / 定着を取り下げる」の選択メニューを出す (両導線・
+  // ユーザー判断)。 未定着ノードの長押しは従来どおり直接メモ作成。
+  onRetractSettlement?: (nodeId: string) => void;
   // PR-BB (ADR-0025): タイマー設定済みノードでタップされたとき呼ぶ。
   // 親 (TodayScreen) が TimerScreen Modal を制御する責務。 onStartTimer 未指定 → ボタン非表示。
   onStartTimer?: (nodeId: string, durationSeconds: number, actionTitle: string) => void;
@@ -99,6 +105,42 @@ const TEXT_BOUNCE_DOWN_MS = 240;
 const AnimatedLine = Animated.createAnimatedComponent(Line);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
+// ADR-0047: ノード長押しの動作を合成する。 定着済み (settled) + 取り下げ導線ありなら
+// 「メモを追加 / 定着を取り下げる」の Alert メニューを出す (両導線・ユーザー判断)。
+// 未定着なら従来どおり直接メモ作成。 どちらの導線も無ければ undefined (長押し無効 = 既存互換)。
+// 取り下げは latch のリセット (マイナスを指差さず本人だけが取り下げる) なので destructive 表示。
+const makeNodeLongPress = (
+  nodeId: string,
+  actionTitle: string,
+  settled: boolean,
+  onNoteLongPress?: (nodeId: string) => void,
+  onRetractSettlement?: (nodeId: string) => void,
+): (() => void) | undefined => {
+  if (settled && onRetractSettlement) {
+    return () => {
+      const buttons: AlertButton[] = [];
+      if (onNoteLongPress) {
+        buttons.push({ text: 'メモを追加', onPress: () => onNoteLongPress(nodeId) });
+      }
+      buttons.push({
+        text: '定着を取り下げる',
+        style: 'destructive',
+        onPress: () => onRetractSettlement(nodeId),
+      });
+      buttons.push({ text: 'キャンセル', style: 'cancel' });
+      Alert.alert(
+        actionTitle,
+        '定着を取り下げると、 再び実行を積んで定着バーを満たすまで育成中に戻ります。',
+        buttons,
+      );
+    };
+  }
+  if (onNoteLongPress) {
+    return () => onNoteLongPress(nodeId);
+  }
+  return undefined;
+};
+
 export const ChainDetail = ({
   chain,
   anchor,
@@ -107,7 +149,8 @@ export const ChainDetail = ({
   onToggleNode,
   onNoteLongPress,
   anchorFiredToday = false,
-  nodeIdsEstablished,
+  nodeIdsSettled,
+  onRetractSettlement,
   onStartTimer,
   nodeRecentCells,
 }: ChainDetailProps) => {
@@ -239,11 +282,15 @@ export const ChainDetail = ({
               nodeId={node.id}
               actionTitle={label}
               achieved={achievements[node.id] ?? false}
-              established={nodeIdsEstablished?.has(node.id) ?? false}
+              settled={nodeIdsSettled?.has(node.id) ?? false}
               onPress={() => onToggleNode(node.id)}
-              onLongPress={
-                onNoteLongPress ? () => onNoteLongPress(node.id) : undefined
-              }
+              onLongPress={makeNodeLongPress(
+                node.id,
+                label,
+                nodeIdsSettled?.has(node.id) ?? false,
+                onNoteLongPress,
+                onRetractSettlement,
+              )}
               timerSeconds={action.timerSeconds}
               onStartTimer={
                 onStartTimer &&
@@ -331,7 +378,7 @@ const NodeRow = ({
   nodeId,
   actionTitle,
   achieved,
-  established,
+  settled,
   onPress,
   onLongPress,
   timerSeconds,
@@ -341,7 +388,7 @@ const NodeRow = ({
   nodeId: string;
   actionTitle: string;
   achieved: boolean;
-  established: boolean;
+  settled: boolean;
   onPress: () => void;
   onLongPress?: () => void;
   timerSeconds: number | null;
@@ -381,7 +428,13 @@ const NodeRow = ({
         accessibilityRole="checkbox"
         accessibilityState={{ checked: achieved }}
         accessibilityLabel={actionTitle}
-        accessibilityHint={onLongPress ? '長押しでメモを追加' : undefined}
+        accessibilityHint={
+          onLongPress
+            ? settled
+              ? '長押しでメニュー (メモを追加 / 定着を取り下げる)'
+              : '長押しでメモを追加'
+            : undefined
+        }
         // Issue #190: 左の SVG ドット (cx=SPINE_X) を touchable 範囲に含める。
         hitSlop={{ left: NODE_HIT_SLOP_LEFT }}
         // Issue #188: 長押し中の押下フィードバック (= 長押しメモ動線の発見性向上)。
@@ -402,7 +455,7 @@ const NodeRow = ({
             表示する。 Issue #113 の「達成=★ / 未達=☆」塗り分けセマンティクスは
             撤回 (= マイナス側 (☆) を指差さない / Celebrate 主、 DESIGN-SYSTEM §0)。
             定着自体が祝福なので、 その日の達成状態で表現を薄めない。 */}
-        {established && (
+        {settled && (
           <Text
             testID={`node-row-star-${nodeId}`}
             style={styles.nodeRowStar}

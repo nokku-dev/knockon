@@ -96,8 +96,8 @@ const buildChainData = (
   nodes,
   achievements,
   anchorFiredToday: false,
-  recentAchievements: [],
-  nodeIdsEstablished: new Set<string>(),
+  achievementHistory: [],
+  nodeIdsSettled: new Set<string>(),
   nodeRecentCells: new Map(),
 });
 
