@@ -605,6 +605,26 @@ export const countAchievedBefore = async (
   return rows[0]?.n ?? 0;
 };
 
+// ADR-0047 追補 (2026-07-07): effective 累計 (定着 auto 日を派生で数える) 用。 アプリ全体の
+// 全ノード ID と、 upToDate までの全達成レコードを取得する。 派生計算 (countEffectiveAchievedTotal)
+// に渡す。 N=1 では件数は少なく体感問題なし (K-010 受容: 多ノード化で遅延が出たら SQL 側で
+// 定着スパンを近似集計する等を判断)。
+export const listAllNodeIds = async (db: DbClient): Promise<string[]> => {
+  const rows = await db.all<{ id: string }>(`SELECT id FROM nodes`);
+  return rows.map((r) => r.id);
+};
+
+export const listAllAchievements = async (
+  db: DbClient,
+  upToDate: IsoDate,
+): Promise<Achievement[]> => {
+  const rows = await db.all<AchievementRow>(
+    `SELECT * FROM achievements WHERE achieved = 1 AND date <= ? ORDER BY date, node_id`,
+    [upToDate],
+  );
+  return rows.map(rowToAchievement);
+};
+
 // ADR-0012: アンカー発火イベントの記録。1 日 1 回の不可逆事実。
 // 同 (anchor_id, date) で 2 回目以降の INSERT は OR IGNORE で握り潰す。
 export const recordAnchorFiring = (

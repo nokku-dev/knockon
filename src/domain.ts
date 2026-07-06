@@ -702,3 +702,97 @@ export const settlementStageMovements = (
   }
   return { intoSettled, intoAlmost };
 };
+
+// 2 つの ISO 日付 (YYYY-MM-DD) 間の日数差 (end - start)。同日なら 0。
+const isoDayDiff = (start: IsoDate, end: IsoDate): number => {
+  const s = new Date(start + 'T00:00:00');
+  const e = new Date(end + 'T00:00:00');
+  return Math.round((e.getTime() - s.getTime()) / 86_400_000);
+};
+
+// ADR-0047 追補 (2026-07-07): 「派生で数える」累計用。 1 ノードの effective 達成日数
+// (= 実タップ達成 OR 定着 auto) を upToDate まで数える。 達成レコードは書かない (K-002)。
+// 定着ノードは定着到達日以降を「毎日 auto 達成」とみなして数える (= 手を離しても累計が伸びる)。
+//
+// **単調性 (累計は減らない・ADR-0036 (+) / ADR-0041)**: 取り下げは「以後の auto 加算を止める」
+// だけで、 取り下げ前に積んだ auto 日は消さない。 = 各日 D の定着判定は「D 時点までの取り下げ」
+// のみで行う (未来の取り下げが過去の auto 日を遡って消さない)。 これにより取り下げても累計は
+// 減らず、 その時点で伸びが止まるだけになる。
+//
+// 効率: (a) 取り下げ無し + 未定着 → 実タップ数のみ (最頻・O(records))。(b) 取り下げ無し + 定着 →
+// スパン (firstSettled..upToDate) 一括計算 (O(records))。(c) 取り下げ有り (稀) → firstReal..upToDate
+// を日走査し各日「その日までの取り下げ」で定着判定 (O(days×records)、 N=1 で許容・K-010)。
+export const countEffectiveAchievedForNode = (
+  achievements: readonly Achievement[],
+  retractions: readonly SettlementRetraction[],
+  nodeId: string,
+  upToDate: IsoDate,
+  options?: EstablishedOptions,
+): number => {
+  const realSet = new Set<IsoDate>();
+  for (const a of achievements) {
+    if (a.nodeId !== nodeId || !a.achieved || a.date > upToDate) continue;
+    realSet.add(a.date);
+  }
+  const realCount = realSet.size;
+  if (realCount === 0) return 0;
+  const nodeRetractions = retractions.filter((r) => r.nodeId === nodeId);
+
+  if (nodeRetractions.length === 0) {
+    // 取り下げ無し: 定着 latch は単調。 未定着なら auto 無し。 定着ならスパン一括。
+    if (!isNodeSettled(achievements, retractions, nodeId, upToDate, options)) {
+      return realCount;
+    }
+    const sorted = [...realSet].sort();
+    let firstSettled: IsoDate | null = null;
+    for (const d of sorted) {
+      if (isNodeSettled(achievements, retractions, nodeId, d, options)) {
+        firstSettled = d;
+        break;
+      }
+    }
+    if (firstSettled === null) return realCount;
+    const spanDays = isoDayDiff(firstSettled, upToDate) + 1;
+    let realInSpan = 0;
+    for (const d of realSet) if (d >= firstSettled) realInSpan++;
+    return realCount + (spanDays - realInSpan);
+  }
+
+  // 取り下げ有り (稀): 単調性のため各日「その日までの取り下げ」で定着判定して日走査する。
+  const sorted = [...realSet].sort();
+  const firstReal = sorted[0];
+  const range = recentDateRange(upToDate, isoDayDiff(firstReal, upToDate) + 1);
+  let count = 0;
+  for (const d of range) {
+    if (realSet.has(d)) {
+      count++;
+      continue;
+    }
+    const retrUpToD = nodeRetractions.filter(
+      (r) => r.retractedAt.slice(0, 10) <= d,
+    );
+    if (isNodeSettled(achievements, retrUpToD, nodeId, d, options)) count++;
+  }
+  return count;
+};
+
+// アプリ全体の effective 累計 (全ノード合算)。
+export const countEffectiveAchievedTotal = (
+  nodeIds: readonly string[],
+  achievements: readonly Achievement[],
+  retractions: readonly SettlementRetraction[],
+  upToDate: IsoDate,
+  options?: EstablishedOptions,
+): number => {
+  let total = 0;
+  for (const nodeId of nodeIds) {
+    total += countEffectiveAchievedForNode(
+      achievements,
+      retractions,
+      nodeId,
+      upToDate,
+      options,
+    );
+  }
+  return total;
+};

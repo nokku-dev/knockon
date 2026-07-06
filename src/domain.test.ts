@@ -23,6 +23,8 @@ import {
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
   lastAchievedNodeIndex,
+  countEffectiveAchievedForNode,
+  countEffectiveAchievedTotal,
   nodeSettlementStage,
   recentDateRange,
   resolveActionForDate,
@@ -1019,5 +1021,70 @@ describe('settlementStageMovements (先週からの定着 / もう少しで定�
       7,
     );
     expect(m).toEqual({ intoSettled: 1, intoAlmost: 1 });
+  });
+});
+
+describe('countEffectiveAchievedForNode (ADR-0047追補: 派生で数える累計)', () => {
+  it('未定着なら実タップ達成日数だけを数える', () => {
+    const records = achievedOn('n1', ['2026-05-28', '2026-05-29']);
+    expect(countEffectiveAchievedForNode(records, [], 'n1', '2026-05-30')).toBe(2);
+  });
+
+  it('達成が皆無なら 0', () => {
+    expect(countEffectiveAchievedForNode([], [], 'n1', '2026-05-30')).toBe(0);
+  });
+
+  it('定着後は「手を離した日」も auto として数える (実タップ + 定着後の未タップ日)', () => {
+    // 4/1..4/10 の 10 日で 4/10 定着。 upTo=4/12 → 4/11, 4/12 は未タップだが定着スパン内 = auto。
+    const records = achievedOn('n1', TEN_DAYS_APRIL);
+    // 実タップ 10 + 定着スパン (4/10..4/12=3日) のうち未タップ (4/11,4/12=2日) = 12。
+    expect(countEffectiveAchievedForNode(records, [], 'n1', '2026-04-12')).toBe(12);
+  });
+
+  it('定着日 = スパン先頭。定着日より前は auto 加算しない', () => {
+    const records = achievedOn('n1', TEN_DAYS_APRIL);
+    // upTo=4/10 (定着到達日ちょうど) → 実タップ 10、 スパン (4/10..4/10=1日) 実タップ済 → auto +0 = 10。
+    expect(countEffectiveAchievedForNode(records, [], 'n1', '2026-04-10')).toBe(10);
+  });
+
+  it('単調性: 取り下げは以後の auto 加算を止めるが、取り下げ前の auto 日は残す', () => {
+    // 4/1..4/10 定着 (4/10)。 取り下げ 4/15。 upTo 4/30。
+    // 実タップ 10 (4/1-4/10) + 取り下げ前の auto 4/11..4/14 = 4。 4/15 以降は加算停止。 計 14。
+    const records = achievedOn('n1', TEN_DAYS_APRIL);
+    const retractions = [retraction('n1', '2026-04-15T10:00:00')];
+    expect(
+      countEffectiveAchievedForNode(records, retractions, 'n1', '2026-04-30'),
+    ).toBe(14);
+  });
+
+  it('単調性: 取り下げ後も累計は減らない (取り下げ直後 >= 取り下げ前時点の値)', () => {
+    const records = achievedOn('n1', TEN_DAYS_APRIL);
+    // 取り下げ日 4/12 時点の値 (取り下げ前の 4/11 までの effective)。
+    const before = countEffectiveAchievedForNode(records, [], 'n1', '2026-04-11');
+    // 4/12 に取り下げた後、 同じ 4/12 時点で見た値。
+    const retractions = [retraction('n1', '2026-04-12T10:00:00')];
+    const after = countEffectiveAchievedForNode(
+      records,
+      retractions,
+      'n1',
+      '2026-04-12',
+    );
+    expect(after).toBeGreaterThanOrEqual(before);
+  });
+});
+
+describe('countEffectiveAchievedTotal (アプリ全体の effective 累計)', () => {
+  it('複数ノードの effective 達成を合算する', () => {
+    const records = [
+      ...achievedOn('settled1', TEN_DAYS_APRIL), // 定着: 実10 + auto2 = 12 (upTo 4/12)
+      ...achievedOn('growing1', ['2026-04-11', '2026-04-12']), // 実2
+    ];
+    const total = countEffectiveAchievedTotal(
+      ['settled1', 'growing1'],
+      records,
+      [],
+      '2026-04-12',
+    );
+    expect(total).toBe(14);
   });
 });
