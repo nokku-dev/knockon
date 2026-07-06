@@ -71,20 +71,22 @@ describe('DateMatrixSection (#115 / ADR-0037)', () => {
     expect(queryByText(/日連続/)).toBeNull();
   });
 
-  // ADR-0047: 定着バンド。 settledByNode で指定された日付のセルに「定着」a11y が付く。
-  test('定着バンド: settledByNode の日付セルに a11y ラベル「定着」が付与される', () => {
+  // ADR-0047 追補 (2026-07-07): 定着後は「派生で数える」= セルを塗って埋める (effective
+  // 達成 = 実レコード OR 定着)。 定着日のセルは a11y「定着」で、 実タップと同じ塗りになる。
+  test('定着日セルは a11y ラベルが「定着」になる (実タップ有無に関わらず)', () => {
     const settledByNode = { n1: new Set(['2026-05-18', '2026-05-19']) };
     const { getByLabelText } = render(
       <DateMatrixSection {...baseProps} settledByNode={settledByNode} />,
     );
-    // 定着期間内: 達成状態と併記される (帯は達成/未達の上に敷く別レイヤー)。
-    expect(getByLabelText('起きる 5/18 未達 定着')).toBeTruthy();
-    expect(getByLabelText('起きる 5/19 達成 定着')).toBeTruthy();
-    // 定着前の日付には付かない。
+    // 未達の日 (5/18) も定着なら「定着」= 埋まる (auto)。
+    expect(getByLabelText('起きる 5/18 定着')).toBeTruthy();
+    // 実達成 + 定着の日 (5/19) も「定着」。
+    expect(getByLabelText('起きる 5/19 定着')).toBeTruthy();
+    // 定着前の日付は従来どおり達成/未達。
     expect(getByLabelText('起きる 5/17 達成')).toBeTruthy();
   });
 
-  test('定着バンド: settledByNode 未指定なら「定着」ラベルは出ない (既存挙動互換)', () => {
+  test('settledByNode 未指定なら「定着」ラベルは出ない (既存挙動互換)', () => {
     const { queryByLabelText } = render(<DateMatrixSection {...baseProps} />);
     expect(queryByLabelText(/定着/)).toBeNull();
   });
