@@ -17,7 +17,7 @@
 - **Celebrate 主**: 積み上がりと「定着＝星」だけで手応えを作る。
 - konkon（ノック）はモーションに残す: 達成で線が一段スッと伸びる（波紋ではない）。
 - **アプリ全体の累計達成数 (`累計 N 個達成 (+今日M)`) は Celebrate 語彙として許容** (#142 / [ADR-0041](docs/decisions/0041-cumulative-count-revision.md))。 「絶対に減らない / やるだけ増える」単調増加な総和指標で、 連続性 (streak) の表現ではないため反 streak 原則 ([ADR-0036](docs/decisions/0036-rescind-today-streak-display.md)) と整合する。 単位は「個達成」、 控えめなトーン (`fg-faint`)。 **ノード単位の累計数字はノード行に出さない** (ADR-0041、 Celebrate の主役はあくまで「線の伸び」と「定着の星」)。
-- **定着ポートフォリオの「定着 N・育成中 M」も Celebrate 語彙として許容** (#—/[ADR-0047](docs/decisions/0047-settlement-lifecycle-and-log-portfolio.md))。 定着数は生涯マイルストーン (latch) で単調増加 (+) なため反 streak 原則 ([ADR-0036](docs/decisions/0036-rescind-today-streak-display.md)) と整合。 ログ画面は**達成率 (= 比率・(−) 失われうる指標) を撤去**し、 これから / 育成中 / 定着のステージ別俯瞰に組み替える。 定着ノードの 60D マトリクスは表示層で「定着バンド」を派生描画 (達成レコードは書かない = honest)。
+- **定着ポートフォリオの「定着 N・育成中 M」も Celebrate 語彙として許容** (#—/[ADR-0047](docs/decisions/0047-settlement-lifecycle-and-log-portfolio.md))。 定着数は生涯マイルストーン (latch) で単調増加 (+) なため反 streak 原則 ([ADR-0036](docs/decisions/0036-rescind-today-streak-display.md)) と整合。 ログ画面は**達成率 (= 比率・(−) 失われうる指標) を撤去**し、 これから / 育成中 / 定着のステージ別俯瞰に組み替える。 定着ノードの 60D マトリクスは定着後を表示層で**塗って埋める** (effective 達成 = 実レコード OR 定着、達成レコードは書かない = honest。2026-07-07 追補で「控えめな帯」から「塗り＝埋める」へ変更＝ Today の auto-✓ と一貫)。
 
 ## 1. カラートークン
 

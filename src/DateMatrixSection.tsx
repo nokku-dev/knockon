@@ -132,17 +132,21 @@ export const DateMatrixSection = ({
                       <View key={node.nodeId} style={styles.cellRow}>
                         {node.cells.map((cell) => {
                           const settled = settledDates?.has(cell.date) ?? false;
+                          // ADR-0047 追補 (2026-07-07): 定着後は「派生で数える」= セルを塗って
+                          // 埋める (effective 達成 = 実レコード OR 定着)。 レコードは書かない
+                          // (K-002)。 定着セルは実タップ緑と同じ塗り四角にする (= 埋まる)。
+                          const effectiveAchieved = cell.achieved || settled;
                           return (
                             <View
                               key={cell.date}
                               accessible
-                              accessibilityLabel={`${node.label} ${monthDay(cell.date)} ${cellState(cell)}${settled ? ' 定着' : ''}`}
-                              style={[styles.slot, settled && styles.slotSettled]}
+                              accessibilityLabel={`${node.label} ${monthDay(cell.date)} ${settled ? '定着' : cellState(cell)}`}
+                              style={styles.slot}
                             >
                               <View
                                 style={[
                                   styles.cell,
-                                  cell.achieved
+                                  effectiveAchieved
                                     ? styles.cellAchieved
                                     : cell.skipped
                                       ? styles.cellSkip
@@ -193,12 +197,6 @@ const styles = StyleSheet.create({
     width: CELL_SLOT,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  // ADR-0047: 定着バンド。 定着期間のセル背後に控えめな星系の帯を敷く (連続セルで横一帯)。
-  // 塗り率の段階ではなく on/off の一色 (= 二値マトリクスの趣旨を保つ)。 latch は (+) 指標
-  // なので反 streak 原則と両立 (DESIGN-SYSTEM §0 / ADR-0036 §一般原則)。 alpha は控えめ。
-  slotSettled: {
-    backgroundColor: 'rgba(242, 193, 75, 0.12)',
   },
   dateLabel: {
     color: COLOR_FG_FAINT,
