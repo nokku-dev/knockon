@@ -538,10 +538,10 @@ export type SettlementRetraction = {
   retractedAt: IsoDate;
 };
 
-// これから (未着手) / 育成中 (実タップあり・未定着) / もう少しで定着 (定着バー直前) / 定着 (latch)。
-// ADR-0047 追補 (#205, 2026-07-07): 育成中と定着の間に「もう少しで定着」を追加。 現在の
-// 14D 窓 (取り下げ以降・今日以前) で ALMOST 閾値以上の達成があるが未定着のノード。
-export type SettlementStage = 'fresh' | 'growing' | 'almost' | 'settled';
+// 育成中 (未定着) / もう少しで定着 (定着バー直前) / 定着 (latch)。
+// ADR-0051 (2026-07-07): 旧「これから (実タップ 0)」を「育成中」に統合 (追加したものは全部
+// 育成中・「未着手 backlog を指差す」ニュアンスを排し核に忠実に)。旧 'fresh' は廃止。
+export type SettlementStage = 'growing' | 'almost' | 'settled';
 
 // もう少しで定着: 14D 窓で達成 8〜9 日 (定着バー = 10 日の直前 2 日ぶん、 ユーザー判断
 // 2026-07-07)。 10 日以上なら定着 (latch) 側に入るため、 実質 [8, 9] を拾う閾値。
@@ -615,22 +615,19 @@ export const nodeSettlementStage = (
   const lastRetraction = lastRetractionDateForNode(retractions, nodeId);
   const windowSet = new Set(recentDateRange(today, windowDays));
   const eligibleInWindow = new Set<IsoDate>();
-  let hasAnyTap = false;
   for (const a of achievements) {
     if (a.nodeId !== nodeId || !a.achieved || a.date > today) continue;
-    hasAnyTap = true;
     // もう少しで定着は「現在有効な (取り下げ以降の) 窓」で測る (isNodeSettled と同じ eligibility)。
     if (lastRetraction !== null && a.date <= lastRetraction) continue;
     if (windowSet.has(a.date)) eligibleInWindow.add(a.date);
   }
   if (eligibleInWindow.size >= DEFAULT_ALMOST_MIN_ACHIEVED) return 'almost';
-  if (hasAnyTap) return 'growing';
-  return 'fresh';
+  // ADR-0051: 未定着・未 almost は実タップの有無に関わらず「育成中」(旧 fresh を統合)。
+  return 'growing';
 };
 
 // ポートフォリオ上部のステージ別カウント (クロス断面のスナップショット)。
 export type SettlementStageCounts = {
-  fresh: number;
   growing: number;
   almost: number;
   settled: number;
@@ -644,7 +641,6 @@ export const countSettlementStages = (
   options?: EstablishedOptions,
 ): SettlementStageCounts => {
   const counts: SettlementStageCounts = {
-    fresh: 0,
     growing: 0,
     almost: 0,
     settled: 0,
@@ -660,18 +656,17 @@ export const countSettlementStages = (
 // 先週 (daysAgo 日前) から「定着」「もう少しで定着」へ新たに入ったノード数 (= 流入数)。
 // 増減 (net) ではなく上方向への移動個数のみ数える Celebrate 系フロー指標 (ユーザー判断
 // 2026-07-07)。 定着 latch は単調増加なので intoSettled は「今週定着した個数」。 almost は
-// 単調でないため「下位 (これから/育成中) から almost へ上がった個数」だけを数える (settled
-// からの降格 = 下方向は数えない = マイナスを指差さない)。
+// 単調でないため「育成中から almost へ上がった個数」だけを数える (settled からの降格 =
+// 下方向は数えない = マイナスを指差さない)。
 export type SettlementStageMovements = {
   intoSettled: number;
   intoAlmost: number;
 };
 
 const STAGE_RANK: Record<SettlementStage, number> = {
-  fresh: 0,
-  growing: 1,
-  almost: 2,
-  settled: 3,
+  growing: 0,
+  almost: 1,
+  settled: 2,
 };
 
 export const settlementStageMovements = (

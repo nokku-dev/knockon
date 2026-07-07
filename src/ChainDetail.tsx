@@ -12,7 +12,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, Line, Polygon } from 'react-native-svg';
 
-import type { DateMatrixCell } from './analyticsDerivation';
 import type {
   AchievementMap,
   Action,
@@ -70,14 +69,6 @@ export type ChainDetailProps = {
   // PR-BB (ADR-0025): タイマー設定済みノードでタップされたとき呼ぶ。
   // 親 (TodayScreen) が TimerScreen Modal を制御する責務。 onStartTimer 未指定 → ボタン非表示。
   onStartTimer?: (nodeId: string, durationSeconds: number, actionTitle: string) => void;
-  // #125 / ADR-0038: 各ノード行右端に直近 7 日間の達成グリフマトリクスを描画する。
-  // ADR-0038 で SPEC §3「v1 単一窓 14D 固定」を軸別再解釈 (K-015 パターン 2 度目の適用)
-  // し、 Today ChainDetail ノード行 = 7D の「実行直前の振り返り窓」として正式化された。
-  // 渡されない / 該当 nodeId 不在のノードはマトリクス非表示 (既存挙動互換)。 派生値の
-  // 計算は useTodayData が担当 (純粋関数 nodeDateMatrixCells、 ChainDetail は表示係)。
-  nodeRecentCells?: ReadonlyMap<string, readonly DateMatrixCell[]>;
-  // ADR-0050: 各ノードの 7 日窓のうち「定着している日付」集合。 該当日は星形で描く。
-  nodeRecentSettled?: ReadonlyMap<string, ReadonlySet<string>>;
 };
 
 const SPINE_X = 9;
@@ -154,8 +145,6 @@ export const ChainDetail = ({
   nodeIdsSettled,
   onRetractSettlement,
   onStartTimer,
-  nodeRecentCells,
-  nodeRecentSettled,
 }: ChainDetailProps) => {
   const domainNodes = nodes.map((n) => n.node);
   // ADR-0050 (2026-07-07): 定着ノードの auto-✓ (#211) を撤回し、 定着は「左ドットを星型」で
@@ -277,13 +266,7 @@ export const ChainDetail = ({
         </View>
         {nodes.map(({ node, action, label, kind }) =>
           kind === 'skip' ? (
-            <SkipNodeRow
-              key={node.id}
-              nodeId={node.id}
-              actionTitle={label}
-              recentCells={nodeRecentCells?.get(node.id)}
-              recentSettled={nodeRecentSettled?.get(node.id)}
-            />
+            <SkipNodeRow key={node.id} actionTitle={label} />
           ) : (
             <NodeRow
               key={node.id}
@@ -308,8 +291,6 @@ export const ChainDetail = ({
                       onStartTimer(node.id, action.timerSeconds!, label)
                   : undefined
               }
-              recentCells={nodeRecentCells?.get(node.id)}
-              recentSettled={nodeRecentSettled?.get(node.id)}
             />
           ),
         )}
@@ -390,30 +371,13 @@ const NodeMarker = ({
   );
 };
 
-const SkipNodeRow = ({
-  nodeId,
-  actionTitle,
-  recentCells,
-  recentSettled,
-}: {
-  nodeId: string;
-  actionTitle: string;
-  recentCells?: readonly DateMatrixCell[];
-  recentSettled?: ReadonlySet<string>;
-}) => (
+const SkipNodeRow = ({ actionTitle }: { actionTitle: string }) => (
   <View
     style={[styles.contentRow, styles.nodeRowContainer, { height: NODE_ROW_HEIGHT }]}
     accessibilityLabel={`${actionTitle} (今日は休む日)`}
   >
     <Text style={styles.skipMark}>—</Text>
     <Text style={[styles.skipNodeText, styles.skipNodeTextFlex]}>{actionTitle}</Text>
-    {recentCells && (
-      <NodeRecentCellsMatrix
-        nodeId={nodeId}
-        cells={recentCells}
-        settledDates={recentSettled}
-      />
-    )}
   </View>
 );
 
@@ -426,8 +390,6 @@ const NodeRow = ({
   onLongPress,
   timerSeconds,
   onStartTimer,
-  recentCells,
-  recentSettled,
 }: {
   nodeId: string;
   actionTitle: string;
@@ -437,8 +399,6 @@ const NodeRow = ({
   onLongPress?: () => void;
   timerSeconds: number | null;
   onStartTimer?: () => void;
-  recentCells?: readonly DateMatrixCell[];
-  recentSettled?: ReadonlySet<string>;
 }) => {
   const scale = useSharedValue(1);
   const prevAchievedRef = useRef(achieved);
@@ -510,78 +470,9 @@ const NodeRow = ({
           <Text style={styles.timerBtnText}>⏱ {minutes} 分</Text>
         </Pressable>
       )}
-      {recentCells && (
-      <NodeRecentCellsMatrix
-        nodeId={nodeId}
-        cells={recentCells}
-        settledDates={recentSettled}
-      />
-    )}
     </View>
   );
 };
-
-// #125 / ADR-0038: アクション行右端に置く直近 7 日間の達成グリフマトリクス。
-// ADR-0038 §決定 1「Today ChainDetail ノード行 = 7D」/ §決定 3「目的ごとの固定窓 (= 同じ
-// 目的に複数窓を持たない)」の実装側エントリポイント。 横スクロールはしない (7 セル固定)。
-// セル語彙は分析タブの DateMatrixSection (#115 / ADR-0037) と同じ:
-// - 達成 = COLOR_OK の塗り四角 (Celebrate 主)
-// - 未達 = COLOR_FG_FAINT のアウトライン四角 (赤や塗りは使わない = マイナスを指差さない)
-// - 休む日 (variant null) = 空セル (対象外なので何も置かない)
-// 表示専用 (tap detail なし、 ChainDetail のノード行タップで toggle するため)。
-// #145: 実機で横幅占有が大きすぎたため (旧 8px セル + 10px slot で 7 セル = 70px)
-// セル幅・高さおよび slot を縦横半分に縮小 (4px セル + 5px slot、 7 セルで 35px 幅)。
-const RECENT_CELL_SIZE = 4;
-const RECENT_CELL_SLOT = 5;
-
-const cellStateLabel = (cell: DateMatrixCell): '達成' | '休む日' | '未達' =>
-  cell.achieved ? '達成' : cell.skipped ? '休む日' : '未達';
-
-const monthDayLabel = (date: string): string => {
-  const [, m, d] = date.split('-');
-  return `${Number(m)}/${Number(d)}`;
-};
-
-const NodeRecentCellsMatrix = ({
-  nodeId,
-  cells,
-  settledDates,
-}: {
-  nodeId: string;
-  cells: readonly DateMatrixCell[];
-  // ADR-0050: 定着してからの期間の日は星形で表示する (定着に変わる様を 7 日窓でも見せる)。
-  settledDates?: ReadonlySet<string>;
-}) => (
-  <View style={styles.recentCellsRow}>
-    {cells.map((cell) => {
-      const settled = settledDates?.has(cell.date) ?? false;
-      return (
-        <View
-          key={cell.date}
-          testID={`node-recent-cell-${nodeId}-${cell.date}`}
-          accessible
-          accessibilityLabel={`${monthDayLabel(cell.date)} ${settled ? '定着' : cellStateLabel(cell)}`}
-          style={styles.recentCellSlot}
-        >
-          {settled ? (
-            <Text style={styles.recentCellStar}>★</Text>
-          ) : (
-            <View
-              style={[
-                styles.recentCell,
-                cell.achieved
-                  ? styles.recentCellAchieved
-                  : cell.skipped
-                    ? styles.recentCellSkip
-                    : styles.recentCellMiss,
-              ]}
-            />
-          )}
-        </View>
-      );
-    })}
-  </View>
-);
 
 const styles = StyleSheet.create({
   root: { padding: 24 },
@@ -671,31 +562,4 @@ const styles = StyleSheet.create({
   // SkipNodeRow に flex 行レイアウトを追加した際 (#125)、 タイトルが残り幅を占める
   // ことでマトリクスが右端に押し出されるようにする。 abs 配置の skipMark は影響しない。
   skipNodeTextFlex: { flex: 1 },
-  // #125: 直近 7 日間達成グリフマトリクス。 分析タブ DateMatrixSection と同じ語彙
-  // (達成 = COLOR_OK 塗り / 未達 = アウトライン / 休む日 = 空) の縮小版。
-  recentCellsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 4,
-  },
-  recentCellSlot: {
-    width: RECENT_CELL_SLOT,
-    height: NODE_ROW_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recentCell: {
-    width: RECENT_CELL_SIZE,
-    height: RECENT_CELL_SIZE,
-    borderRadius: 1,
-  },
-  recentCellAchieved: { backgroundColor: COLOR_OK },
-  recentCellMiss: { borderWidth: 1, borderColor: COLOR_FG_FAINT },
-  recentCellSkip: {},
-  // ADR-0050: 7 日窓の定着日は小さな星で描く (定着に変わる様を見せる)。
-  recentCellStar: {
-    color: COLOR_STAR,
-    fontSize: 7,
-    lineHeight: 8,
-  },
 });
