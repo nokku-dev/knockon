@@ -8,6 +8,7 @@ import {
   COLOR_FG_FAINT,
   COLOR_FG_SOFT,
   COLOR_OK,
+  COLOR_STAR,
 } from './tokens';
 
 // #115 (ADR-0037): 分析タブの達成マトリクス。 縦 = チェーン/ノード、 横 = 日付 (過去 60 日)。
@@ -132,10 +133,9 @@ export const DateMatrixSection = ({
                       <View key={node.nodeId} style={styles.cellRow}>
                         {node.cells.map((cell) => {
                           const settled = settledDates?.has(cell.date) ?? false;
-                          // ADR-0047 追補 (2026-07-07): 定着後は「派生で数える」= セルを塗って
-                          // 埋める (effective 達成 = 実レコード OR 定着)。 レコードは書かない
-                          // (K-002)。 定着セルは実タップ緑と同じ塗り四角にする (= 埋まる)。
-                          const effectiveAchieved = cell.achieved || settled;
+                          // ADR-0050 (2026-07-07): 定着日は Today と同じ「星」で表示する
+                          // (定着に変わっていく様を 60D 俯瞰で見せる)。 レコードは書かない
+                          // (K-002)。 非定着日は従来どおり二値の塗り四角 (達成/未達/休)。
                           return (
                             <View
                               key={cell.date}
@@ -143,16 +143,20 @@ export const DateMatrixSection = ({
                               accessibilityLabel={`${node.label} ${monthDay(cell.date)} ${settled ? '定着' : cellState(cell)}`}
                               style={styles.slot}
                             >
-                              <View
-                                style={[
-                                  styles.cell,
-                                  effectiveAchieved
-                                    ? styles.cellAchieved
-                                    : cell.skipped
-                                      ? styles.cellSkip
-                                      : styles.cellMiss,
-                                ]}
-                              />
+                              {settled ? (
+                                <Text style={styles.cellStar}>★</Text>
+                              ) : (
+                                <View
+                                  style={[
+                                    styles.cell,
+                                    cell.achieved
+                                      ? styles.cellAchieved
+                                      : cell.skipped
+                                        ? styles.cellSkip
+                                        : styles.cellMiss,
+                                  ]}
+                                />
+                              )}
                             </View>
                           );
                         })}
@@ -212,6 +216,8 @@ const styles = StyleSheet.create({
   },
   // 達成: 唯一の「塗り」。 グリーン (OK 感) でここだけ目立たせる (Celebrate 主)。
   cellAchieved: { backgroundColor: COLOR_OK },
+  // ADR-0050: 定着日は星で表示 (Today と統一)。 セル四角ぶんに収まるサイズ。
+  cellStar: { color: COLOR_STAR, fontSize: CELL_SIZE, lineHeight: CELL_SIZE + 2 },
   // 未達 (対象日): 淡グレーのアウトラインのみ (#130 で休む日の空セルと見分くため
   // COLOR_LINE_BG → COLOR_FG_FAINT に上げた)。 赤や塗りは使わない (マイナスを指差さない)。
   cellMiss: { borderWidth: 1, borderColor: COLOR_FG_FAINT },

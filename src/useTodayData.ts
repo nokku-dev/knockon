@@ -1,11 +1,11 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
-import { nodeDateMatrixCells } from './analyticsDerivation';
+import { nodeDateMatrixCells, settledDatesForNode } from './analyticsDerivation';
 import type { DateMatrixCell } from './analyticsDerivation';
 import { getExpoSqliteClient } from './db.expo';
 import {
-  countEffectiveAchievedTotal,
+  countSettlementStages,
   effectiveTodayIsoDate,
   isAnchorFiringToday,
   isNodeSettled,
@@ -30,6 +30,7 @@ import {
   getLocationPermissionStatus,
 } from './location';
 import {
+  countAchievedBefore,
   getAction,
   getAnchor,
   listAchievementsForNodes,
@@ -75,6 +76,9 @@ export type TodayChainData = {
   // #125: ノード行右端の直近 7 日間グリフマトリクス用セル列 (派生値)。 楽観更新時は
   // recentAchievements 経由で再計算 (今日のセルがタップで即時反映される)。
   nodeRecentCells: ReadonlyMap<string, readonly DateMatrixCell[]>;
+  // ADR-0050: 7 日窓のうち「その日時点で定着している日付」集合 (ノード別・派生)。 その日は
+  // ミニマトリクスを星形で描く (定着に変わる様を 7 日窓でも見せる)。
+  nodeRecentSettled: ReadonlyMap<string, ReadonlySet<IsoDate>>;
 };
 
 // Today 画面全体の状態。 ADR-0020 で「手動発火」概念を廃止、 active な全チェーンを
@@ -85,10 +89,12 @@ export type TodayData = {
   // ADR-0047: 全ノードの定着取り下げ事実 (正準 5 軸目)。 定着判定 (isNodeSettled) の
   // 引数。 アプリ全体で 1 度だけ load し、 楽観更新 (retractSettlement) で追記する。
   retractions: readonly SettlementRetraction[];
-  // #142 (ADR-0041) + ADR-0047 追補: アプリ全体の「今日より前の effective 累計」
-  // (= 実タップ達成 + 定着 auto 日の派生集計・レコード非書込)。 表示側で今日の effective
-  // 達成数 (全 active チェーンの 実タップ OR 定着 の合算) を足して「累計 N 個達成 (+今日M)」を出す。
-  // 今日分を含めないので楽観更新で base は変化せず、 タップ即時 +1 は各チェーンの effective 合算が担う。
+  // ADR-0050 (2026-07-07): アプリ全体の定着ノード数 (派生・latch)。 Today 見出しに「定着 N 個」
+  // を出す (旧「累計 N 個達成」を置換)。 定着は 10 日以上の積み上げが要るため日内に増減せず、
+  // タップの楽観更新対象ではない (次 focus で反映)。
+  settledCount: number;
+  // #165 立ち上げチェックリストのマイルストーン (first/ten-achievement) 用の実タップ通算
+  // (今日より前)。 見出しには出さない。 表示側で今日の実達成を足す。
   achievedBeforeToday: number;
   // #165 (ADR-0042 P1): 立ち上げチェックリストの表示判定に使う app_settings 由来の値。
   // onboarding 完了済みか (= まだ onboarding 中は出さない)、dismiss 時刻 (null = 未 dismiss)、
@@ -187,10 +193,16 @@ const loadChainForToday = async (
   // #125: 7D ウィンドウ (recentWindow の末尾 7 件) で各ノードのマトリクスセル列を派生。
   const matrixDates = recentWindow.slice(-TODAY_RECENT_WINDOW_DAYS);
   const nodeRecentCells = new Map<string, readonly DateMatrixCell[]>();
+  // ADR-0050: 7D 窓のうち定着している日付集合 (定着日は星形で描く)。
+  const nodeRecentSettled = new Map<string, ReadonlySet<IsoDate>>();
   for (const n of validNodes) {
     nodeRecentCells.set(
       n.node.id,
       nodeDateMatrixCells(matrixDates, n.action, n.node.id, records),
+    );
+    nodeRecentSettled.set(
+      n.node.id,
+      new Set(settledDatesForNode(records, retractions, n.node.id, matrixDates)),
     );
   }
   // ADR-0012: 既存の発火 record があれば「今日発火済み」確定。
@@ -213,6 +225,7 @@ const loadChainForToday = async (
     achievementHistory: records,
     nodeIdsSettled,
     nodeRecentCells,
+    nodeRecentSettled,
   };
 };
 
@@ -231,26 +244,28 @@ const loadToday = async (): Promise<TodayData> => {
     chains.map((c) => loadChainForToday(c, today, now, retractions)),
   );
   const valid = loaded.filter((x): x is TodayChainData => x !== null);
-  // #142 (ADR-0041) + ADR-0047 追補 (2026-07-07): アプリ全体の「今日より前の effective 累計」。
-  // 「派生で数える」= 実タップ達成 + 定着 auto 日 (定着後の未タップ日) を数える。 表示側で
-  // 今日の effective 達成数を足す。 定着 latch は数ヶ月前の窓も参照するため全ノード・全達成を
-  // load して派生 (countEffectiveAchievedTotal)。 upTo = 昨日 (今日分は表示側で加算)。
-  // K-010 受容: N=1 では件数少なく体感問題なし。 多ノード化で遅延が出たら SQL 近似を判断。
-  const yesterday = recentDateRange(today, 2)[0] ?? today;
+  // ADR-0050 (2026-07-07): Today 見出しは累計 (#142 / #205 effective) をやめ「定着 N 個」を出す
+  // (ユーザー判断: Celebrate の主役を「定着個数」に)。 定着数はアプリ全体 (active / 非 active
+  // 問わず全ノード) の派生カウント。 定着 latch は数ヶ月前の窓も参照するため全ノード・全達成を
+  // load して countSettlementStages で派生。 K-010 受容: N=1 で件数少なく体感問題なし。
   const allNodeIds = await listAllNodeIds(db);
   const allAchievements = await listAllAchievements(db, today);
-  const achievedBeforeToday = countEffectiveAchievedTotal(
+  const settledCount = countSettlementStages(
     allNodeIds,
     allAchievements,
     retractions,
-    yesterday,
-  );
+    today,
+  ).settled;
+  // #165 立ち上げチェックリスト用の実タップ通算 (first/ten-achievement マイルストーン)。
+  // 見出しには出さない (見出しは settledCount)。 実タップベースの SQL COUNT。
+  const achievedBeforeToday = await countAchievedBefore(db, today);
   // 表示順: 時刻アンカー (time 昇順) → place (createdAt 昇順) → behavior (createdAt 昇順)
   // (PR feat/chain-sort-by-anchor-time、 ユーザー判断)
   return {
     today,
     chains: sortChainsForDisplay(valid),
     retractions,
+    settledCount,
     achievedBeforeToday,
     onboardingCompleted: settings.onboardingCompleted,
     checklistDismissedAt: settings.checklistDismissedAt,
