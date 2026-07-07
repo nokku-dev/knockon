@@ -124,7 +124,7 @@ export const ActionEditor = ({
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>タイマー (分)</Text>
           <Text style={styles.hint}>
-            空欄 = タイマーなし。 設定すると Today で「⏱ N 分」ボタンが出る (ADR-0025)。
+            空欄 = タイマーなし。 設定すると Today で「⏱ N 分」ボタンが出ます。
           </Text>
           <TextInput
             value={timerMinutesText}

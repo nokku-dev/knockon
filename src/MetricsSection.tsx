@@ -65,9 +65,6 @@ export const MetricsSection = ({
           </Pressable>
         )}
       </View>
-      <Text style={styles.sectionSub}>
-        任意の記録 (使わなくても困らない)。 種別はカスタマイズ可能 (ADR-0026)。
-      </Text>
       {series.length === 0 && (
         <View style={styles.emptyRow}>
           <Text style={styles.emptyText}>
@@ -166,11 +163,6 @@ const styles = StyleSheet.create({
     color: COLOR_FG_FAINT,
     fontSize: 13,
     lineHeight: 20,
-  },
-  sectionSub: {
-    color: COLOR_FG_FAINT,
-    fontSize: 12,
-    marginBottom: 8,
   },
   row: {
     backgroundColor: COLOR_SURFACE,
