@@ -82,7 +82,7 @@ export const MetricInputModal = ({
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.overlay}
+        style={styles.kav}
       >
         <Pressable style={styles.overlay} onPress={onCancel}>
           <Pressable
@@ -162,6 +162,12 @@ export const MetricInputModal = ({
 };
 
 const styles = StyleSheet.create({
+  // KeyboardAvoidingView は素の flex:1 で全画面を埋めるだけ (中央寄せ/背景は付けない)。
+  // ここに alignItems:'center' を付けると子 (overlay) の幅が中身サイズに縮んで
+  // バックドロップが縦長の帯になるため分離する。
+  kav: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
