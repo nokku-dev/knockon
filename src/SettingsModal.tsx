@@ -198,9 +198,7 @@ export const SettingsModal = ({
               />
             </View>
             <Text style={styles.fieldHint}>
-              この時刻でノードのチェック状態が「翌日」に切り替わります。{'\n'}
-              例: 03:00 にすると、 深夜 0-3 時の操作は当日 (= 昨日の日付) 扱い。{'\n'}
-              デフォルト 00:00 (深夜 0 時)。
+              この時刻にノードのチェックが「翌日」へ切り替わります（デフォルト 00:00）。
             </Text>
           </View>
 
@@ -237,10 +235,6 @@ export const SettingsModal = ({
                 );
               })}
             </View>
-            <Text style={styles.fieldHint}>
-              Auto: 端末の Light / Dark 設定に追従して自動切替。{'\n'}
-              Light / Dark: 配色を固定。
-            </Text>
           </View>
 
           {onExportChains ? (
