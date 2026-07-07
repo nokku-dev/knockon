@@ -117,8 +117,27 @@ describe('SettingsModal (ADR-0028 PR-DD)', () => {
   });
 });
 
+// 2026-07-07: Light 未対応につきデザインレビュー中はテーマ選択を非表示 (Dark 固定)。
+describe('SettingsModal — テーマ選択は非表示 (レビュー中 Dark 固定)', () => {
+  test('テーマカラー picker が表示されない', () => {
+    const { queryByLabelText } = renderWithInsets(
+      <SettingsModal
+        open
+        resetTime="00:00"
+        themeMode="auto"
+        onClose={() => {}}
+        onSave={async () => {}}
+      />,
+    );
+    expect(queryByLabelText('テーマカラー選択')).toBeNull();
+  });
+});
+
 // ADR-0029 (Issue #53): テーマカラー picker。
-describe('SettingsModal — テーマカラー picker (ADR-0029)', () => {
+// 2026-07-07: Light テーマ未対応 (~27 画面 dark ハードコード) のためデザインレビュー中は
+// SettingsModal の SHOW_THEME_SELECTOR=false で picker を非表示 (app は Dark 固定)。
+// picker を復活 (Light 移行完了) させたら SHOW_THEME_SELECTOR=true に戻して skip を外す。
+describe.skip('SettingsModal — テーマカラー picker (ADR-0029)', () => {
   test('open=true で themeMode=auto なら Auto ボタンが selected', () => {
     const { getByLabelText } = renderWithInsets(
       <SettingsModal

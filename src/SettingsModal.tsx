@@ -50,6 +50,11 @@ const THEME_OPTIONS: ReadonlyArray<{
   { value: 'dark', label: 'Dark', hint: '暗い配色で固定' },
 ];
 
+// ADR-0029 follow-up (2026-07-07): Light テーマ未対応 (~27 画面が dark ハードコード) のため、
+// デザインレビュー中はテーマ選択 UI を非表示 (app は _layout の FORCE_DARK_FOR_REVIEW で
+// Dark 固定)。 移行完了時に true に戻せば復活する。
+const SHOW_THEME_SELECTOR = false;
+
 const pad2 = (n: number): string => String(n).padStart(2, '0');
 
 const parseHM = (s: string): { hour: number; minute: number } | null => {
@@ -202,40 +207,42 @@ export const SettingsModal = ({
             </Text>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.fieldLabel}>テーマカラー</Text>
-            <View
-              style={styles.themeRow}
-              accessibilityRole="radiogroup"
-              accessibilityLabel="テーマカラー選択"
-            >
-              {THEME_OPTIONS.map((opt) => {
-                const selected = theme === opt.value;
-                return (
-                  <Pressable
-                    key={opt.value}
-                    onPress={() => setTheme(opt.value)}
-                    accessibilityRole="radio"
-                    accessibilityLabel={`テーマカラー ${opt.label}`}
-                    accessibilityState={{ selected }}
-                    style={[
-                      styles.themeBtn,
-                      selected && styles.themeBtnSelected,
-                    ]}
-                  >
-                    <Text
+          {SHOW_THEME_SELECTOR && (
+            <View style={styles.card}>
+              <Text style={styles.fieldLabel}>テーマカラー</Text>
+              <View
+                style={styles.themeRow}
+                accessibilityRole="radiogroup"
+                accessibilityLabel="テーマカラー選択"
+              >
+                {THEME_OPTIONS.map((opt) => {
+                  const selected = theme === opt.value;
+                  return (
+                    <Pressable
+                      key={opt.value}
+                      onPress={() => setTheme(opt.value)}
+                      accessibilityRole="radio"
+                      accessibilityLabel={`テーマカラー ${opt.label}`}
+                      accessibilityState={{ selected }}
                       style={[
-                        styles.themeBtnText,
-                        selected && styles.themeBtnTextSelected,
+                        styles.themeBtn,
+                        selected && styles.themeBtnSelected,
                       ]}
                     >
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                      <Text
+                        style={[
+                          styles.themeBtnText,
+                          selected && styles.themeBtnTextSelected,
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
-          </View>
+          )}
 
           {onExportChains ? (
             <View style={styles.card}>
