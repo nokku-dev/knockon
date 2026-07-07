@@ -3,19 +3,18 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnalyticsScreen } from '../../src/AnalyticsScreen';
-import { DateMatrixSection } from '../../src/DateMatrixSection';
 import { MetricKindsEditor } from '../../src/MetricKindsEditor';
 import { SettingsLauncher } from '../../src/SettingsLauncher';
 import { recentDateRange } from '../../src/domain';
 import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../../src/tokens';
 import { useAnalyticsData } from '../../src/useAnalyticsData';
-import { useDateMatrix } from '../../src/useDateMatrix';
 import { useMetricsData } from '../../src/useMetricsData';
 
-// ADR-0047: ログタブ = 定着ポートフォリオ。
-// - active チェーンのノードを「これから / 育成中 / 定着」でグルーピング表示 (率グラフは撤去)
+// ADR-0047 / ADR-0051: ログタブ = 定着ポートフォリオ。
+// - active チェーンのノードを「育成中 / もう少しで定着 / 定着」でグルーピング表示
 // - メトリクス手入力セクション (Z3a、 任意入力) / 種別編集モーダル (CC、 ADR-0026)
-// - 60D 達成マトリクス (footer、 #115 / ADR-0037) は存置
+// - 60D 達成マトリクスは ADR-0051 で撤去 (未達を指差さない核に忠実に。DateMatrixSection /
+//   useDateMatrix のコードは残置・出荷後に戻せる)。
 // 派生計算のみで動く (永続化は metrics + metric_kinds + 定着取り下げの観測値のみ、 ADR-0001 維持)。
 
 export default function AnalyticsTab() {
@@ -23,9 +22,6 @@ export default function AnalyticsTab() {
   // load を巻き込まないためログ側で完結させる)。
   const { data, error, loading, retract } = useAnalyticsData();
   const metrics = useMetricsData();
-  // #115 (ADR-0037): 達成マトリクス (60 日窓)。 ノード × 日付の俯瞰を表示専用で出す。
-  // #128: 旧「日々の詳細」(チップ列 + 1 日スナップショット) はマトリクスと重複するため廃止。
-  const matrix = useDateMatrix();
   const [kindsEditorOpen, setKindsEditorOpen] = useState(false);
 
   // どちらかが loading なら全体 loading 表示 (簡略化、 体感問題なし)。
@@ -58,14 +54,6 @@ export default function AnalyticsTab() {
             metrics.data
               ? recentDateRange(metrics.data.today, metrics.data.windowDays)
               : undefined
-          }
-          footer={
-            <DateMatrixSection
-              rows={matrix.rows}
-              dates={matrix.dates}
-              today={matrix.today}
-              settledByNode={matrix.settledByNode}
-            />
           }
         />
       ) : null}
