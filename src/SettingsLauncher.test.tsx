@@ -1,5 +1,4 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import { Share } from 'react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Issue #58: 各画面に設定画面へのナビゲーションボタンを追加。
@@ -123,23 +122,13 @@ describe('SettingsLauncher (Issue #58)', () => {
 });
 
 describe('SettingsLauncher — チェーンエクスポート (Issue #66)', () => {
-  test('export ボタンタップで Share.share に JSON 文字列が渡される', async () => {
-    const shareSpy = jest
-      .spyOn(Share, 'share')
-      .mockResolvedValue({ action: Share.dismissedAction });
-    const { getByLabelText } = renderWithInsets(<SettingsLauncher />);
+  // 2026-07-07: デザインレビューに向けて設定モーダルから非表示 (開発/オーサリング補助のため)。
+  // 実装 (chainExport.ts / SettingsModal の onExportChains 分岐) は残置・復帰は 1 行。
+  test('デザインレビュー向けに export ボタンは設定モーダルに表示されない', () => {
+    const { getByLabelText, queryByLabelText } = renderWithInsets(
+      <SettingsLauncher />,
+    );
     fireEvent.press(getByLabelText('設定を開く'));
-    fireEvent.press(getByLabelText('チェーンをエクスポート'));
-    await waitFor(() => expect(shareSpy).toHaveBeenCalled());
-    const callArg = shareSpy.mock.calls[0]![0] as { message: string };
-    expect(typeof callArg.message).toBe('string');
-    const parsed = JSON.parse(callArg.message);
-    expect(parsed.version).toBe(1);
-    expect(parsed.chains).toHaveLength(1);
-    expect(parsed.chains[0].title).toBe('朝のルーティン');
-    expect(parsed.chains[0].actions).toEqual([
-      { title: '水を飲む', variants: null, timerSeconds: null },
-    ]);
-    shareSpy.mockRestore();
+    expect(queryByLabelText('チェーンをエクスポート')).toBeNull();
   });
 });
