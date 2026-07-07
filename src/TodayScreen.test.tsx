@@ -100,6 +100,7 @@ const buildChainData = (
   achievementHistory: [],
   nodeIdsSettled: settled,
   nodeRecentCells: new Map(),
+  nodeRecentSettled: new Map(),
 });
 
 describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {
@@ -166,99 +167,39 @@ describe('TodayScreen (PR-X / マルチチェーン + Bottom Sheet)', () => {
     expect(queryByText(/日連続/)).toBeNull();
   });
 
-  describe('#142 (ADR-0041): 見出し右のアプリ全体累計「累計 N 個達成 (+今日M)」', () => {
-    test('base + 今日の達成数 (全チェーン合算) を「累計 N 個達成 (+M)」で出す', () => {
+  describe('ADR-0050: 見出し右のアプリ全体「定着 N 個」', () => {
+    test('settledCount を「定着 N 個」で出す (桁区切りあり)', () => {
       const chains: TodayChainData[] = [
-        buildChainData('c1', '朝', [fireNode('n1', '水'), fireNode('n2', 'ストレッチ')], {
-          n1: true,
-          n2: false,
-        }),
-        buildChainData('c2', '夜', [fireNode('n3', '歯磨き')], { n3: true }),
+        buildChainData('c1', '朝', [fireNode('n1', '水')], { n1: true }),
       ];
-      // base=1200, 今日の達成 = n1 + n3 = 2 → 累計 1,202 個達成 (+2)
       const { getByTestId } = render(
-        <TodayScreen
-          chains={chains}
-          achievedBeforeToday={1200}
-          onToggleNode={() => {}}
-        />,
+        <TodayScreen chains={chains} settledCount={1234} onToggleNode={() => {}} />,
       );
-      expect(getByTestId('today-cumulative-total').props.children).toEqual([
-        '累計 ',
-        '1,202',
-        ' 個達成 (+',
-        2,
-        ')',
+      expect(getByTestId('today-settled-count').props.children).toEqual([
+        '定着 ',
+        '1,234',
+        ' 個',
       ]);
     });
 
-    test('ADR-0047追補: 定着ノードは実レコード無しでも +今日 に数える (auto-✓)', () => {
-      // n1 = 実達成、 n2 = 定着 (auto・レコード無し) → 今日 = 2。
+    test('settledCount 0 は非表示 (最初の定着から現れる)', () => {
       const chains: TodayChainData[] = [
-        buildChainData(
-          'c1',
-          '朝',
-          [fireNode('n1', '水'), fireNode('n2', 'ストレッチ')],
-          { n1: true },
-          new Set(['n2']),
-        ),
-      ];
-      const { getByTestId } = render(
-        <TodayScreen
-          chains={chains}
-          achievedBeforeToday={100}
-          onToggleNode={() => {}}
-        />,
-      );
-      expect(getByTestId('today-cumulative-total').props.children).toEqual([
-        '累計 ',
-        '102',
-        ' 個達成 (+',
-        2,
-        ')',
-      ]);
-    });
-
-    test('累計 0 (base 0・今日も未達成) は非表示', () => {
-      const chains: TodayChainData[] = [
-        buildChainData('c1', '朝', [fireNode('n1', '水')], {}),
+        buildChainData('c1', '朝', [fireNode('n1', '水')], { n1: true }),
       ];
       const { queryByTestId } = render(
-        <TodayScreen chains={chains} achievedBeforeToday={0} onToggleNode={() => {}} />,
+        <TodayScreen chains={chains} settledCount={0} onToggleNode={() => {}} />,
       );
-      expect(queryByTestId('today-cumulative-total')).toBeNull();
+      expect(queryByTestId('today-settled-count')).toBeNull();
     });
 
-    test('base 0 でも今日 1 件達成すれば「累計 1 個達成 (+1)」が現れる', () => {
+    test('settledCount 未指定 (デフォルト 0) は非表示', () => {
       const chains: TodayChainData[] = [
         buildChainData('c1', '朝', [fireNode('n1', '水')], { n1: true }),
       ];
-      const { getByTestId } = render(
-        <TodayScreen chains={chains} achievedBeforeToday={0} onToggleNode={() => {}} />,
-      );
-      expect(getByTestId('today-cumulative-total').props.children).toEqual([
-        '累計 ',
-        '1',
-        ' 個達成 (+',
-        1,
-        ')',
-      ]);
-    });
-
-    test('achievedBeforeToday 未指定でも今日分だけで表示 (後方互換・デフォルト 0)', () => {
-      const chains: TodayChainData[] = [
-        buildChainData('c1', '朝', [fireNode('n1', '水')], { n1: true }),
-      ];
-      const { getByTestId } = render(
+      const { queryByTestId } = render(
         <TodayScreen chains={chains} onToggleNode={() => {}} />,
       );
-      expect(getByTestId('today-cumulative-total').props.children).toEqual([
-        '累計 ',
-        '1',
-        ' 個達成 (+',
-        1,
-        ')',
-      ]);
+      expect(queryByTestId('today-settled-count')).toBeNull();
     });
   });
 

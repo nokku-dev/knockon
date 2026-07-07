@@ -31,8 +31,11 @@ import type { TodayChainData } from './useTodayData';
 // 旧 TodayScreen の中身 (スパイン / ノードリスト) は ChainDetail.tsx に移動。
 export type TodayScreenProps = {
   chains: readonly TodayChainData[];
-  // #142: アプリ全体の「今日より前の累計達成ノード数」(SQL COUNT のベース)。 見出し右に
-  // 「累計 N 回 (+今日)」を出すため。 今日の達成数は chains の achievements から合算する。
+  // ADR-0050 (2026-07-07): アプリ全体の定着ノード数。 見出し右に「定着 N 個」を出す
+  // (旧「累計 N 個達成」を置換・ユーザー判断)。
+  settledCount?: number;
+  // #142 / #165: 立ち上げチェックリストのマイルストーン (first/ten-achievement) 用の実タップ
+  // 通算 (今日より前)。 見出しには出さない。 今日の実達成は chains から合算して足す。
   achievedBeforeToday?: number;
   onToggleNode: (chainId: string, nodeId: string) => void;
   // PR-1.5b-3: 通知タップから遷移してきたとき、 自動で開きたい chainId。
@@ -64,6 +67,7 @@ export type TodayScreenProps = {
 
 export const TodayScreen = ({
   chains,
+  settledCount = 0,
   achievedBeforeToday = 0,
   onToggleNode,
   initialOpenChainId = null,
@@ -147,21 +151,16 @@ export const TodayScreen = ({
     if (idx === -1) setOpenChainId(null);
   }, []);
 
-  // #142 + ADR-0047 追補: 累計「累計 N 個達成 (+今日M)」。 今日の effective 達成数 =
-  // 実タップ達成 OR 定着 (auto-✓) の合算 (定着ノードはタップしなくても today +1)。 base
-  // (今日より前の effective 累計) と足す。 base と分離しているので、 実タップの楽観更新
-  // (achievements 変化) が即座に両方へ反映される (定着ノードは tap 不可なので変化しない)。
-  // 休む日 (kind='skip') は達成対象外なので数えない。
+  // #165 立ち上げチェックリストのマイルストーン用の実タップ通算 (first/ten-achievement)。
+  // ADR-0050 で見出しは「定着 N 個」に置換したため、 累計 (実タップ通算) は見出しに出さず
+  // チェックリスト判定にのみ使う。 今日の実達成 (全 active チェーン合算・休む日除外) + base。
   const todayAchievedCount = useMemo(
     () =>
       chains.reduce(
         (acc, c) =>
           acc +
           c.nodes.filter(
-            (n) =>
-              n.kind !== 'skip' &&
-              ((c.achievements[n.node.id] ?? false) ||
-                c.nodeIdsSettled.has(n.node.id)),
+            (n) => n.kind !== 'skip' && (c.achievements[n.node.id] ?? false),
           ).length,
         0,
       ),
@@ -213,17 +212,17 @@ export const TodayScreen = ({
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.headingRow}>
           <Text style={styles.heading}>Today</Text>
-          {/* #142 (ADR-0041): 見出し右横にアプリ全体の累計達成ノード数。 cumulativeTotal=0
-              (= まだ一度も達成なし) は非表示で、 最初の 1 回から現れる。 単位は「個達成」
-              (Taku 指定 2026-06-17、 「回」だとノード単位の回数と混線するため)。 控えめな
-              トーンで前進感だけを出す (Celebrate 主 / DESIGN-SYSTEM §0)。 */}
-          {cumulativeTotal > 0 && (
+          {/* ADR-0050 (2026-07-07): 見出し右横にアプリ全体の定着ノード数「定着 N 個」を出す
+              (旧「累計 N 個達成」を置換・ユーザー判断)。 定着数は latch で単調増加 (+)、
+              「定着に変わっていく様」を主役にする。 settledCount=0 は非表示 (最初の定着から
+              現れる)。 控えめなトーンで前進感を出す (Celebrate 主 / DESIGN-SYSTEM §0)。 */}
+          {settledCount > 0 && (
             <Text
-              testID="today-cumulative-total"
+              testID="today-settled-count"
               style={styles.cumulativeTotal}
-              accessibilityLabel={`累計 ${cumulativeTotal} 個達成、 うち今日 ${todayAchievedCount} 個`}
+              accessibilityLabel={`定着 ${settledCount} 個`}
             >
-              累計 {cumulativeTotal.toLocaleString()} 個達成 (+{todayAchievedCount})
+              定着 {settledCount.toLocaleString()} 個
             </Text>
           )}
         </View>
@@ -302,6 +301,7 @@ export const TodayScreen = ({
                 anchorFiredToday={openChain.anchorFiredToday}
                 nodeIdsSettled={openChain.nodeIdsSettled}
                 nodeRecentCells={openChain.nodeRecentCells}
+                nodeRecentSettled={openChain.nodeRecentSettled}
                 onToggleNode={(nodeId) => onToggleNode(openChain.chain.id, nodeId)}
                 onNoteLongPress={
                   onAddNote
