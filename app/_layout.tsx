@@ -111,9 +111,14 @@ export default function RootLayout() {
     };
   }, []);
 
+  // ADR-0029 follow-up (2026-07-07): Light テーマは ~27 画面が dark トークンを
+  // ハードコードしており未対応 (段階移行が未完)。 デザインレビュー中は Dark 固定にする
+  // (テーマ選択 UI も SettingsModal で非表示)。 移行完了時にこのフラグを false に戻せば
+  // themeMode / OS 追従が復活する (完全に reversible)。
+  const FORCE_DARK_FOR_REVIEW = true;
+  const effectiveThemeMode: ThemeMode = FORCE_DARK_FOR_REVIEW ? 'dark' : themeMode;
   // ADR-0029: themeMode + OS scheme から palette を派生 → native root bg を反映。
-  // [themeMode, osScheme] が変わるたびに再評価 (= setThemeMode 直後 / OS 設定変更時)。
-  const resolvedScheme = resolveColorScheme(themeMode, osScheme);
+  const resolvedScheme = resolveColorScheme(effectiveThemeMode, osScheme);
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(paletteFor(resolvedScheme).bg);
   }, [resolvedScheme]);
@@ -191,7 +196,7 @@ export default function RootLayout() {
   // ADR-0029: StatusBar の文字色は resolved scheme に追従 ('light' bg → 'dark' icons)。
   return (
     <ThemeProvider
-      themeMode={themeMode}
+      themeMode={effectiveThemeMode}
       osScheme={osScheme}
       setThemeMode={handleSetThemeMode}
     >

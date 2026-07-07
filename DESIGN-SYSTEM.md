@@ -21,7 +21,9 @@
 
 ## 1. カラートークン
 
-> ADR-0029 (Issue #53): Light / Dark / Auto (OS 追従) 切替を v1 で採用 (= 旧「Light テーマ / 動的テーマ切替は v1 非スコープ」方針を覆し)。 デフォルト Auto。 設定 → テーマカラーで選択。 パレット定義は `src/theme.ts` の `DARK_PALETTE` / `LIGHT_PALETTE` が正本。 個別コンポーネントは段階移行で `useTheme()` 経由化する (= 本 ADR §非スコープ、 follow-up PR 列)。
+> ADR-0029 (Issue #53): Light / Dark / Auto (OS 追従) 切替を v1 で採用 (= 旧「Light テーマ / 動的テーマ切替は v1 非スコープ」方針を覆し)。 パレット定義は `src/theme.ts` の `DARK_PALETTE` / `LIGHT_PALETTE` が正本。 個別コンポーネントは段階移行で `useTheme()` 経由化する (= 本 ADR §非スコープ、 follow-up PR 列)。
+>
+> **2026-07-07 現状**: 段階移行は未着手で ~27 画面が dark トークン (`tokens.ts` の `COLOR_*`) をハードコードしているため、 **Light は実質未対応**。 デザインレビュー中は **Dark 固定** (`app/_layout.tsx` の `FORCE_DARK_FOR_REVIEW`) + テーマ選択 UI を非表示 (`SettingsModal` の `SHOW_THEME_SELECTOR=false`) にしている。 いずれも flag を戻せば復活する reversible な措置。 Light を正式対応するには各コンポーネントを `useMemo(() => makeStyles(palette), [palette])` 形へ移行する。
 
 | トークン | 役割 | Dark（既定） | Light |
 |---|---|---|---|
