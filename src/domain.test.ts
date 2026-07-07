@@ -904,9 +904,9 @@ describe('isNodeSettled (ADR-0047: 定着=生涯マイルストーン latch・�
   });
 });
 
-describe('nodeSettlementStage (ADR-0047: これから / 育成中 / 定着)', () => {
-  it('達成が皆無なら fresh (これから)', () => {
-    expect(nodeSettlementStage([], [], 'n1', '2026-05-30')).toBe('fresh');
+describe('nodeSettlementStage (ADR-0051: 育成中 / もう少しで定着 / 定着)', () => {
+  it('達成が皆無でも growing (育成中)。 旧 fresh は育成中に統合', () => {
+    expect(nodeSettlementStage([], [], 'n1', '2026-05-30')).toBe('growing');
   });
 
   it('実タップはあるが未定着なら growing (育成中)', () => {
@@ -919,7 +919,7 @@ describe('nodeSettlementStage (ADR-0047: これから / 育成中 / 定着)', ()
     expect(nodeSettlementStage(records, [], 'n1', '2026-05-30')).toBe('settled');
   });
 
-  it('取り下げ済みノードは過去の実タップが残るので growing に戻る (fresh に落ちない)', () => {
+  it('取り下げ済みノードは育成中に戻る', () => {
     const records = achievedOn('n1', TEN_DAYS_APRIL);
     const retractions = [retraction('n1', '2026-04-15T10:00:00')];
     expect(nodeSettlementStage(records, retractions, 'n1', '2026-05-30')).toBe(
@@ -928,20 +928,20 @@ describe('nodeSettlementStage (ADR-0047: これから / 育成中 / 定着)', ()
   });
 });
 
-describe('countSettlementStages (ADR-0047: ポートフォリオ上部のステージ別カウント)', () => {
-  it('各ノードをステージ別に集計する', () => {
+describe('countSettlementStages (ADR-0051: 育成中 / もう少しで定着 / 定着)', () => {
+  it('各ノードをステージ別に集計する (未着手も育成中)', () => {
     const records = [
       ...achievedOn('settled1', TEN_DAYS_APRIL),
       ...achievedOn('growing1', ['2026-05-29']),
-      // fresh1 は達成なし
+      // notStarted は達成なし → 育成中
     ];
     const counts = countSettlementStages(
-      ['settled1', 'growing1', 'fresh1'],
+      ['settled1', 'growing1', 'notStarted'],
       records,
       [],
       '2026-05-30',
     );
-    expect(counts).toEqual({ fresh: 1, growing: 1, almost: 0, settled: 1 });
+    expect(counts).toEqual({ growing: 2, almost: 0, settled: 1 });
   });
 });
 

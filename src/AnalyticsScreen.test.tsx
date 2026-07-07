@@ -28,7 +28,7 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { getByText } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 0, growing: 0, almost: 0, settled: 0 }}
+        counts={{ growing: 0, almost: 0, settled: 0 }}
         nodes={[]}
       />,
     );
@@ -39,7 +39,7 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { getByLabelText } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 4, growing: 2, almost: 0, settled: 3 }}
+        counts={{ growing: 2, almost: 0, settled: 3 }}
         nodes={[node('c1', 'n1', 'A', 'C1', 'settled')]}
       />,
     );
@@ -52,19 +52,19 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const nodes = [
       node('c1', 'n1', '水を飲む', '朝', 'settled'),
       node('c1', 'n2', 'ストレッチ', '朝', 'growing'),
-      node('c2', 'n3', '読書', '夜', 'fresh'),
+      node('c2', 'n3', '読書', '夜', 'growing'),
     ];
     const { getByText, queryByText } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 1, growing: 1, almost: 0, settled: 1 }}
+        counts={{ growing: 1, almost: 0, settled: 1 }}
         nodes={nodes}
       />,
     );
-    // グループ見出しは常に表示
+    // グループ見出しは常に表示 (定着 / もう少しで定着 / 育成中)
     expect(getByText('定着')).toBeTruthy();
+    expect(getByText('もう少しで定着')).toBeTruthy();
     expect(getByText('育成中')).toBeTruthy();
-    expect(getByText('これから')).toBeTruthy();
     // 初期は全畳み → ノード本体は非表示
     expect(queryByText('水を飲む')).toBeNull();
     expect(queryByText('ストレッチ')).toBeNull();
@@ -76,7 +76,7 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { getByTestId, queryByText } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 0, growing: 0, almost: 0, settled: 1 }}
+        counts={{ growing: 0, almost: 0, settled: 1 }}
         nodes={nodes}
       />,
     );
@@ -93,7 +93,7 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { getByLabelText, getByTestId } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 0, growing: 0, almost: 0, settled: 1 }}
+        counts={{ growing: 0, almost: 0, settled: 1 }}
         nodes={[node('c1', 'n1', '水を飲む', '朝', 'settled')]}
         onRetractSettlement={onRetractSettlement}
       />,
@@ -110,22 +110,22 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     alertSpy.mockRestore();
   });
 
-  test('育成中 / これからノードには取り下げ導線を出さない (開いても出ない)', () => {
+  test('育成中 / もう少しで定着ノードには取り下げ導線を出さない (開いても出ない)', () => {
     const onRetractSettlement = jest.fn();
     const { queryByLabelText, getByTestId } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 1, growing: 1, almost: 0, settled: 0 }}
+        counts={{ growing: 1, almost: 1, settled: 0 }}
         nodes={[
           node('c1', 'n2', 'ストレッチ', '朝', 'growing'),
-          node('c2', 'n3', '読書', '夜', 'fresh'),
+          node('c2', 'n3', '読書', '夜', 'almost'),
         ]}
         onRetractSettlement={onRetractSettlement}
       />,
     );
-    // グループを開いても育成中 / これからには取り下げボタンが無いこと。
+    // グループを開いても育成中 / もう少しで定着には取り下げボタンが無いこと。
     fireEvent.press(getByTestId('portfolio-group-growing'));
-    fireEvent.press(getByTestId('portfolio-group-fresh'));
+    fireEvent.press(getByTestId('portfolio-group-almost'));
     expect(queryByLabelText(/を取り下げる/)).toBeNull();
   });
 
@@ -135,14 +135,13 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { getByText, getByTestId } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 0, growing: 0, almost: 0, settled: 1 }}
+        counts={{ growing: 0, almost: 0, settled: 1 }}
         nodes={[node('c1', 'n1', 'A', 'C1', 'settled')]}
       />,
     );
     expect(getByText('定着')).toBeTruthy();
     expect(getByText('もう少しで定着')).toBeTruthy();
     expect(getByText('育成中')).toBeTruthy();
-    expect(getByText('これから')).toBeTruthy();
     // 0 件グループを開くと「まだありません」。
     fireEvent.press(getByTestId('portfolio-group-almost'));
     expect(getByText('まだありません')).toBeTruthy();
@@ -152,7 +151,7 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { getByText, getByTestId, queryByText } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 0, growing: 0, almost: 1, settled: 0 }}
+        counts={{ growing: 0, almost: 1, settled: 0 }}
         nodes={[node('c1', 'n1', 'ランニング', '朝', 'almost')]}
       />,
     );
@@ -166,7 +165,7 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { getByLabelText } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 0, growing: 1, almost: 2, settled: 3 }}
+        counts={{ growing: 1, almost: 2, settled: 3 }}
         nodes={[node('c1', 'n1', 'A', 'C1', 'settled')]}
       />,
     );
@@ -177,7 +176,7 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { getByLabelText } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 0, growing: 0, almost: 1, settled: 1 }}
+        counts={{ growing: 0, almost: 1, settled: 1 }}
         movements={{ intoSettled: 2, intoAlmost: 3 }}
         nodes={[node('c1', 'n1', 'A', 'C1', 'settled')]}
       />,
@@ -189,9 +188,9 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
     const { queryByLabelText } = render(
       <AnalyticsScreen
         today="2026-07-06"
-        counts={{ fresh: 1, growing: 0, almost: 0, settled: 0 }}
+        counts={{ growing: 0, almost: 0, settled: 0 }}
         movements={{ intoSettled: 0, intoAlmost: 0 }}
-        nodes={[node('c1', 'n1', 'A', 'C1', 'fresh')]}
+        nodes={[node('c1', 'n1', 'A', 'C1', 'growing')]}
       />,
     );
     expect(queryByLabelText(/今週/)).toBeNull();

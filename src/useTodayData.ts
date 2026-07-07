@@ -1,8 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
-import { nodeDateMatrixCells, settledDatesForNode } from './analyticsDerivation';
-import type { DateMatrixCell } from './analyticsDerivation';
 import { getExpoSqliteClient } from './db.expo';
 import {
   countSettlementStages,
@@ -11,7 +9,6 @@ import {
   isNodeSettled,
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
-  recentDateRange,
   resolveActionForDate,
   sortChainsForDisplay,
   toAchievementMap,
@@ -46,15 +43,6 @@ import { getAppSettings, updateAppSettings } from './settingsRepository';
 import { insertRetraction, listRetractions } from './settlementRepository';
 import type { TodayNode } from './ChainDetail';
 
-// #125 / ADR-0038: Today ChainDetail のノード行右端に直近 7 日間の達成グリフマトリクスを
-// 描画する。 ADR-0038 で SPEC §3「v1 単一窓 14D 固定」を軸別再解釈し「Today ChainDetail
-// ノード行 = 7D / Today カード・スパイン・定着判定 = 14D / 分析タブ = 60D」と正式化した
-// ため、 この定数は ADR-0038 §決定 1 の「目的ごとの固定窓」の実装側エントリポイント。
-// 14D ウィンドウ (定着判定用) の中から 7D 分だけ slice すれば足りる
-// (recentDateRange の末尾 7 件 = 直近 7 日)。 マトリクス自体の派生値計算 (variant 解決等)
-// は nodeDateMatrixCells に集約。
-const TODAY_RECENT_WINDOW_DAYS = 7;
-
 // 1 つの active チェーン分の Today データ。
 export type TodayChainData = {
   chain: Chain;
@@ -65,20 +53,12 @@ export type TodayChainData = {
   anchorFiredToday: boolean;
   // ADR-0047: このチェーンのノード群の「今日以前・全期間」達成履歴 (派生値の元データ)。
   // 定着 latch (isNodeSettled) は数ヶ月前の定着窓も参照するため 14D では不足 → 全期間保持。
-  // 表示系 (今日マップ / 7D マトリクス / 14D スパイン) は同じ配列を日付フィルタして使う。
-  // 楽観更新時に nodeIdsSettled / マトリクスを再計算するために保持。 永続化はしない。
+  // 楽観更新時に nodeIdsSettled を再計算するために保持。 永続化はしない。
   achievementHistory: readonly Achievement[];
   // ADR-0047: 定着 (settled) 済みノード ID の集合 (派生値・latch)。 取り下げ以降に 14D 窓で
-  // 10 日以上を満たした窓が過去に一度でも存在すれば定着 (isNodeSettled)。 旧 nodeIdsEstablished
-  // (14D ローリング) から latch 定着へ置換。 星 ★ の表示に使う。 楽観更新時は
-  // recentAchievements + retractions 経由で再計算。 auto 達成レコードは書かない (K-002)。
+  // 10 日以上を満たした窓が過去に一度でも存在すれば定着 (isNodeSettled)。 星ドット (ADR-0050)
+  // の表示に使う。 楽観更新時は achievementHistory + retractions 経由で再計算。
   nodeIdsSettled: ReadonlySet<string>;
-  // #125: ノード行右端の直近 7 日間グリフマトリクス用セル列 (派生値)。 楽観更新時は
-  // recentAchievements 経由で再計算 (今日のセルがタップで即時反映される)。
-  nodeRecentCells: ReadonlyMap<string, readonly DateMatrixCell[]>;
-  // ADR-0050: 7 日窓のうち「その日時点で定着している日付」集合 (ノード別・派生)。 その日は
-  // ミニマトリクスを星形で描く (定着に変わる様を 7 日窓でも見せる)。
-  nodeRecentSettled: ReadonlyMap<string, ReadonlySet<IsoDate>>;
 };
 
 // Today 画面全体の状態。 ADR-0020 で「手動発火」概念を廃止、 active な全チェーンを
@@ -103,26 +83,6 @@ export type TodayData = {
   onboardingCompleted: boolean;
   checklistDismissedAt: string | null;
   checklistAddedAction: boolean;
-};
-
-// #125: 1 ノードの達成 toggle / markAchieved 後に、 そのノードのマトリクスセル列だけを
-// 再計算した Map を返す純粋ヘルパー。 他ノードの cells は元の参照をそのまま使う
-// (= 楽観更新のコピー量を最小化、 K-010 の計算量明示と整合)。
-const recomputeNodeRecentCells = (
-  target: TodayChainData,
-  nodeId: string,
-  nextHistory: readonly Achievement[],
-  today: IsoDate,
-): ReadonlyMap<string, readonly DateMatrixCell[]> => {
-  const targetTodayNode = target.nodes.find((n) => n.node.id === nodeId);
-  if (!targetTodayNode) return target.nodeRecentCells;
-  const matrixDates = recentDateRange(today, TODAY_RECENT_WINDOW_DAYS);
-  const nextMap = new Map(target.nodeRecentCells);
-  nextMap.set(
-    nodeId,
-    nodeDateMatrixCells(matrixDates, targetTodayNode.action, nodeId, nextHistory),
-  );
-  return nextMap;
 };
 
 // 場所アンカーの「今日まだ発火していないとき」のみ呼ぶ GPS 経由の発火検出。
@@ -183,27 +143,11 @@ const loadChainForToday = async (
     undefined,
     today,
   );
-  const recentWindow = recentDateRange(today, 14);
   const nodeIdsSettled = new Set<string>();
   for (const n of validNodes) {
     if (isNodeSettled(records, retractions, n.node.id, today)) {
       nodeIdsSettled.add(n.node.id);
     }
-  }
-  // #125: 7D ウィンドウ (recentWindow の末尾 7 件) で各ノードのマトリクスセル列を派生。
-  const matrixDates = recentWindow.slice(-TODAY_RECENT_WINDOW_DAYS);
-  const nodeRecentCells = new Map<string, readonly DateMatrixCell[]>();
-  // ADR-0050: 7D 窓のうち定着している日付集合 (定着日は星形で描く)。
-  const nodeRecentSettled = new Map<string, ReadonlySet<IsoDate>>();
-  for (const n of validNodes) {
-    nodeRecentCells.set(
-      n.node.id,
-      nodeDateMatrixCells(matrixDates, n.action, n.node.id, records),
-    );
-    nodeRecentSettled.set(
-      n.node.id,
-      new Set(settledDatesForNode(records, retractions, n.node.id, matrixDates)),
-    );
   }
   // ADR-0012: 既存の発火 record があれば「今日発火済み」確定。
   const todayFirings = await listAnchorFiringsForDate(db, anchor.id, today);
@@ -224,8 +168,6 @@ const loadChainForToday = async (
     anchorFiredToday,
     achievementHistory: records,
     nodeIdsSettled,
-    nodeRecentCells,
-    nodeRecentSettled,
   };
 };
 
@@ -399,13 +341,6 @@ export const useTodayData = (): UseTodayDataResult => {
       } else {
         nextSettled.delete(nodeId);
       }
-      // #125: 直近 7 日間マトリクスを対象ノードのみ再計算 (他ノードは変化なし)。
-      const nextHistoryCells = recomputeNodeRecentCells(
-        target,
-        nodeId,
-        nextHistory,
-        data.today,
-      );
       setData((prev) =>
         prev
           ? {
@@ -417,7 +352,6 @@ export const useTodayData = (): UseTodayDataResult => {
                       achievements: nextAchievements,
                       achievementHistory: nextHistory,
                       nodeIdsSettled: nextSettled,
-                      nodeRecentCells: nextHistoryCells,
                     }
                   : c,
               ),
@@ -473,13 +407,6 @@ export const useTodayData = (): UseTodayDataResult => {
       } else {
         nextSettled.delete(nodeId);
       }
-      // #125: 直近 7 日間マトリクスを対象ノードのみ再計算。
-      const nextHistoryCells = recomputeNodeRecentCells(
-        target,
-        nodeId,
-        nextHistory,
-        data.today,
-      );
       setData((prev) =>
         prev
           ? {
@@ -491,7 +418,6 @@ export const useTodayData = (): UseTodayDataResult => {
                       achievements: nextAchievements,
                       achievementHistory: nextHistory,
                       nodeIdsSettled: nextSettled,
-                      nodeRecentCells: nextHistoryCells,
                     }
                   : c,
               ),

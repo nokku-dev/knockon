@@ -46,17 +46,11 @@ export type AnalyticsScreenProps = {
 
 // 表示順: 定着 (Celebrate) を先頭に、 もう少しで定着、 育成中、 これから。 これから (未着手)
 // は指差さないトーンで最後に静かに置く (Celebrate 主 / マイナスを指差さない)。
-const STAGE_ORDER: readonly SettlementStage[] = [
-  'settled',
-  'almost',
-  'growing',
-  'fresh',
-];
+const STAGE_ORDER: readonly SettlementStage[] = ['settled', 'almost', 'growing'];
 const STAGE_LABEL: Record<SettlementStage, string> = {
   settled: '定着',
   almost: 'もう少しで定着',
   growing: '育成中',
-  fresh: 'これから',
 };
 
 export const AnalyticsScreen = ({
@@ -78,7 +72,6 @@ export const AnalyticsScreen = ({
     settled: true,
     almost: true,
     growing: true,
-    fresh: true,
   });
   const toggle = (stage: SettlementStage) =>
     setCollapsed((c) => ({ ...c, [stage]: !c[stage] }));
@@ -127,7 +120,7 @@ export const AnalyticsScreen = ({
         <Text style={styles.empty}>
           まだ定着ポートフォリオに載るノードがありません。 {'\n'}
           チェーンタブでアクションを作り、 Today で積み上げていくと、 {'\n'}
-          ここに「これから / 育成中 / 定着」が並びます。
+          ここに「育成中 / もう少しで定着 / 定着」が並びます。
         </Text>
       ) : (
         STAGE_ORDER.map((stage) => {

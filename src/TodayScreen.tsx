@@ -300,8 +300,6 @@ export const TodayScreen = ({
                 achievements={openChain.achievements}
                 anchorFiredToday={openChain.anchorFiredToday}
                 nodeIdsSettled={openChain.nodeIdsSettled}
-                nodeRecentCells={openChain.nodeRecentCells}
-                nodeRecentSettled={openChain.nodeRecentSettled}
                 onToggleNode={(nodeId) => onToggleNode(openChain.chain.id, nodeId)}
                 onNoteLongPress={
                   onAddNote
