@@ -108,7 +108,6 @@ describe('ChainDetail', () => {
     const { getByLabelText } = renderScreen({});
     expect(getByLabelText('水を飲む').props.accessibilityState).toEqual({
       checked: false,
-      disabled: false,
     });
   });
 
@@ -116,12 +115,11 @@ describe('ChainDetail', () => {
     const { getByLabelText } = renderScreen({ n1: true });
     expect(getByLabelText('水を飲む').props.accessibilityState).toEqual({
       checked: true,
-      disabled: false,
     });
   });
 
-  // ADR-0047 追補 (2026-07-07): 定着ノードは Today で auto-✓ (タップ不要・レコード非書込)。
-  describe('定着ノードの auto-✓ (タップ不要)', () => {
+  // ADR-0050 (2026-07-07): 定着ノードは左ドットが星型、 タップは従来どおり有効 (auto-✓ は撤回)。
+  describe('定着ノードの星ドット + 通常タップ', () => {
     const renderWithSettled = (
       achievements: AchievementMap,
       settled: Set<string>,
@@ -138,19 +136,19 @@ describe('ChainDetail', () => {
         />,
       );
 
-    test('定着ノードは実レコードが無くても checked=true (auto-✓) かつ disabled=true', () => {
-      const { getByLabelText } = renderWithSettled({}, new Set(['n1']));
-      expect(getByLabelText('水を飲む').props.accessibilityState).toEqual({
-        checked: true,
-        disabled: true,
-      });
+    test('定着ノードの左マーカーは星型 (円ではない)', () => {
+      const { getByTestId, queryByTestId } = renderWithSettled({}, new Set(['n1']));
+      expect(getByTestId('node-marker-star-n1')).toBeTruthy();
+      expect(queryByTestId('node-marker-circle-n1')).toBeNull();
+      // 未定着ノードは円のまま。
+      expect(getByTestId('node-marker-circle-n2')).toBeTruthy();
     });
 
-    test('定着ノードをタップしても onToggleNode は呼ばれない (no-op・記録を書かない)', () => {
+    test('定着ノードもタップで onToggleNode が呼ばれる (通常トグル)', () => {
       const onToggleNode = jest.fn();
       const { getByLabelText } = renderWithSettled({}, new Set(['n1']), onToggleNode);
-      fireEvent.press(getByLabelText('水を飲む'));
-      expect(onToggleNode).not.toHaveBeenCalled();
+      fireEvent.press(getByLabelText('水を飲む (定着済み)'));
+      expect(onToggleNode).toHaveBeenCalledWith('n1');
     });
 
     test('未定着ノードは従来どおりタップで onToggleNode が呼ばれる', () => {
@@ -283,32 +281,11 @@ describe('ChainDetail', () => {
     expect(queryAllByText('100m').length).toBe(0);
   });
 
-  // Issue #118: 左の SVG マーカーは定着済みでも常に円 (星マークは連続回数の近くに小さく移動)
-  test('nodeIdsSettled に含まれるノードでも左マーカーは円のまま (#118)', () => {
-    const { getByTestId, queryByTestId } = render(
-      <ChainDetail
-        chain={chain}
-        anchor={anchor}
-        nodes={todayNodes}
-        achievements={{ n1: true }}
-        onToggleNode={() => {}}
-        nodeIdsSettled={new Set(['n1'])}
-      />,
-    );
-    // n1 は定着済みだが、 左マーカーは円のまま (SVG 星は出さない)
-    expect(getByTestId('node-marker-circle-n1')).toBeTruthy();
-    expect(queryByTestId('node-marker-star-n1')).toBeNull();
-    // n2 / n3 は未定着 → 円
-    expect(getByTestId('node-marker-circle-n2')).toBeTruthy();
-    expect(getByTestId('node-marker-circle-n3')).toBeTruthy();
-  });
-
-  // Issue #118: 定着済みノードの星マークを左マーカーから連続回数近くの小さな表示へ移す。
-  // Issue #118 追補 (Taku コメント 2026-06-16): 今日の達成状態に関わらず常に ★ (塗り)
-  // で表示する (Issue #113 の「達成=★ / 未達=☆」塗り分けセマンティクスは撤回)。
-  describe('Issue #118: 定着済みノードの星は連続回数の近くに小さく表示', () => {
-    test('established + 達成済み → ★ (塗り) が node row に表示される', () => {
-      const { getByTestId } = render(
+  // ADR-0050 (2026-07-07): 定着ノードは左の SVG マーカーが星型 (Issue #118 の「常に円」を反転)。
+  // 星は常に塗り (今日の達成状態で塗り分けない)。 テキスト右の小 ★ (旧 #118 追補) は撤去。
+  describe('ADR-0050: 定着ノードの左マーカーは星型', () => {
+    test('定着ノード = 星マーカー (達成済み)、 未定着 = 円', () => {
+      const { getByTestId, queryByTestId } = render(
         <ChainDetail
           chain={chain}
           anchor={anchor}
@@ -318,12 +295,14 @@ describe('ChainDetail', () => {
           nodeIdsSettled={new Set(['n1'])}
         />,
       );
-      const star = getByTestId('node-row-star-n1');
-      expect(star.props.children).toBe('★');
+      expect(getByTestId('node-marker-star-n1')).toBeTruthy();
+      expect(queryByTestId('node-marker-circle-n1')).toBeNull();
+      expect(getByTestId('node-marker-circle-n2')).toBeTruthy();
+      expect(getByTestId('node-marker-circle-n3')).toBeTruthy();
     });
 
-    test('established + 未達成 → ★ (塗り) が node row に表示される (#118 追補)', () => {
-      const { getByTestId } = render(
+    test('定着ノードは今日未達成でも星マーカー (達成状態で形を変えない)', () => {
+      const { getByTestId, queryByTestId } = render(
         <ChainDetail
           chain={chain}
           anchor={anchor}
@@ -333,40 +312,11 @@ describe('ChainDetail', () => {
           nodeIdsSettled={new Set(['n1'])}
         />,
       );
-      const star = getByTestId('node-row-star-n1');
-      expect(star.props.children).toBe('★');
+      expect(getByTestId('node-marker-star-n1')).toBeTruthy();
+      expect(queryByTestId('node-marker-circle-n1')).toBeNull();
     });
 
-    test('established で achievements マップにキー無し → ★ (塗り、#118 追補)', () => {
-      const { getByTestId } = render(
-        <ChainDetail
-          chain={chain}
-          anchor={anchor}
-          nodes={todayNodes}
-          achievements={{}}
-          onToggleNode={() => {}}
-          nodeIdsSettled={new Set(['n1'])}
-        />,
-      );
-      const star = getByTestId('node-row-star-n1');
-      expect(star.props.children).toBe('★');
-    });
-
-    test('白抜き星 (☆) は使わない (#118 追補)', () => {
-      const { queryByText } = render(
-        <ChainDetail
-          chain={chain}
-          anchor={anchor}
-          nodes={todayNodes}
-          achievements={{ n1: false, n2: false, n3: false }}
-          onToggleNode={() => {}}
-          nodeIdsSettled={new Set(['n1', 'n2', 'n3'])}
-        />,
-      );
-      expect(queryByText('☆')).toBeNull();
-    });
-
-    test('未定着ノードには星を出さない', () => {
+    test('テキスト右の小 ★ (旧 #118 追補) は撤去済み', () => {
       const { queryByTestId } = render(
         <ChainDetail
           chain={chain}
@@ -375,24 +325,23 @@ describe('ChainDetail', () => {
           achievements={{ n1: true }}
           onToggleNode={() => {}}
           nodeIdsSettled={new Set(['n1'])}
-        />,
-      );
-      // n2 / n3 は未定着 → 星なし
-      expect(queryByTestId('node-row-star-n2')).toBeNull();
-      expect(queryByTestId('node-row-star-n3')).toBeNull();
-    });
-
-    test('nodeIdsSettled 未指定なら星なし', () => {
-      const { queryByTestId } = render(
-        <ChainDetail
-          chain={chain}
-          anchor={anchor}
-          nodes={todayNodes}
-          achievements={{ n1: true }}
-          onToggleNode={() => {}}
         />,
       );
       expect(queryByTestId('node-row-star-n1')).toBeNull();
+    });
+
+    test('nodeIdsSettled 未指定なら星マーカーなし (全ノード円)', () => {
+      const { queryByTestId, getByTestId } = render(
+        <ChainDetail
+          chain={chain}
+          anchor={anchor}
+          nodes={todayNodes}
+          achievements={{ n1: true }}
+          onToggleNode={() => {}}
+        />,
+      );
+      expect(queryByTestId('node-marker-star-n1')).toBeNull();
+      expect(getByTestId('node-marker-circle-n1')).toBeTruthy();
     });
   });
 
@@ -761,7 +710,8 @@ describe('ChainDetail', () => {
           nodeIdsSettled={new Set(['n2'])}
         />,
       );
-      fireEvent(getByLabelText('ストレッチ'), 'longPress');
+      // ADR-0050: 定着ノードの a11y ラベルは「(定着済み)」を含む。
+      fireEvent(getByLabelText('ストレッチ (定着済み)'), 'longPress');
       expect(alertSpy).toHaveBeenCalledTimes(1);
       // 第 1 引数はアクション名、 第 3 引数はボタン配列。
       expect(alertSpy.mock.calls[0][0]).toBe('ストレッチ');

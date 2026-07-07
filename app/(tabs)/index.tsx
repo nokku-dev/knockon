@@ -90,6 +90,7 @@ export default function TodayTab() {
       ) : (
         <TodayScreen
           chains={data.chains}
+          settledCount={data.settledCount}
           achievedBeforeToday={data.achievedBeforeToday}
           onToggleNode={handleToggle}
           initialOpenChainId={initialOpen}

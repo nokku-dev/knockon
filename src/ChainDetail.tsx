@@ -10,7 +10,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Line } from 'react-native-svg';
+import Svg, { Circle, Line, Polygon } from 'react-native-svg';
 
 import type { DateMatrixCell } from './analyticsDerivation';
 import type {
@@ -48,11 +48,10 @@ export type TodayNode = {
 // 旧 TodayScreen の中身 (アンカー行 + チェーンタイトル + スパイン + ノードリスト)
 // を切り出した。 「Today」見出しと scroll wrap は呼び出し側 (TodayScreen) が担当。
 //
-// ADR-0047: 定着済み (settled = latch) のノードはアクション名の右に小さな ★ を表示し、
-// Today で **auto-✓ (タップ不要)** 扱いにする (2026-07-07 追補・ユーザー判断: 記録の手間を
-// 減らす)。 表示上の達成 (effective) = 実レコード OR 定着。 タップは no-op (達成レコードを
-// 書かない = K-002)。 定着判定は親 (useTodayData) で派生し nodeIdsSettled で渡す
-// (ChainDetail は判定責務を持たず view 専念)。
+// ADR-0050 (2026-07-07): 定着済み (settled = latch) のノードは **左ドットを星型** で表示する
+// (Issue #118 の「常に円」を反転)。 星は常に塗り (今日の達成状態で塗り分けない)。 タップは
+// 従来どおり有効 (auto-✓ #211 は撤回)。 スパイン・達成は実タップベース。 定着判定は親
+// (useTodayData) で派生し nodeIdsSettled で渡す (ChainDetail は判定責務を持たず view 専念)。
 export type ChainDetailProps = {
   chain: Chain;
   anchor: Anchor;
@@ -77,6 +76,8 @@ export type ChainDetailProps = {
   // 渡されない / 該当 nodeId 不在のノードはマトリクス非表示 (既存挙動互換)。 派生値の
   // 計算は useTodayData が担当 (純粋関数 nodeDateMatrixCells、 ChainDetail は表示係)。
   nodeRecentCells?: ReadonlyMap<string, readonly DateMatrixCell[]>;
+  // ADR-0050: 各ノードの 7 日窓のうち「定着している日付」集合。 該当日は星形で描く。
+  nodeRecentSettled?: ReadonlyMap<string, ReadonlySet<string>>;
 };
 
 const SPINE_X = 9;
@@ -154,16 +155,13 @@ export const ChainDetail = ({
   onRetractSettlement,
   onStartTimer,
   nodeRecentCells,
+  nodeRecentSettled,
 }: ChainDetailProps) => {
   const domainNodes = nodes.map((n) => n.node);
-  // ADR-0047 追補 (2026-07-07): 定着ノードは Today で auto-✓ (タップ不要・達成レコード非書込)。
-  // 表示上の達成 (effective) = 実レコード OR 定着 (latch)。 スパインの伸び・マーカーの塗り・
-  // ✓ はこの effective 値で描く。 実タップ記録 (achievements) は書き換えない (K-002)。
-  const effectiveAchievements: Record<string, boolean> = { ...achievements };
-  for (const { node } of nodes) {
-    if (nodeIdsSettled?.has(node.id)) effectiveAchievements[node.id] = true;
-  }
-  const lastAchievedIdx = lastAchievedNodeIndex(domainNodes, effectiveAchievements);
+  // ADR-0050 (2026-07-07): 定着ノードの auto-✓ (#211) を撤回し、 定着は「左ドットを星型」で
+  // 見せる。 スパインの伸び・マーカーの塗りは実タップ達成 (achievements) ベースに戻す
+  // (定着は達成状態とは別軸のマイルストーン)。
+  const lastAchievedIdx = lastAchievedNodeIndex(domainNodes, achievements);
   const anchorCenterY = ANCHOR_ROW_HEIGHT / 2;
   const nodeMarkerCenterY = (idx: number) =>
     ANCHOR_ROW_HEIGHT + idx * NODE_ROW_HEIGHT + NODE_ROW_HEIGHT / 2;
@@ -264,7 +262,8 @@ export const ChainDetail = ({
                 key={node.id}
                 nodeId={node.id}
                 cy={nodeMarkerCenterY(idx)}
-                achieved={effectiveAchievements[node.id] ?? false}
+                achieved={achievements[node.id] ?? false}
+                settled={nodeIdsSettled?.has(node.id) ?? false}
               />
             ),
           )}
@@ -283,18 +282,16 @@ export const ChainDetail = ({
               nodeId={node.id}
               actionTitle={label}
               recentCells={nodeRecentCells?.get(node.id)}
+              recentSettled={nodeRecentSettled?.get(node.id)}
             />
           ) : (
             <NodeRow
               key={node.id}
               nodeId={node.id}
               actionTitle={label}
-              achieved={effectiveAchievements[node.id] ?? false}
+              achieved={achievements[node.id] ?? false}
               settled={nodeIdsSettled?.has(node.id) ?? false}
-              // 定着ノードは auto-✓ でタップ不要 → onPress を no-op に (K-002: レコード非書込)。
-              onPress={() => {
-                if (!nodeIdsSettled?.has(node.id)) onToggleNode(node.id);
-              }}
+              onPress={() => onToggleNode(node.id)}
               onLongPress={makeNodeLongPress(
                 node.id,
                 label,
@@ -312,6 +309,7 @@ export const ChainDetail = ({
                   : undefined
               }
               recentCells={nodeRecentCells?.get(node.id)}
+              recentSettled={nodeRecentSettled?.get(node.id)}
             />
           ),
         )}
@@ -321,23 +319,38 @@ export const ChainDetail = ({
   );
 };
 
-// Issue #118: 左マーカーは定着済みでも常に円のまま (星マークはアクション名の右に
-// 小さく表示)。 達成 false→true 遷移時のバウンスは従来どおり円形で発火する
-// (達成ジェスチャの一部、 DESIGN-SYSTEM §4.3)。
+// ADR-0050 (2026-07-07): 定着ノードの左マーカーは「星型」にする (Issue #118 の「常に円」を
+// 反転)。 定着 = マイルストーンを左ドットの形で示し、 定着に変わっていく様を見せる。 星は
+// 常に塗り (今日の達成状態で ★/☆ 塗り分けはしない = ADR-0036 (−) 禁則と整合)。 未定着は
+// 従来どおり円 (達成 false→true でバウンス、 DESIGN-SYSTEM §4.3 の達成ジェスチャ)。
+const STAR_OUTER_R = MARKER_RADIUS;
+const STAR_INNER_R = MARKER_RADIUS * 0.42;
+const starPoints = (cx: number, cy: number): string => {
+  const pts: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? STAR_OUTER_R : STAR_INNER_R;
+    const angle = ((-90 + i * 36) * Math.PI) / 180;
+    pts.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`);
+  }
+  return pts.join(' ');
+};
+
 const NodeMarker = ({
   nodeId,
   cy,
   achieved,
+  settled,
 }: {
   nodeId: string;
   cy: number;
   achieved: boolean;
+  settled: boolean;
 }) => {
   const scale = useSharedValue(1);
   const prevAchievedRef = useRef(achieved);
 
   useEffect(() => {
-    if (!prevAchievedRef.current && achieved) {
+    if (!settled && !prevAchievedRef.current && achieved) {
       scale.value = withSequence(
         withTiming(MARKER_BOUNCE_PEAK, {
           duration: BOUNCE_UP_MS,
@@ -347,11 +360,22 @@ const NodeMarker = ({
       );
     }
     prevAchievedRef.current = achieved;
-  }, [achieved, scale]);
+  }, [achieved, settled, scale]);
 
   const circleAnimatedProps = useAnimatedProps(() => ({
     r: MARKER_RADIUS * scale.value,
   }));
+
+  // 定着ノードは星型 (常に塗り COLOR_STAR)。 達成状態に関わらず形・塗りは一定。
+  if (settled) {
+    return (
+      <Polygon
+        testID={`node-marker-star-${nodeId}`}
+        points={starPoints(SPINE_X, cy)}
+        fill={COLOR_STAR}
+      />
+    );
+  }
 
   return (
     <AnimatedCircle
@@ -370,10 +394,12 @@ const SkipNodeRow = ({
   nodeId,
   actionTitle,
   recentCells,
+  recentSettled,
 }: {
   nodeId: string;
   actionTitle: string;
   recentCells?: readonly DateMatrixCell[];
+  recentSettled?: ReadonlySet<string>;
 }) => (
   <View
     style={[styles.contentRow, styles.nodeRowContainer, { height: NODE_ROW_HEIGHT }]}
@@ -381,7 +407,13 @@ const SkipNodeRow = ({
   >
     <Text style={styles.skipMark}>—</Text>
     <Text style={[styles.skipNodeText, styles.skipNodeTextFlex]}>{actionTitle}</Text>
-    {recentCells && <NodeRecentCellsMatrix nodeId={nodeId} cells={recentCells} />}
+    {recentCells && (
+      <NodeRecentCellsMatrix
+        nodeId={nodeId}
+        cells={recentCells}
+        settledDates={recentSettled}
+      />
+    )}
   </View>
 );
 
@@ -395,6 +427,7 @@ const NodeRow = ({
   timerSeconds,
   onStartTimer,
   recentCells,
+  recentSettled,
 }: {
   nodeId: string;
   actionTitle: string;
@@ -405,6 +438,7 @@ const NodeRow = ({
   timerSeconds: number | null;
   onStartTimer?: () => void;
   recentCells?: readonly DateMatrixCell[];
+  recentSettled?: ReadonlySet<string>;
 }) => {
   const scale = useSharedValue(1);
   const prevAchievedRef = useRef(achieved);
@@ -439,8 +473,8 @@ const NodeRow = ({
         onPress={onPress}
         onLongPress={onLongPress}
         accessibilityRole="checkbox"
-        accessibilityState={{ checked: achieved, disabled: settled }}
-        accessibilityLabel={actionTitle}
+        accessibilityState={{ checked: achieved }}
+        accessibilityLabel={settled ? `${actionTitle} (定着済み)` : actionTitle}
         accessibilityHint={
           onLongPress
             ? settled
@@ -463,20 +497,8 @@ const NodeRow = ({
         <Animated.View style={[styles.nodeTextWrap, animatedStyle]}>
           <Text style={styles.nodeText}>{actionTitle}</Text>
         </Animated.View>
-        {/* Issue #118: 定着済みノードはアクション名の右に小さく星を表示。
-            #118 追補 (Taku 2026-06-16): 今日の達成状態に関わらず常に塗り (★) で
-            表示する。 Issue #113 の「達成=★ / 未達=☆」塗り分けセマンティクスは
-            撤回 (= マイナス側 (☆) を指差さない / Celebrate 主、 DESIGN-SYSTEM §0)。
-            定着自体が祝福なので、 その日の達成状態で表現を薄めない。 */}
-        {settled && (
-          <Text
-            testID={`node-row-star-${nodeId}`}
-            style={styles.nodeRowStar}
-            accessibilityLabel="定着済み"
-          >
-            ★
-          </Text>
-        )}
+        {/* ADR-0050 (2026-07-07): 定着の星は左ドット (NodeMarker) に一本化。 旧「アクション名
+            右の小さな ★」(#118 追補) は撤去 (星が二重になるため)。 */}
       </Pressable>
       {onStartTimer && minutes != null && (
         <Pressable
@@ -488,7 +510,13 @@ const NodeRow = ({
           <Text style={styles.timerBtnText}>⏱ {minutes} 分</Text>
         </Pressable>
       )}
-      {recentCells && <NodeRecentCellsMatrix nodeId={nodeId} cells={recentCells} />}
+      {recentCells && (
+      <NodeRecentCellsMatrix
+        nodeId={nodeId}
+        cells={recentCells}
+        settledDates={recentSettled}
+      />
+    )}
     </View>
   );
 };
@@ -517,31 +545,41 @@ const monthDayLabel = (date: string): string => {
 const NodeRecentCellsMatrix = ({
   nodeId,
   cells,
+  settledDates,
 }: {
   nodeId: string;
   cells: readonly DateMatrixCell[];
+  // ADR-0050: 定着してからの期間の日は星形で表示する (定着に変わる様を 7 日窓でも見せる)。
+  settledDates?: ReadonlySet<string>;
 }) => (
   <View style={styles.recentCellsRow}>
-    {cells.map((cell) => (
-      <View
-        key={cell.date}
-        testID={`node-recent-cell-${nodeId}-${cell.date}`}
-        accessible
-        accessibilityLabel={`${monthDayLabel(cell.date)} ${cellStateLabel(cell)}`}
-        style={styles.recentCellSlot}
-      >
+    {cells.map((cell) => {
+      const settled = settledDates?.has(cell.date) ?? false;
+      return (
         <View
-          style={[
-            styles.recentCell,
-            cell.achieved
-              ? styles.recentCellAchieved
-              : cell.skipped
-                ? styles.recentCellSkip
-                : styles.recentCellMiss,
-          ]}
-        />
-      </View>
-    ))}
+          key={cell.date}
+          testID={`node-recent-cell-${nodeId}-${cell.date}`}
+          accessible
+          accessibilityLabel={`${monthDayLabel(cell.date)} ${settled ? '定着' : cellStateLabel(cell)}`}
+          style={styles.recentCellSlot}
+        >
+          {settled ? (
+            <Text style={styles.recentCellStar}>★</Text>
+          ) : (
+            <View
+              style={[
+                styles.recentCell,
+                cell.achieved
+                  ? styles.recentCellAchieved
+                  : cell.skipped
+                    ? styles.recentCellSkip
+                    : styles.recentCellMiss,
+              ]}
+            />
+          )}
+        </View>
+      );
+    })}
   </View>
 );
 
@@ -606,13 +644,6 @@ const styles = StyleSheet.create({
   nodePressAreaPressed: { opacity: 0.5 },
   nodeTextWrap: { alignSelf: 'center' },
   nodeText: { color: COLOR_FG, fontSize: 16 },
-  // Issue #118: アクション名の右に置く小さな定着星。 控えめなサイズ・トーン。
-  // 色は COLOR_STAR (定着のセレブレーション色) を維持。
-  nodeRowStar: {
-    color: COLOR_STAR,
-    fontSize: 12,
-    fontWeight: '600',
-  },
   timerBtn: {
     paddingVertical: 6,
     paddingHorizontal: 10,
@@ -661,4 +692,10 @@ const styles = StyleSheet.create({
   recentCellAchieved: { backgroundColor: COLOR_OK },
   recentCellMiss: { borderWidth: 1, borderColor: COLOR_FG_FAINT },
   recentCellSkip: {},
+  // ADR-0050: 7 日窓の定着日は小さな星で描く (定着に変わる様を見せる)。
+  recentCellStar: {
+    color: COLOR_STAR,
+    fontSize: 7,
+    lineHeight: 8,
+  },
 });

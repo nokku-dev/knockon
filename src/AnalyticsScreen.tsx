@@ -132,7 +132,8 @@ export const AnalyticsScreen = ({
       ) : (
         STAGE_ORDER.map((stage) => {
           const group = nodes.filter((n) => n.stage === stage);
-          if (group.length === 0) return null;
+          // ADR-0050 (2026-07-07): 0 件のステージも見出し (プルダウン) を常に出す
+          // (ユーザー判断: 「もう少しで定着」等が 0 でも構造を安定させる)。
           const isCollapsed = collapsed[stage];
           return (
             <View key={stage} style={styles.group}>
@@ -151,12 +152,16 @@ export const AnalyticsScreen = ({
                 <Text style={styles.groupCount}>{group.length}</Text>
               </Pressable>
               {!isCollapsed &&
-                group.map((n) => (
-                  <PortfolioNodeRow
-                    key={`${n.chainId}:${n.nodeId}`}
-                    node={n}
-                    onRetractSettlement={onRetractSettlement}
-                  />
+                (group.length > 0 ? (
+                  group.map((n) => (
+                    <PortfolioNodeRow
+                      key={`${n.chainId}:${n.nodeId}`}
+                      node={n}
+                      onRetractSettlement={onRetractSettlement}
+                    />
+                  ))
+                ) : (
+                  <Text style={styles.groupEmpty}>まだありません</Text>
                 ))}
             </View>
           );
@@ -276,6 +281,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '400',
     fontVariant: ['tabular-nums'],
+  },
+  groupEmpty: {
+    color: COLOR_FG_FAINT,
+    fontSize: 12,
+    paddingVertical: 4,
+    paddingLeft: 20,
   },
   nodeRow: {
     backgroundColor: COLOR_SURFACE,

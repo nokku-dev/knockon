@@ -130,6 +130,24 @@ describe('AnalyticsScreen (定着ポートフォリオ ADR-0047)', () => {
   });
 
   // ADR-0047 追補 (2026-07-07): もう少しで定着ステージ + 週次流入。
+  test('ADR-0050: 0 件のステージも見出し (プルダウン) を常に出す', () => {
+    // settled のみ 1 件、 他は 0 件でも全ステージの見出しが出る。
+    const { getByText, getByTestId } = render(
+      <AnalyticsScreen
+        today="2026-07-06"
+        counts={{ fresh: 0, growing: 0, almost: 0, settled: 1 }}
+        nodes={[node('c1', 'n1', 'A', 'C1', 'settled')]}
+      />,
+    );
+    expect(getByText('定着')).toBeTruthy();
+    expect(getByText('もう少しで定着')).toBeTruthy();
+    expect(getByText('育成中')).toBeTruthy();
+    expect(getByText('これから')).toBeTruthy();
+    // 0 件グループを開くと「まだありません」。
+    fireEvent.press(getByTestId('portfolio-group-almost'));
+    expect(getByText('まだありません')).toBeTruthy();
+  });
+
   test('「もう少しで定着」グループが表示され、 開くとノードが出る', () => {
     const { getByText, getByTestId, queryByText } = render(
       <AnalyticsScreen
