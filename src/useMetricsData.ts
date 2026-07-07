@@ -162,17 +162,21 @@ export const useMetricsData = (): UseMetricsDataResult => {
   // 失敗時も ref はそのまま保持 (= 同セッション中は再試行しない、 cold start で再試行する受容判断、 K-024 同型)。
   // 401 (token 無効) は永続エラー扱いで特別な値 '-disabled-' をセットして cold start 後でも再 query しない。
   const notionSyncedRef = useRef<string | null>(null);
+  // ADR-0050 追補: タブ再訪の読み込み表示を減らす。 初回のみスピナー、 2 回目以降は前回データを
+  // 見せたまま背景更新 (stale-while-revalidate、 useAnalyticsData と同型)。
+  const loadedOnceRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      setLoading(true);
+      if (!loadedOnceRef.current) setLoading(true);
       loadMetrics()
         .then(async (d) => {
           if (cancelled) return;
           setData(d);
           setError(null);
           setLoading(false);
+          loadedOnceRef.current = true;
           // Notion sync を非同期で発火 (loading に乗せず、 backround 取り込み)。
           // 失敗時は silently fallback (UI に出さない、 K-024 同型 / ADR-0024 構造的策)。
           if (notionSyncedRef.current === d.today) return; // 既に今日 sync 済み

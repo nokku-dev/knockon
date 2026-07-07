@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
 import {
@@ -122,6 +122,9 @@ export const useAnalyticsData = (): UseAnalyticsDataResult => {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // タブを開くたびの読み込み表示 (スピナー) の煩わしさ解消。 初回だけ loading を出し、
+  // 2 回目以降は前回データを見せたまま背景で再取得して差し替える (stale-while-revalidate)。
+  const loadedOnceRef = useRef(false);
 
   const retract = useCallback(async (nodeId: string) => {
     setData((prev) => {
@@ -159,12 +162,14 @@ export const useAnalyticsData = (): UseAnalyticsDataResult => {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      setLoading(true);
+      // 初回のみスピナー。 2 回目以降は前回データを保持したまま背景更新 (キャッシュ的挙動)。
+      if (!loadedOnceRef.current) setLoading(true);
       loadAnalytics()
         .then((d) => {
           if (!cancelled) {
             setData(d);
             setError(null);
+            loadedOnceRef.current = true;
           }
         })
         .catch((e: unknown) => {

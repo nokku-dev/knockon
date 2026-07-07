@@ -315,6 +315,38 @@ describe('ChainDetail', () => {
       expect(queryByTestId('node-marker-circle-n1')).toBeNull();
     });
 
+    test('定着ノード + 今日達成 → 星に白系アウトライン (stroke) が付く', () => {
+      const { getByTestId } = render(
+        <ChainDetail
+          chain={chain}
+          anchor={anchor}
+          nodes={todayNodes}
+          achievements={{ n1: true }}
+          onToggleNode={() => {}}
+          nodeIdsSettled={new Set(['n1'])}
+        />,
+      );
+      const star = getByTestId('node-marker-star-n1');
+      // react-native-svg は色を内部オブジェクトに正規化するので stroke の存在 + 太さで判定。
+      expect(star.props.stroke).toBeDefined();
+      expect(star.props.strokeWidth).toBeGreaterThan(0);
+    });
+
+    test('定着ノード + 今日未達成 → 星に stroke なし (未達を薄めない)', () => {
+      const { getByTestId } = render(
+        <ChainDetail
+          chain={chain}
+          anchor={anchor}
+          nodes={todayNodes}
+          achievements={{ n1: false }}
+          onToggleNode={() => {}}
+          nodeIdsSettled={new Set(['n1'])}
+        />,
+      );
+      const star = getByTestId('node-marker-star-n1');
+      expect(star.props.strokeWidth).toBe(0);
+    });
+
     test('テキスト右の小 ★ (旧 #118 追補) は撤去済み', () => {
       const { queryByTestId } = render(
         <ChainDetail
