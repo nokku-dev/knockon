@@ -347,13 +347,19 @@ const NodeMarker = ({
     r: MARKER_RADIUS * scale.value,
   }));
 
-  // 定着ノードは星型 (常に塗り COLOR_STAR)。 達成状態に関わらず形・塗りは一定。
+  // 定着ノードは星型 (常に塗り COLOR_STAR = 祝福・latch)。 加えて、 今日達成 (実タップ) の
+  // ときだけ白系 (COLOR_GROW) のアウトラインを足して「今日やった」を示す (ADR-0050 追補・
+  // 円マーカーの塗り=達成と同じ additive なチェックフィードバック。 未達は無印 = 星を薄めない
+  // = マイナスを指差さない)。 星の塗りは達成状態で変えない。
   if (settled) {
     return (
       <Polygon
         testID={`node-marker-star-${nodeId}`}
         points={starPoints(SPINE_X, cy)}
         fill={COLOR_STAR}
+        stroke={achieved ? COLOR_GROW : undefined}
+        strokeWidth={achieved ? 1.25 : 0}
+        strokeLinejoin="round"
       />
     );
   }
