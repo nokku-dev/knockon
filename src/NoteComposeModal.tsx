@@ -117,7 +117,7 @@ export const NoteComposeModal = ({
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.overlay}
+        style={styles.kav}
       >
         <Pressable style={styles.overlay} onPress={onCancel}>
           <Pressable
@@ -270,6 +270,10 @@ export const NoteComposeModal = ({
 };
 
 const styles = StyleSheet.create({
+  // KAV は素の flex:1 (中央寄せ/背景を付けると子バックドロップの幅が縮んで縦長帯になる)。
+  kav: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
