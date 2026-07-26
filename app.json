@@ -8,12 +8,18 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "co.nokku.knockon"
+      "bundleIdentifier": "co.nokku.knockon",
+      "icon": "./assets/icon.png"
     },
     "android": {
-      "package": "co.nokku.knockon"
+      "package": "co.nokku.knockon",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#16161A"
+      }
     },
     "plugins": [
       "expo-asset",
