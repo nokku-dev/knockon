@@ -14,9 +14,11 @@
 
 ### 1.1 アセット / 素材
 
-- [ ] **アプリアイコン**: 1024×1024 (App Store 用) + iOS 端末サイズセット (Issue #223)
-  - Xcode プロジェクト (`ios/knockon/Images.xcassets/AppIcon.appiconset/`) に組み込み済み
-  - 検証: Xcode ビルドで警告が出ないこと
+- [ ] **アプリアイコン**: 1024×1024 マスター (App Store 用) を Expo `app.json` 経由で組み込み (Issue #223 / 提案 #228)
+  - `assets/icon.png` (1024×1024, sRGB, alpha なし PNG) を配置
+  - `app.json` に `expo.icon` / `expo.ios.icon` / `expo.android.adaptiveIcon` を設定
+  - iOS 端末サイズセット (20/29/40/60pt @2x/@3x + 1024 marketing) は **EAS Build がマスター 1 枚から自動生成**する (Expo managed workflow / [ADR-0007](../decisions/0007-expo-react-native-stack.md)・`ios/knockon/Images.xcassets/AppIcon.appiconset/` を手動で触らない)
+  - 検証: `eas build --profile preview --platform ios` が `Missing app icon` / `Icon is too small` 警告なしで通ること
 - [ ] **スクリーンショット**: iPhone サイズ要件を満たす (Issue #224)
   - 必須: 6.7" (1290×2796) — iPhone 15/16 Pro Max 等
   - 推奨: 6.5" (1284×2778 or 1242×2688) — Fallback として App Store Connect が要求する場合あり
