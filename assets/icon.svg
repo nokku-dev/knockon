@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  knockon app icon master (Issue #232 / 提案 #228)
+  1024×1024 / DESIGN-SYSTEM v0.2 準拠
+
+  構成:
+    - 背景  #16161A (--bg)         単色塗り (Superellipse マスクは OS 側)
+    - spine #EAEAE8 (--grow)       X=512 の縦線, Y=256→720, stroke=48, round cap
+    - dot   #EAEAE8 (--grow)       起点アンカー (512, 256) r=40
+    - star  #F2C14B (--star)       定着マイルストーン, 中心 (512, 800),
+                                    外接 R=140, 内接 R=140*0.42=58.8, 5 芒星,
+                                    上頂点 Y=660 (spine 下端が star にわずかにめり込む)
+
+  5 芒星の座標は src/ChainDetail.tsx の starPoints と同一形状 (inner ratio 0.42,
+  start angle -90°, 10 頂点交互 outer/inner) — ADR-0050 との視覚整合。
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1024 1024"
+     width="1024" height="1024">
+  <rect x="0" y="0" width="1024" height="1024" fill="#16161A"/>
+  <line x1="512" y1="256" x2="512" y2="720"
+        stroke="#EAEAE8" stroke-width="48" stroke-linecap="round"/>
+  <circle cx="512" cy="256" r="40" fill="#EAEAE8"/>
+  <polygon fill="#F2C14B"
+           points="512,660 546.56,752.43 645.15,756.74 567.92,818.17 594.29,913.26 512,858.80 429.71,913.26 456.07,818.17 378.85,756.74 477.44,752.43"/>
+</svg>
