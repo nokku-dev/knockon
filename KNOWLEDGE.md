@@ -311,3 +311,11 @@
 - **原因**: ADR の書き方が「個別判断の結論を残す」レイヤーに留まっていて、 同じ原則が複数判断にまたがって出てきたタイミングで「抽出された一般原則」を ADR 本文側に back-fill する運用ルールを持っていなかった。
 - **解決**: ADR-0036 §一般原則として「失われうるか (+/-) 判定基準」を明文化し、 過去判断対応表 (連続日数 = −、累計達成 = +、 定着の星 = +、 ☆ 塗り分け = −、 チェックリスト = +、 マトリクス = +、 比率指標 = − 等) も同 ADR に併記。 ADR-0004 §決定 5 から ADR-0036 §一般原則への 1 行参照を貼り (個別禁止条文の上位原則として位置付け)、 [K-005](#k-005) ルール (片側リンクだけでは判断系譜が壊れる) に従って ADR-0036 §想定される影響にも追補を残した。 SPEC §3 / CLAUDE.md §4 / 本 KNOWLEDGE に同期更新。
 - **教訓**: 同じ原則が複数の個別判断 (ADR-0036 streak 撤回 / #118 星塗り分け撤回 / #142 累計の採用 / #165 チェックリスト採用) にまたがって出てきたら、 抽出された一般原則を ADR 本文に back-fill する。 個別禁止条文の上位に「判定軸」を 1 つ置くことで、 後続レビューが「条文への該当判定」ではなく「軸への +/- ラベル付け」に変わり、 議論コストが下がる。 [K-015](#k-015) (全称禁則を後続 ADR で軸別に拡張) と同型の運用 — ADR は「結論を残す」だけでなく「抽出した原則を後から書き戻す」場所として使う。 Phase 2 以降で新 UI 要素 (通知文面 / アイコン / バッジ等) を追加するレビューで本判定基準を素振りすること。
+
+## K-039: iOS App Store リリースは `eas update` ではなく `eas build` → `eas submit`（`eas update` は OTA JS 配信専用で必ず失敗する）
+
+- **状況**: knockon を App Store / iOS へ初回リリースするため `eas update` を実行したところエラーになり、iOS リリースがブロックされた（#230 調査）。
+- **問題**: `eas update` はどう設定しても成功しない。この repo には `expo-updates` が未インストール、`app.json` に `runtimeVersion` が無い、`eas.json` の build profile に update channel が無い。EAS Update の前提が丸ごと欠けているため config validation で落ちる。そもそも `eas update` は既存のネイティブビルドに OTA で JS を配信するコマンドで、App Store バイナリ (.ipa) を作れないため、初回リリース経路として根本的に誤り。
+- **原因**: 「リリース = eas update」というコマンド選択の取り違え。OTA 更新（既存ビルドへの JS 差分配信）と App Store 提出（ネイティブビルド生成 + アップロード）は別系統のワークフローだが、`eas update` の名前が「更新＝リリース」と読めるため混同しやすい。
+- **解決**: iOS リリースの正規経路は [docs/release/app-store-submission.md](docs/release/app-store-submission.md) §2 が SoT: `eas build --profile production --platform ios` で .ipa を生成 → `eas submit --profile production --platform ios --latest` で App Store Connect にアップロード。前提として Apple Developer 加入 / ASC アプリレコード (`co.nokku.knockon`) / `eas credentials` の iOS 配布証明書設定が要る（§2.1）。`expo-updates` 導入は最小リリースのスコープ外なので今は入れない。
+- **教訓**: リリース系で `eas update` を打ちたくなったら止まる。App Store 提出は `eas build` → `eas submit`。`eas update` は「既に配布済みのビルドに JS を後追い配信する」ときだけ使い、それには `expo-updates` 導入 + `runtimeVersion` + channel 設定が別途必要。[K-025](#k-025)（Expo モジュール追加は `npx expo install`）と同様、EAS の各サブコマンドは目的が分かれているので用途を取り違えない。次に OTA 更新を本当に導入する判断が立ったら別 issue で `expo-updates` + runtimeVersion + channel を整備する。
