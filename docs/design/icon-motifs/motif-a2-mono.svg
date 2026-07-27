@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-labelledby="title desc">
+  <title id="title">Motif A-2 (mono): 起点 + 達成 3 + 星 (完成形)</title>
+  <desc id="desc">Themed icon 版 Motif A-2。色が消えても星と円の形状差で「積み上げの到達点」が読めるかを検証。</desc>
+  <line x1="512" y1="260" x2="512" y2="764" stroke="#F4F4F2" stroke-width="48" stroke-linecap="round"/>
+  <circle cx="512" cy="260" r="84" fill="#F4F4F2"/>
+  <circle cx="512" cy="428" r="84" fill="#F4F4F2"/>
+  <circle cx="512" cy="596" r="84" fill="#F4F4F2"/>
+  <polygon points="512,648 541,724 622,728 559,779 580,858 512,813 444,858 465,779 402,728 483,724" fill="#F4F4F2"/>
+</svg>

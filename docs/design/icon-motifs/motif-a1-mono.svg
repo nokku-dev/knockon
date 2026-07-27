@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-labelledby="title desc">
+  <title id="title">Motif A-1 (mono): 起点 + 未達 + 達成 + 星</title>
+  <desc id="desc">Android 13+ themed icon 用のモノクロ版 Motif A-1。単色化しても星と円の形の違いで定着が読めるかを検証する。</desc>
+  <line x1="512" y1="260" x2="512" y2="764" stroke="#F4F4F2" stroke-width="48" stroke-linecap="round" opacity="0.28"/>
+  <line x1="512" y1="260" x2="512" y2="596" stroke="#F4F4F2" stroke-width="48" stroke-linecap="round"/>
+  <circle cx="512" cy="260" r="84" fill="#F4F4F2"/>
+  <circle cx="512" cy="428" r="84" fill="none" stroke="#F4F4F2" stroke-width="14"/>
+  <circle cx="512" cy="596" r="84" fill="#F4F4F2"/>
+  <polygon points="512,648 541,724 622,728 559,779 580,858 512,813 444,858 465,779 402,728 483,724" fill="#F4F4F2"/>
+</svg>
