@@ -1,7 +1,7 @@
 # App Store 6.7" スクリーンショット制作 SOP
 
 > 対象: Issue #237 (親: #224 / 提案: #229)
-> 上位 SoT: [../app-store-submission.md](../app-store-submission.md) (Issue #225 の playbook) §1.1
+> 上位 SoT: [../../app-store-submission.md](../../app-store-submission.md) (Issue #225 の playbook) §1.1
 > 位置付け: **本ドキュメントは 6.7" スクリーンショット再撮影の実行 SoT**。Taku が上から順に実行し `docs/release/screenshots/6.7/*.png` を再生成できる粒度で書く (Claude Code は Apple Developer 環境と Xcode/実機を持たないため撮影は自動化不能・playbook §0 と同じ制約)。
 
 ## 0. サイズと枚数 (固定)
@@ -9,7 +9,7 @@
 - **サイズ**: **6.7" (1290×2796) のみ**。6.5" / 6.9" は追い足しせず、App Store Connect の自動 scale と Metadata Rejection 時の追い足し (playbook §4.1) に任せる。
 - **枚数**: **5 枚**。App Store 一覧で先頭 3 枚が特に重要 (プレビュー領域) なので順序を厳守する。
 - **形式**: PNG (Apple 要件)。git-lfs は使わない (5 枚 × 6.7" で 5-10 MB 想定・repo 圧不要)。1 枚 1 MB を超えたら `pngquant` で lossy 圧縮 (画質劣化許容範囲・store 側で再エンコードされる)。
-- **テーマ**: **Dark 固定**。`app/_layout.tsx` の `FORCE_DARK_FOR_REVIEW = true` および `SettingsModal` の `SHOW_THEME_SELECTOR = false` の現状 (DESIGN-SYSTEM §1 追記 / [ADR-0029](../../decisions/0029-theme-mode-light-dark-auto.md) の段階移行未着手を追認) に揃える。
+- **テーマ**: **Dark 固定**。`app/_layout.tsx` の `FORCE_DARK_FOR_REVIEW = true` および `SettingsModal` の `SHOW_THEME_SELECTOR = false` の現状 (DESIGN-SYSTEM §1 追記 / [ADR-0029](../../../decisions/0029-theme-mode-light-dark-auto.md) の段階移行未着手を追認) に揃える。
 
 ## 1. 命名規約
 
@@ -29,7 +29,7 @@ docs/release/screenshots/6.7/
 
 ## 2. 撮影対象 5 枚と各画面の state 仕様
 
-リリース対象タブ = **Today / チェーン / ログ** の 3 本 (研究タブは [ADR-0049](../../decisions/0049-exclude-research-tab-from-release-scope.md) で `href: null`・撮影対象外)。順序と狙いは提案 #229 §1.2 の確定を踏襲する。
+リリース対象タブ = **Today / チェーン / ログ** の 3 本 (研究タブは [ADR-0049](../../../decisions/0049-exclude-research-tab-from-release-scope.md) で `href: null`・撮影対象外)。順序と狙いは提案 #229 §1.2 の確定を踏襲する。
 
 ### 2.1 01-today.png — Today (最頻画面)
 
@@ -38,10 +38,10 @@ docs/release/screenshots/6.7/
 **state**:
 
 - 3 チェーンが縦に並ぶ (§3 demo チェーン 3 本すべて active)
-- **朝ルーティン**: 4/4 全達成 (スパインが下端まで `--grow`)、うち「深呼吸 3 回」「5 分ストレッチ」の 2 ノードが**定着** = 左マーカー星型 ([ADR-0050](../../decisions/0050-settlement-star-marker-and-today-headline.md))
+- **朝ルーティン**: 4/4 全達成 (スパインが下端まで `--grow`)、うち「深呼吸 3 回」「5 分ストレッチ」の 2 ノードが**定着** = 左マーカー星型 ([ADR-0050](../../../decisions/0050-settlement-star-marker-and-today-headline.md))
 - **集中の入り**: 2/3 達成 (「タイマー 25 分」だけ未達)、うち「今日 1 番の 1 タスクを書く」が**定着**
 - **夜ルーティン**: 0/3 (これから・スパインは `--line-bg`)
-- **見出し右上**: `定着 3 個` ([ADR-0050](../../decisions/0050-settlement-star-marker-and-today-headline.md))
+- **見出し右上**: `定着 3 個` ([ADR-0050](../../../decisions/0050-settlement-star-marker-and-today-headline.md))
 - ChainDetail Bottom Sheet は**閉じた状態**
 
 ### 2.2 02-chain-detail.png — Today > ChainDetail (Bottom Sheet 展開)
@@ -54,7 +54,7 @@ docs/release/screenshots/6.7/
 - 4 ノード全達成、スパインは起点から最下段まで `--grow`
 - 「深呼吸 3 回」「5 分ストレッチ」の 2 ノードが左マーカー星型
 - 起点アンカー = 07:00 (時刻) が上端に表示
-- **注**: ノード行右端の 7D ミニマトリクスは [ADR-0051](../../decisions/0051-remove-matrix-and-merge-fresh-into-growing.md) で UI 撤去済み。マトリクスが見える構図を狙わない (コード残置だが表示されない)。
+- **注**: ノード行右端の 7D ミニマトリクスは [ADR-0051](../../../decisions/0051-remove-matrix-and-merge-fresh-into-growing.md) で UI 撤去済み。マトリクスが見える構図を狙わない (コード残置だが表示されない)。
 
 ### 2.3 03-analytics-portfolio.png — ログ (定着ポートフォリオ)
 
@@ -62,10 +62,10 @@ docs/release/screenshots/6.7/
 
 **state**:
 
-- 見出し行: `定着 3 / もう少しで定着 1 / 育成中 5` (SPEC §3・[ADR-0047](../../decisions/0047-settlement-lifecycle-and-log-portfolio.md))
+- 見出し行: `定着 3 / もう少しで定着 1 / 育成中 5` (SPEC §3・[ADR-0047](../../../decisions/0047-settlement-lifecycle-and-log-portfolio.md))
 - 今週の流入: `定着入り +1 ・ もう少しで定着入り +1` (両方 0 の週は非表示になるため、demo データは流入が発生する構成にする)
 - ステージ折りたたみ: **「定着」を開いた状態で撮影** (SPEC §3 は初期畳みだが、閉じた見出しだけだと App Store 一覧で「何のリスト?」となる)。「もう少しで定着」「育成中」は畳んだままでよい。
-- **注**: 60D マトリクスは [ADR-0051](../../decisions/0051-remove-matrix-and-merge-fresh-into-growing.md) で UI 撤去済み。マトリクスが見える構図を狙わない。
+- **注**: 60D マトリクスは [ADR-0051](../../../decisions/0051-remove-matrix-and-merge-fresh-into-growing.md) で UI 撤去済み。マトリクスが見える構図を狙わない。
 
 ### 2.4 04-chains-list.png — チェーン一覧 (active タブ)
 
@@ -134,7 +134,7 @@ Demo チェーン 3 本 (推奨):
 2. Simulator (iPhone 16 Pro Max, iOS 最新) を起動し、§4 の `xcrun simctl status_bar override` を実行
 3. **fresh install**: 既存の `knockon` app データを消す (Simulator メニュー Device > Erase All Content and Settings)
 4. `eas build --profile preview --platform ios --simulator` で app を install (or `--profile production` の TestFlight ビルドを実機に流す)
-5. Onboarding をスキップ or 通過 (研究タブは非表示のはず = [ADR-0049](../../decisions/0049-exclude-research-tab-from-release-scope.md))
+5. Onboarding をスキップ or 通過 (研究タブは非表示のはず = [ADR-0049](../../../decisions/0049-exclude-research-tab-from-release-scope.md))
 6. `docs/release/demo-seed/README.md` (別 issue で整備) の手順で **demo チェーン 3 本**を投入し、§3 の達成状態を作る
 7. §2 の各画面にタップ遷移
 8. 各画面で Cmd+S でスクショ (Simulator メニュー Window > Save Screen)
@@ -159,11 +159,11 @@ Demo チェーン 3 本 (推奨):
 
 ## 参照
 
-- [../app-store-submission.md](../app-store-submission.md) §1.1 (playbook・上位 SoT)
+- [../../app-store-submission.md](../../app-store-submission.md) §1.1 (playbook・上位 SoT)
 - Issue #224 / 提案 Issue #229 (本 SOP の設計根拠)
-- [ADR-0029](../../decisions/0029-theme-mode-light-dark-auto.md) (Light 段階移行未着手 = Dark 固定の追認)
-- [ADR-0036](../../decisions/0036-rescind-today-streak-display.md) (反 streak / (+/-) 判定軸 = 装飾を煽らない根拠)
-- [ADR-0047](../../decisions/0047-settlement-lifecycle-and-log-portfolio.md) (定着ポートフォリオ = カット 3 の state)
-- [ADR-0049](../../decisions/0049-exclude-research-tab-from-release-scope.md) (研究タブ非表示 = 撮影対象外)
-- [ADR-0050](../../decisions/0050-settlement-star-marker-and-today-headline.md) (左ドット星型 / 見出し「定着 N 個」)
-- [ADR-0051](../../decisions/0051-remove-matrix-and-merge-fresh-into-growing.md) (60D / 7D マトリクス撤去 = 構図で狙わない根拠)
+- [ADR-0029](../../../decisions/0029-theme-mode-light-dark-auto.md) (Light 段階移行未着手 = Dark 固定の追認)
+- [ADR-0036](../../../decisions/0036-rescind-today-streak-display.md) (反 streak / (+/-) 判定軸 = 装飾を煽らない根拠)
+- [ADR-0047](../../../decisions/0047-settlement-lifecycle-and-log-portfolio.md) (定着ポートフォリオ = カット 3 の state)
+- [ADR-0049](../../../decisions/0049-exclude-research-tab-from-release-scope.md) (研究タブ非表示 = 撮影対象外)
+- [ADR-0050](../../../decisions/0050-settlement-star-marker-and-today-headline.md) (左ドット星型 / 見出し「定着 N 個」)
+- [ADR-0051](../../../decisions/0051-remove-matrix-and-merge-fresh-into-growing.md) (60D / 7D マトリクス撤去 = 構図で狙わない根拠)
