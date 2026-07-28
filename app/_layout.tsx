@@ -37,7 +37,7 @@ type ToastState = { chainId: string; title: string; body: string };
 // スクショ用ダミーデータの投入フラグ (dev 専用)。true にして起動すると、
 // Today / チェーン / ログ / メトリクスが映えるサンプルデータを 1 度だけ投入する。
 // 出荷ビルド前に必ず false に戻すこと (ADR-0014: 本番は自動 seed しない)。
-const SEED_SCREENSHOT_DATA = true;
+const SEED_SCREENSHOT_DATA = false;
 
 // ADR-0029 (Issue #53): 起動初期 (= settings DB 読み込み前) の native root bg は
 // 既存挙動の COLOR_BG (dark) で塗る。 読み込み完了後に themeMode に応じた色で
