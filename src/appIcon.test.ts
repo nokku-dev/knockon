@@ -40,8 +40,8 @@ describe('assets/icon.svg (Issue #232 app icon master)', () => {
   });
 
   test('起点アンカードット (spine 上端) を含む', () => {
-    // 中心 (512, 256), r=40, grow 色の塗り
-    expect(svg).toMatch(/<circle[^>]*cx="512"[^>]*cy="256"[^>]*r="40"[^>]*fill="#EAEAE8"/);
+    // 中心 (512, 256), r=84, grow 色の塗り
+    expect(svg).toMatch(/<circle[^>]*cx="512"[^>]*cy="256"[^>]*r="84"[^>]*fill="#EAEAE8"/);
   });
 
   test('定着 star (5 芒星 filled) を含み star 色で塗られる', () => {
