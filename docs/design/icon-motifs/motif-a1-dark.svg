@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-labelledby="title desc">
+  <title id="title">Motif A-1 (dark): 起点 + 未達 + 達成 + 星</title>
+  <desc id="desc">縦スパイン上に起点アンカー・未達ノード (円)・達成ノード (塗り)・定着ノード (星) を配置した knockon アプリアイコン案。中間進捗状態を静止画で表現。</desc>
+  <rect width="1024" height="1024" fill="#16161A"/>
+  <line x1="512" y1="260" x2="512" y2="764" stroke="#2A2A32" stroke-width="48" stroke-linecap="round"/>
+  <line x1="512" y1="260" x2="512" y2="596" stroke="#EAEAE8" stroke-width="48" stroke-linecap="round"/>
+  <circle cx="512" cy="260" r="84" fill="#EAEAE8"/>
+  <circle cx="512" cy="428" r="84" fill="none" stroke="#EAEAE8" stroke-width="14"/>
+  <circle cx="512" cy="596" r="84" fill="#EAEAE8"/>
+  <polygon points="512,648 541,724 622,728 559,779 580,858 512,813 444,858 465,779 402,728 483,724" fill="#F2C14B"/>
+</svg>
