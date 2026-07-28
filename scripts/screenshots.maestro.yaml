@@ -1,0 +1,32 @@
+# App Store 6.7" スクショ撮影の maestro フロー (Issue #239)。
+#
+# なぜ maestro か: iOS 18 の `simctl openurl` はカスタム scheme で
+#   「〜で開きますか?」確認ダイアログ (SpringBoard alert) を出し、deep-link ナビが不可。
+#   RN アプリのテキストは accessibility 階層に露出しないため text マッチも不可。
+#   → maestro で **座標 (%) タップ**して 5 画面を回す。通知許可ダイアログは maestro が拾える。
+#
+# 前提: knockon が起動済み・screenshotSeed で seed 済み (capture-screenshots.sh が用意)。
+# タブ配置: Today=17% / チェーン=50% / ログ=83% (画面下端 y=94%)。
+appId: co.nokku.knockon
+---
+- launchApp
+- tapOn:
+    text: "許可"          # 通知許可ダイアログ (初回のみ・無ければ skip)
+    optional: true
+- takeScreenshot: 01-today
+# 02 ChainDetail: Today 上部の「出社前」カード → detail bottom sheet (spine + 定着star)
+- tapOn:
+    point: "50%,24%"
+- takeScreenshot: 02-chain-detail
+# 03 ログ (定着ポートフォリオ + メトリクス)
+- tapOn:
+    point: "83%,94%"
+- takeScreenshot: 03-analytics-portfolio
+# 04 チェーン一覧
+- tapOn:
+    point: "50%,94%"
+- takeScreenshot: 04-chains-list
+# 05 チェーン編集: 「朝のルーティン」(4ノード) カード → 編集画面
+- tapOn:
+    point: "50%,54%"
+- takeScreenshot: 05-chain-edit
