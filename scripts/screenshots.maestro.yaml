@@ -26,7 +26,7 @@ appId: co.nokku.knockon
 - tapOn:
     point: "50%,94%"
 - takeScreenshot: 04-chains-list
-# 05 チェーン編集: 「朝のルーティン」(4ノード) カード → 編集画面
+# 05 チェーン編集: 一覧先頭「朝のルーティン」(4ノード) カード → 編集画面
 - tapOn:
-    point: "50%,54%"
+    point: "50%,25%"
 - takeScreenshot: 05-chain-edit

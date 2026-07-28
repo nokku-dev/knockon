@@ -92,7 +92,7 @@ const CHAINS: ChainSpec[] = [
     id: 'ss-chain-morning',
     title: '朝のルーティン',
     status: 'active',
-    anchor: behaviorAnchor('ss-anchor-wake', '起床'),
+    anchor: timeAnchor('ss-anchor-wake', '6:00', '06:00'),
     firedToday: false,
     nodes: [
       { id: 'ss-n-water', actionTitle: '水を飲む', profile: settledSteady },
@@ -116,7 +116,7 @@ const CHAINS: ChainSpec[] = [
     id: 'ss-chain-evening',
     title: '帰宅後',
     status: 'active',
-    anchor: behaviorAnchor('ss-anchor-home', '帰宅'),
+    anchor: timeAnchor('ss-anchor-home', '18:00', '18:00'),
     firedToday: false,
     nodes: [
       { id: 'ss-n-wash', actionTitle: '手を洗う', profile: settledSteadyPast },
@@ -143,7 +143,7 @@ const CHAINS: ChainSpec[] = [
     id: 'ss-chain-work',
     title: '仕事開始',
     status: 'active',
-    anchor: behaviorAnchor('ss-anchor-desk', '席に着く'),
+    anchor: timeAnchor('ss-anchor-desk', '9:00', '09:00'),
     firedToday: false,
     nodes: [
       { id: 'ss-n-mail', actionTitle: 'メールを確認', profile: settledSteady },
