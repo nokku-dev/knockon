@@ -15,6 +15,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { initSchema } from '../src/db';
 import { getExpoSqliteClient } from '../src/db.expo';
+import {
+  isScreenshotDataSeeded,
+  seedScreenshotData,
+} from '../src/screenshotSeed';
 import { InAppNotificationToast } from '../src/InAppNotificationToast';
 import { syncAllNotifications } from '../src/notifications';
 import { extractChainIdFromResponse } from '../src/notificationsDeeplink';
@@ -29,6 +33,11 @@ import { ThemeProvider } from '../src/themeContext';
 import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../src/tokens';
 
 type ToastState = { chainId: string; title: string; body: string };
+
+// スクショ用ダミーデータの投入フラグ (dev 専用)。true にして起動すると、
+// Today / チェーン / ログ / メトリクスが映えるサンプルデータを 1 度だけ投入する。
+// 出荷ビルド前に必ず false に戻すこと (ADR-0014: 本番は自動 seed しない)。
+const SEED_SCREENSHOT_DATA = true;
 
 // ADR-0029 (Issue #53): 起動初期 (= settings DB 読み込み前) の native root bg は
 // 既存挙動の COLOR_BG (dark) で塗る。 読み込み完了後に themeMode に応じた色で
@@ -82,6 +91,12 @@ export default function RootLayout() {
         // → 「+ 新規作成」誘導で開始する。
         const db = await getExpoSqliteClient();
         await initSchema(db);
+        // スクショ用ダミーデータ投入 (dev 専用・出荷時は false に戻す)。
+        // 初回だけ投入し、以降のホットリロード/再起動では既存を保つ (タップが消えない)。
+        // 撮り直したいときは一度アプリのデータ削除 or フラグを false→true で再起動。
+        if (SEED_SCREENSHOT_DATA && !(await isScreenshotDataSeeded(db))) {
+          await seedScreenshotData(db);
+        }
         // ADR-0029: themeMode を初回読み込み。 既存ユーザーは MIGRATIONS[6] で
         // default 'auto' になっている。 失敗しても起動は止めない (= silent fallback)。
         // 取得失敗時は onboardingCompleted=true 扱い (= 既存ユーザーを onboarding に
