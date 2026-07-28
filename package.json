@@ -9,7 +9,9 @@
     "ios": "expo start --ios",
     "test": "jest",
     "test:watch": "jest --watch",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "screenshot:seed": "tsx scripts/screenshot-demo-seed.ts",
+    "screenshot:verify": "tsx scripts/verify-demo-seed.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -48,6 +50,7 @@
     "jest-expo": "~54.0.17",
     "react-test-renderer": "19.1.0",
     "sharp": "^0.35.3",
+    "tsx": "^4.19.2",
     "ts-jest": "^29.2.0",
     "typescript": "~5.9.2"
   },
