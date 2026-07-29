@@ -27,6 +27,8 @@ import {
   listCategories,
   listRecommendedItems,
 } from './repository';
+import { track } from './analytics';
+import { ANCHOR_KIND, CHAIN_SOURCE } from './analyticsEvents';
 import { updateAppSettings } from './settingsRepository';
 
 // #72 (SPEC §5): onboarding フローの状態 hook。catalog をロードし、状態ゴール扉だけを
@@ -191,6 +193,13 @@ export const useOnboarding = (
           return;
         }
         const chainId = await adoptChainDraft(db, draft, now, idGen, anchor);
+        track('chain_created', {
+          source: CHAIN_SOURCE.onboarding,
+          node_count: draft.nodes.length,
+          // オンボーディングの候補は全てテンプレ由来。
+          nodes_from_template: draft.nodes.length,
+          anchor_kind: ANCHOR_KIND.time,
+        });
         setFirstChainId(chainId);
         setAdoptedTimes((prev) => [...prev, time]);
         setStep('second');
@@ -227,6 +236,12 @@ export const useOnboarding = (
         );
         if (draft.nodes.length > 0) {
           await adoptChainDraft(db, draft, now, idGen, anchor);
+          track('chain_created', {
+            source: CHAIN_SOURCE.onboarding,
+            node_count: draft.nodes.length,
+            nodes_from_template: draft.nodes.length,
+            anchor_kind: ANCHOR_KIND.time,
+          });
           setAdoptedTimes((prev) => [...prev, secondTime]);
         }
         setStep('notify');
@@ -260,13 +275,17 @@ export const useOnboarding = (
   const skipNotify = useCallback(() => setStep('done'), []);
 
   const complete = useCallback(async () => {
+    // ADR-0053: オンボーディング完走は最初の関門。チェーンを 1 本も採用せずに
+    // 抜けた場合を skipped として区別する (採用数そのものは chain_created を
+    // source=onboarding で数えれば出るので、ここでは持たない)。
+    track('onboarding_completed', { skipped: adoptedTimes.length === 0 });
     try {
       const db = await getExpoSqliteClient();
       await updateAppSettings(db, { onboardingCompleted: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : '完了状態の保存に失敗しました');
     }
-  }, []);
+  }, [adoptedTimes]);
 
   return {
     loading,

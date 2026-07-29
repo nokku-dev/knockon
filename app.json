@@ -40,12 +40,17 @@
           "locationAlwaysAndWhenInUsePermission": "場所アンカー機能で、指定した場所に到達したときにチェーンを提案するために使用します。",
           "locationAlwaysPermission": "場所アンカー機能で、指定した場所に到達したときにチェーンを提案するために使用します。"
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "extra": {
       "router": {},
       "eas": {
         "projectId": "f103067d-a1a2-44f4-bbea-23adc21675ad"
+      },
+      "posthog": {
+        "apiKey": "",
+        "host": "https://eu.i.posthog.com"
       }
     }
   }
