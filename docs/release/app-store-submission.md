@@ -211,9 +211,8 @@ Apple のリジェクトは Resolution Center 経由でメッセージが届く�
       Metadata Rejection 時の追い足し §4.1 に任せる)
 - [x] プライバシーポリシー / 利用規約 / サポート URL のホスティング — Issue #255 で完了。
       `legal.nokku.dev` の 3 URL すべて 200 / TLS 証明書発行済みを確認
-- [ ] `support@nokku.dev` の Cloudflare Email Routing 設定。サポートページとプライバシーポリシーが
-      この宛先を公開しているため、**転送設定が無いと問い合わせが届かない**。審査提出はブロックしないが
-      リリース前に必要
+- [x] `support@nokku.dev` の Cloudflare Email Routing 設定 — 完了。routing rule を作成し、
+      実際にテストメールが届くことを確認済み (2026-07-29)
 - [x] Issue #254 (iOS 位置権限文言) — 完了。**未対応のまま production build を焼くと実機でクラッシュする**ため §2 の前に必須だった
 - [ ] Issue #256 (掲載情報の原稿確定 → [store-listing.md](store-listing.md))
 - [ ] Issue #259 (Notion 連携を v1 で有効にするかの判断)。案 A 以外を採る場合、
