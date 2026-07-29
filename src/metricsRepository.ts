@@ -2,7 +2,8 @@ import type { DbClient } from './db';
 
 // PR-Z3a (ADR-0024 §3c): メトリクスの観測値 (= 観測した事実)。
 // チェーン / アクション / ノードへの外部キーは持たない (疎結合)。
-// source: 'manual' (手入力) / 'notion' (Notion Body Metrics 連携、 PR-Z3b)。
+// source: 'manual' (手入力) のみが現行。'notion' は ADR-0052 で連携撤去後も
+// 型と CHECK 制約に残置 (既存行の互換のため。詳細は db.ts のスキーマコメント)。
 export type Metric = {
   id: string;
   metricKey: string;
