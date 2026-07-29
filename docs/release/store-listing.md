@@ -128,8 +128,8 @@ knockon には連続日数のカウンターがありません。炎のアイコ
 
 ---
 
-プライバシーポリシー: https://legal.nokku.dev/knockon/privacy.html
-利用規約: https://legal.nokku.dev/knockon/terms.html
+プライバシーポリシー: https://legal.nokku.dev/knockon/privacy
+利用規約: https://legal.nokku.dev/knockon/terms
 ```
 
 - 1,391 文字（上限 4000 に対して余裕あり）。
@@ -158,13 +158,15 @@ knockon には連続日数のカウンターがありません。炎のアイコ
 
 | 項目 | 値 | 必須 |
 | --- | --- | --- |
-| サポート URL | https://legal.nokku.dev/knockon/support.html | ✅ 必須 |
+| サポート URL | https://legal.nokku.dev/knockon/support | ✅ 必須 |
 | マーケティング URL | (設定しない) | 任意 |
 
 - サポート URL は ASC の必須項目。`nokku-dev/legal` (private repo) にサポートページを用意し、
-  Cloudflare Pages で `legal.nokku.dev` として配信する。
-- ⚠️ **Cloudflare Pages の設定が済むまで 3 つの URL はいずれも到達不能**。ASC へ入力する前に
-  実際にアクセスして 200 を確認すること。
+  Cloudflare Workers (static assets) で `legal.nokku.dev` として配信する。
+- ⚠️ **`legal.nokku.dev` のカスタムドメイン紐付けが済むまで 3 つの URL は到達不能**。
+  デプロイ自体は成功しており、現在は `legal.takuya-ta-dev.workers.dev` でのみ配信されている。
+  ASC へ入力する前に実際にアクセスして 200 を確認すること。
+- ⚠️ **URL に `.html` を付けない**。Cloudflare が拡張子なしへ 307 リダイレクトするため上記が正規形。
 - ⚠️ サポートページとプライバシーポリシーは連絡先として **support@nokku.dev** を公開している。
   Cloudflare の **Email Routing で転送設定を入れないと問い合わせが届かない**。
 

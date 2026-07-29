@@ -46,13 +46,15 @@
 
 ### 1.3 プライバシー / 法務
 
-- [ ] **プライバシーポリシー URL**: **https://legal.nokku.dev/knockon/privacy.html** (Issue #255)
+- [ ] **プライバシーポリシー URL**: **https://legal.nokku.dev/knockon/privacy** (Issue #255)
   - ⚠️ **文書は完成しているが URL はまだ生きていない**。`nokku-dev/legal` (private) の Cloudflare Pages 設定が
     完了するまで到達不能。**設定前に ASC へ入力しない** (切れた URL は Metadata Rejection になる)
-  - ホスティングは **`nokku-dev/legal` (private repo) + Cloudflare Pages + 独自ドメイン `legal.nokku.dev`**。
+  - ホスティングは **`nokku-dev/legal` (private repo) + Cloudflare Workers (static assets) + 独自ドメイン `legal.nokku.dev`**。
     当初 GitHub Pages + public repo で作ったが、repo は README・コミット履歴・Issue を含む公開の作業場であり、
     公開すべき HTML 以外まで露出するため作り直した。Cloudflare Pages は **無料プランで private repo から配信できる**
-    ため、public repo を建てる必要が無い。手順は `nokku-dev/legal` の README 参照
+    ため、public repo を建てる必要が無い。配信範囲は repo の `wrangler.jsonc` の `assets.directory` で
+    `site/` に固定しており、README 等の内部情報は配信されない。手順は `nokku-dev/legal` の README 参照
+  - ⚠️ **URL に `.html` は付けない**。Cloudflare が拡張子なしへ 307 リダイレクトするため、上記が正規形
   - 内容の根拠: ADR-0001 (ローカル正準) / ADR-0003 (OS ジオフェンス・有料地図 API 不可) / ADR-0024 §3c (Notion 連携は任意)
   - **実装の事実確認済み**: `grep -rn "fetch(\|XMLHttpRequest\|sendBeacon\|axios\|WebSocket" src app` の結果、
     アプリ全体でネットワーク通信は `src/notionClient.ts` の `api.notion.com` **1 箇所のみ**。
@@ -64,7 +66,7 @@
     埋めないと提出できない。所要 5 分程度 (全項目「収集しない」で回答)
   - Data Collected: **None** (SQLite ローカルのみ、外部送信なし。上記の grep 結果が根拠)
   - Notion 連携は「ユーザー自身が設定した ID/token でユーザーのワークスペースにのみアクセス」なので開発者側のデータ収集ではない
-- [ ] **利用規約 URL**: **https://legal.nokku.dev/knockon/terms.html** (Issue #255・上記と同じく設定待ち)
+- [ ] **利用規約 URL**: **https://legal.nokku.dev/knockon/terms** (Issue #255・上記と同じく設定待ち)
 - [ ] **輸出コンプライアンス**: 暗号化を使わないなら `ITSAppUsesNonExemptEncryption=false` を Info.plist に。**HTTPS のみでカスタム暗号を使っていないので false でよい** (Notion API 呼び出しは標準 HTTPS)
 
 ### 1.4 権限文言 (Info.plist)
