@@ -1,5 +1,8 @@
 import * as Location from 'expo-location';
 
+import { track } from './analytics';
+import { PERMISSION_KIND } from './analyticsEvents';
+
 // expo-location の薄いラッパ。Phase 1.6 では前景位置取得のみ扱う。
 // OS ジオフェンス (region monitoring) によるバックグラウンド発火検知は Phase 1.6b
 // で EAS Dev Build 移行とセットで実装予定 (TODO.md §Phase 1.5b 参照)。
@@ -26,7 +29,14 @@ export const getLocationPermissionStatus =
 export const requestLocationPermission =
   async (): Promise<LocationPermissionStatus> => {
     const { status } = await Location.requestForegroundPermissionsAsync();
-    return toStatus(status);
+    const result = toStatus(status);
+    // ADR-0053: 権限拒否がコア体験の利用率に効いているかを見る。
+    // ADR-0003 の「拒否されても手動運用で成立する」設計が実際に機能しているかの検証。
+    track('permission_result', {
+      kind: PERMISSION_KIND.location,
+      granted: result === 'granted',
+    });
+    return result;
   };
 
 export type CurrentPosition = {

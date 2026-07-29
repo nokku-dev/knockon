@@ -54,16 +54,22 @@
     `site/` に固定しており、README 等の内部情報は配信されない。手順は `nokku-dev/legal` の README 参照
   - ⚠️ **URL に `.html` は付けない**。Cloudflare が拡張子なしへ 307 リダイレクトするため、上記が正規形
   - 内容の根拠: ADR-0001 (ローカル正準) / ADR-0003 (OS ジオフェンス・有料地図 API 不可) / ADR-0024 §3c (Notion 連携は任意)
-  - **実装の事実確認済み**: `grep -rn "fetch(\|XMLHttpRequest\|sendBeacon\|axios\|WebSocket" src app` の結果、
-    アプリ全体でネットワーク通信は `src/notionClient.ts` の `api.notion.com` **1 箇所のみ**。
-    analytics / crash reporting / 広告 SDK は `package.json` に一切無い。
-    さらに production build は Notion の secret 未注入で `isNotionConfigured()` が false になるため、
-    **出荷バイナリは外部通信を一切行わない** (Issue #259 の判断待ち。案 A 以外を採る場合はポリシー §5 の改訂が必要)
+  - **送信するもの**: PostHog への匿名の利用統計とエラー情報のみ (EU 処理)。
+    Notion 連携は [ADR-0052](../decisions/0052-remove-notion-metrics-integration.md) で撤去済み
+  - **送信しないもの**: 記録内容 (チェーン名 / アクション名 / メモ本文 / 身体指標の値 / 位置座標) と
+    広告識別子。分析ラッパーのプロパティ型が `number | boolean` に限定されており、
+    **文字列を送るコードはコンパイルを通らない** ([ADR-0053](../decisions/0053-analytics-platform-posthog.md) §3)
 - [ ] **プライバシー計測ラベル**: App Store Connect の Privacy Nutrition Label
   - **これはドキュメントではなく ASC 内のアンケートフォーム**。§1.3 のポリシー URL とは別物で、
-    埋めないと提出できない。所要 5 分程度 (全項目「収集しない」で回答)
-  - Data Collected: **None** (SQLite ローカルのみ、外部送信なし。上記の grep 結果が根拠)
-  - Notion 連携は「ユーザー自身が設定した ID/token でユーザーのワークスペースにのみアクセス」なので開発者側のデータ収集ではない
+    埋めないと提出できない
+  - ⚠️ **[ADR-0053](../decisions/0053-analytics-platform-posthog.md) で方針が変わった**。
+    以前の「Data Collected: **None**」は無効。PostHog による匿名の利用統計を収集する
+  - **Usage Data (Product Interaction)** と **Diagnostics (Crash Data / Performance Data)** を申告。
+    いずれも purpose = **Analytics / App Functionality**、**Not Linked to You**、**Tracking なし**
+  - **申告しないもの**: 記録内容 (チェーン名 / メモ本文 / 身体指標の値 / 位置座標) は送信していないため。
+    型で送信を禁じ (`src/analyticsEvents.ts` の `SafeValue`)、`src/analyticsEvents.test.ts` で機械検証している
+  - ⚠️ **ラベル・プライバシーポリシー・説明文の 3 つは必ず一致させる**。規制当局は
+    実際の通信と申告内容を突き合わせるため、乖離はリジェクトと調査の両方を招く
 - [x] **利用規約 URL**: **https://legal.nokku.dev/knockon/terms** (Issue #255・**公開済み / 200 確認済み**)
 - [ ] **輸出コンプライアンス**: 暗号化を使わないなら `ITSAppUsesNonExemptEncryption=false` を Info.plist に。**HTTPS のみでカスタム暗号を使っていないので false でよい** (Notion API 呼び出しは標準 HTTPS)
 

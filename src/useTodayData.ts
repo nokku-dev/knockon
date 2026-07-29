@@ -1,9 +1,12 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
+import { track } from './analytics';
+import { SETTLEMENT_DEFINITION_VERSION } from './analyticsEvents';
 import { getExpoSqliteClient } from './db.expo';
 import {
   countSettlementStages,
+  daysToSettle,
   effectiveTodayIsoDate,
   isAnchorFiringToday,
   isNodeSettled,
@@ -335,11 +338,34 @@ export const useTodayData = (): UseTodayDataResult => {
       // 定着判定再計算: 対象ノードのみ集合に add/delete (他ノードは変化なし)。
       // ADR-0047: 定着 (latch) を再計算。 タップで 10 日目の窓が成立すれば add、 取り下げ済みで
       // 未再定着なら false のまま。 未タップに戻して窓が崩れれば delete (派生は履歴に忠実)。
+      const wasSettled = target.nodeIdsSettled.has(nodeId);
+      const nowSettled = isNodeSettled(
+        nextHistory,
+        data.retractions,
+        nodeId,
+        data.today,
+      );
       const nextSettled = new Set(target.nodeIdsSettled);
-      if (isNodeSettled(nextHistory, data.retractions, nodeId, data.today)) {
+      if (nowSettled) {
         nextSettled.add(nodeId);
       } else {
         nextSettled.delete(nodeId);
+      }
+      // ADR-0053: 計測。**達成にしたときだけ**送る (取り消しは送らない — 悪シグナルの
+      // イベントは作らず、良シグナルの不在としてクエリ側で定義する方針)。
+      if (nextAchieved) {
+        track('node_completed', {
+          node_position: target.nodes.findIndex((n) => n.node.id === nodeId),
+          chain_node_count: target.nodes.length,
+          is_settled: nowSettled,
+        });
+        // 定着は派生値なので「到達した瞬間」はこの差分でしか観測できない。
+        if (!wasSettled && nowSettled) {
+          track('node_settled', {
+            days_to_settle: daysToSettle(nextHistory, nodeId, data.today),
+            definition_version: SETTLEMENT_DEFINITION_VERSION,
+          });
+        }
       }
       setData((prev) =>
         prev
@@ -469,6 +495,15 @@ export const useTodayData = (): UseTodayDataResult => {
         retractedAt: new Date().toISOString(),
       };
       const nextRetractions = [...data.retractions, retraction];
+      // ADR-0053: 取り下げはユーザーの明示的な操作 = 観測した事実 (ADR-0047 の正準軸)。
+      // 「定着まで行ったが維持できなかった」の量を見る。
+      track('settlement_retracted', {
+        days_since_settled: daysToSettle(
+          target.achievementHistory,
+          nodeId,
+          data.today,
+        ),
+      });
       const nextSettled = new Set(target.nodeIdsSettled);
       if (
         isNodeSettled(

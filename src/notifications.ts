@@ -1,4 +1,7 @@
 import * as Notifications from 'expo-notifications';
+
+import { track } from './analytics';
+import { PERMISSION_KIND } from './analyticsEvents';
 import { Platform } from 'react-native';
 
 import type { DbClient } from './db';
@@ -62,6 +65,12 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
   // 拒否 (denied) + ユーザーが「もう聞かないで」を選んだ場合は requestPermissionsAsync
   // が即時 denied を返す挙動。 ADR-0003 の手動発火フォールバックで補う。
   const requested = (await Notifications.requestPermissionsAsync()) as unknown as PermShape;
+  // ADR-0053: 実際にダイアログを出した回だけ送る (既に許可済みの早期 return は
+  // 通っていない = 「要求の結果」だけが観測対象)。
+  track('permission_result', {
+    kind: PERMISSION_KIND.notification,
+    granted: requested.granted,
+  });
   return requested.granted;
 };
 

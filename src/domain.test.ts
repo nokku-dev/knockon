@@ -12,6 +12,7 @@ import {
   countAchievedInMap,
   countAchievedNodesOn,
   countSettlementStages,
+  daysToSettle,
   distanceMeters,
   effectiveTodayIsoDate,
   getWeekdayKey,
@@ -1130,5 +1131,40 @@ describe('countEffectiveAchievedTotal (アプリ全体の effective 累計)', ()
       '2026-04-12',
     );
     expect(total).toBe(14);
+  });
+});
+
+describe('daysToSettle (ADR-0053: node_settled の days_to_settle)', () => {
+  const a = (nodeId: string, date: string, achieved = true) => ({
+    nodeId,
+    date,
+    achieved,
+  });
+
+  test('最初の達成日から today までの日数を返す', () => {
+    const history = [a('n1', '2026-07-01'), a('n1', '2026-07-10')];
+    expect(daysToSettle(history, 'n1', '2026-07-15')).toBe(14);
+  });
+
+  test('達成履歴が無ければ 0', () => {
+    expect(daysToSettle([], 'n1', '2026-07-15')).toBe(0);
+  });
+
+  test('未達成 (achieved=false) の記録は起点にしない', () => {
+    const history = [a('n1', '2026-07-01', false), a('n1', '2026-07-10')];
+    expect(daysToSettle(history, 'n1', '2026-07-15')).toBe(5);
+  });
+
+  test('他ノードの履歴に影響されない', () => {
+    const history = [a('other', '2026-01-01'), a('n1', '2026-07-10')];
+    expect(daysToSettle(history, 'n1', '2026-07-15')).toBe(5);
+  });
+
+  test('同日に達成して定着した場合は 0 (負にならない)', () => {
+    expect(daysToSettle([a('n1', '2026-07-15')], 'n1', '2026-07-15')).toBe(0);
+  });
+
+  test('月またぎ・年またぎでも正しく数える', () => {
+    expect(daysToSettle([a('n1', '2026-12-25')], 'n1', '2027-01-05')).toBe(11);
   });
 });
