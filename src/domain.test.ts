@@ -23,6 +23,7 @@ import {
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
   lastAchievedNodeIndex,
+  localIsoTimestamp,
   countEffectiveAchievedForNode,
   countEffectiveAchievedTotal,
   nodeSettlementStage,
@@ -219,6 +220,49 @@ describe('effectiveTodayIsoDate (ADR-0028: リセット時刻ベースの今日�
     expect(effectiveTodayIsoDate(now, 'garbage')).toBe('2026-05-30');
     expect(effectiveTodayIsoDate(now, '25:00')).toBe('2026-05-30');
     expect(effectiveTodayIsoDate(now, '')).toBe('2026-05-30');
+  });
+});
+
+describe('localIsoTimestamp (Issue #109: メトリクス記録日時のローカル時刻化)', () => {
+  test('ローカルの年/月/日/時/分/秒をゼロ埋めして返す', () => {
+    const now = new Date(2026, 6, 29, 8, 5, 3); // ローカル 2026-07-29 08:05:03
+    expect(localIsoTimestamp(now)).toBe('2026-07-29T08:05:03');
+  });
+
+  test('日付部が todayIsoDate と必ず一致する (#109 の本質)', () => {
+    // 旧実装は new Date().toISOString() (= UTC) を保存していたため、
+    // JST (UTC+9) の 00:00〜08:59 に記録すると日付部が前日になり、
+    // metricTrend の recordedAt.slice(0, 10) 集計で 1 日ズレていた。
+    // ローカル時刻ベースなら「記録した日 = 表示される日」が常に成り立つ。
+    const earlyMorning = new Date(2026, 6, 29, 0, 30, 0); // ローカル 07-29 00:30
+    expect(localIsoTimestamp(earlyMorning).slice(0, 10)).toBe(
+      todayIsoDate(earlyMorning),
+    );
+
+    const lateNight = new Date(2026, 6, 29, 23, 45, 0); // ローカル 07-29 23:45
+    expect(localIsoTimestamp(lateNight).slice(0, 10)).toBe(
+      todayIsoDate(lateNight),
+    );
+  });
+
+  test('Z を含まない秒精度フォーマット (YYYY-MM-DDTHH:mm:ss) を返す', () => {
+    // 「UTC ではないこと」自体は上の 2 test (ローカル成分との一致) で担保する。
+    // TZ=UTC の CI では toISOString() と値が一致しうるので、 ここで
+    // 「toISOString と異なること」を検証すると環境依存の脆いテストになる。
+    const now = new Date(2026, 6, 29, 8, 5, 3);
+    expect(localIsoTimestamp(now)).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/,
+    );
+    expect(localIsoTimestamp(now)).not.toContain('Z');
+  });
+
+  test('境界: 月末 23:59:59 / 元日 00:00:00 でも日付が繰り上がらない', () => {
+    expect(localIsoTimestamp(new Date(2026, 11, 31, 23, 59, 59))).toBe(
+      '2026-12-31T23:59:59',
+    );
+    expect(localIsoTimestamp(new Date(2027, 0, 1, 0, 0, 0))).toBe(
+      '2027-01-01T00:00:00',
+    );
   });
 });
 
