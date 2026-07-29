@@ -32,6 +32,14 @@
         {
           "color": "#EAEAE8"
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "アンカーとして登録する場所の座標を取得するために使用します。",
+          "locationAlwaysAndWhenInUsePermission": "場所アンカー機能で、指定した場所に到達したときにチェーンを提案するために使用します。",
+          "locationAlwaysPermission": "場所アンカー機能で、指定した場所に到達したときにチェーンを提案するために使用します。"
+        }
       ]
     ],
     "extra": {
