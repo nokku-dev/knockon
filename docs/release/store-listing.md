@@ -128,8 +128,8 @@ knockon には連続日数のカウンターがありません。炎のアイコ
 
 ---
 
-プライバシーポリシー: https://nokku-dev.github.io/legal/knockon/privacy.html
-利用規約: https://nokku-dev.github.io/legal/knockon/terms.html
+プライバシーポリシー: https://legal.nokku.dev/knockon/privacy.html
+利用規約: https://legal.nokku.dev/knockon/terms.html
 ```
 
 - 1,391 文字（上限 4000 に対して余裕あり）。
@@ -158,11 +158,15 @@ knockon には連続日数のカウンターがありません。炎のアイコ
 
 | 項目 | 値 | 必須 |
 | --- | --- | --- |
-| サポート URL | https://nokku-dev.github.io/legal/knockon/support.html | ✅ 必須 |
+| サポート URL | https://legal.nokku.dev/knockon/support.html | ✅ 必須 |
 | マーケティング URL | (設定しない) | 任意 |
 
-- サポート URL は ASC の必須項目。knockon repo は private のため Issue ページは使えず、
-  public な [nokku-dev/legal](https://github.com/nokku-dev/legal) にサポートページを用意した。
+- サポート URL は ASC の必須項目。`nokku-dev/legal` (private repo) にサポートページを用意し、
+  Cloudflare Pages で `legal.nokku.dev` として配信する。
+- ⚠️ **Cloudflare Pages の設定が済むまで 3 つの URL はいずれも到達不能**。ASC へ入力する前に
+  実際にアクセスして 200 を確認すること。
+- ⚠️ サポートページとプライバシーポリシーは連絡先として **support@nokku.dev** を公開している。
+  Cloudflare の **Email Routing で転送設定を入れないと問い合わせが届かない**。
 
 ## 8. その他のフォーム項目
 
