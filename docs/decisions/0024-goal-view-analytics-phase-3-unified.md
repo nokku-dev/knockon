@@ -80,6 +80,8 @@ superseded-by: []
 
 ### Notion 連携の方針
 
+> **⚠️ 本節は [ADR-0052](0052-remove-notion-metrics-integration.md) で撤回済み (2026-07-29)**。Notion 連携はコードごと削除された (Taku が「今後 Notion を使う予定がない」と判断)。以下は経緯として残す。**メトリクス手入力 / チェーンとの疎結合 / データモデル / ANT 回避構造は有効**で、覆ったのは Notion 連携の条項のみ ([K-005](../../KNOWLEDGE.md) の系譜維持)。
+
 - **P1 (3c の MVP)**: 手入力 UI のみ (Notion API 連携は次段階)
 - **P2 (3c の本実装)**: Notion Body Metrics データソースの page ID を CLAUDE.local.md 経由で受け取り、 起動時 sync (rate limit を考慮、 fetch は 1 日 1 回程度)
 - **絶対に避けること**: 「Notion へ書き込み」 (ユーザーの既存 Notion 運用を壊す)。常に **read-only** (= データ取り込みのみ)
