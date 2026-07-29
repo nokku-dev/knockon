@@ -163,9 +163,7 @@ knockon には連続日数のカウンターがありません。炎のアイコ
 
 - サポート URL は ASC の必須項目。`nokku-dev/legal` (private repo) にサポートページを用意し、
   Cloudflare Workers (static assets) で `legal.nokku.dev` として配信する。
-- ⚠️ **`legal.nokku.dev` のカスタムドメイン紐付けが済むまで 3 つの URL は到達不能**。
-  デプロイ自体は成功しており、現在は `legal.nokku.dev` でのみ配信されている。
-  ASC へ入力する前に実際にアクセスして 200 を確認すること。
+- ✅ 3 URL とも **公開済み / 200 確認済み** (2026-07-29)。そのまま ASC に入力できる。
 - ⚠️ **URL に `.html` を付けない**。Cloudflare が拡張子なしへ 307 リダイレクトするため上記が正規形。
 - ⚠️ サポートページとプライバシーポリシーは連絡先として **support@nokku.dev** を公開している。
   Cloudflare の **Email Routing で転送設定を入れないと問い合わせが届かない**。

@@ -46,9 +46,7 @@
 
 ### 1.3 プライバシー / 法務
 
-- [ ] **プライバシーポリシー URL**: **https://legal.nokku.dev/knockon/privacy** (Issue #255)
-  - ⚠️ **文書は完成しているが URL はまだ生きていない**。`nokku-dev/legal` (private) の Cloudflare Pages 設定が
-    完了するまで到達不能。**設定前に ASC へ入力しない** (切れた URL は Metadata Rejection になる)
+- [x] **プライバシーポリシー URL**: **https://legal.nokku.dev/knockon/privacy** (Issue #255・**公開済み / 200 確認済み**)
   - ホスティングは **`nokku-dev/legal` (private repo) + Cloudflare Workers (static assets) + 独自ドメイン `legal.nokku.dev`**。
     当初 GitHub Pages + public repo で作ったが、repo は README・コミット履歴・Issue を含む公開の作業場であり、
     公開すべき HTML 以外まで露出するため作り直した。Cloudflare Pages は **無料プランで private repo から配信できる**
@@ -66,7 +64,7 @@
     埋めないと提出できない。所要 5 分程度 (全項目「収集しない」で回答)
   - Data Collected: **None** (SQLite ローカルのみ、外部送信なし。上記の grep 結果が根拠)
   - Notion 連携は「ユーザー自身が設定した ID/token でユーザーのワークスペースにのみアクセス」なので開発者側のデータ収集ではない
-- [ ] **利用規約 URL**: **https://legal.nokku.dev/knockon/terms** (Issue #255・上記と同じく設定待ち)
+- [x] **利用規約 URL**: **https://legal.nokku.dev/knockon/terms** (Issue #255・**公開済み / 200 確認済み**)
 - [ ] **輸出コンプライアンス**: 暗号化を使わないなら `ITSAppUsesNonExemptEncryption=false` を Info.plist に。**HTTPS のみでカスタム暗号を使っていないので false でよい** (Notion API 呼び出しは標準 HTTPS)
 
 ### 1.4 権限文言 (Info.plist)
@@ -211,11 +209,11 @@ Apple のリジェクトは Resolution Center 経由でメッセージが届く�
 - [x] Issue #224 (App Store スクリーンショット制作) — 完了 (#237〜#239)。6.7" のみで確定
       ([screenshots/6.7/README.md](screenshots/6.7/README.md) §0。6.5" / 6.9" は ASC の自動 scale と
       Metadata Rejection 時の追い足し §4.1 に任せる)
-- [ ] プライバシーポリシー / 利用規約 URL のホスティング (Issue #255)。文書は完成済み。
-      **`nokku-dev/legal` の Cloudflare Pages 設定 (ダッシュボード作業) が残っている** — 完了して
-      `legal.nokku.dev` が 200 を返すまで §1.3 は埋められない
+- [x] プライバシーポリシー / 利用規約 / サポート URL のホスティング — Issue #255 で完了。
+      `legal.nokku.dev` の 3 URL すべて 200 / TLS 証明書発行済みを確認
 - [ ] `support@nokku.dev` の Cloudflare Email Routing 設定。サポートページとプライバシーポリシーが
-      この宛先を公開しているため、転送設定が無いと問い合わせが届かない
+      この宛先を公開しているため、**転送設定が無いと問い合わせが届かない**。審査提出はブロックしないが
+      リリース前に必要
 - [x] Issue #254 (iOS 位置権限文言) — 完了。**未対応のまま production build を焼くと実機でクラッシュする**ため §2 の前に必須だった
 - [ ] Issue #256 (掲載情報の原稿確定 → [store-listing.md](store-listing.md))
 - [ ] Issue #259 (Notion 連携を v1 で有効にするかの判断)。案 A 以外を採る場合、
