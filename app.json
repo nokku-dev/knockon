@@ -49,7 +49,7 @@
         "projectId": "f103067d-a1a2-44f4-bbea-23adc21675ad"
       },
       "posthog": {
-        "apiKey": "",
+        "apiKey": "phc_sbLG9VeDMSpzBGh4RCcHKejCWr4CfARUAc9TCGATwaNg",
         "host": "https://eu.i.posthog.com"
       }
     }
