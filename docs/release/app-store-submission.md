@@ -46,10 +46,13 @@
 
 ### 1.3 プライバシー / 法務
 
-- [x] **プライバシーポリシー URL**: **https://nokku-dev.github.io/legal/knockon/privacy.html** (Issue #255・公開済み)
-  - ホスティングは **[nokku-dev/legal](https://github.com/nokku-dev/legal)** (public repo + GitHub Pages)。
-    knockon repo は private で、**private repo の GitHub Pages は有料プランを要する**ため法務文書だけ public repo に分離した。
-    プロダクトのコードを公開せずに公開 URL を用意できる (他プロダクトの文書もここに集約する)
+- [ ] **プライバシーポリシー URL**: **https://legal.nokku.dev/knockon/privacy.html** (Issue #255)
+  - ⚠️ **文書は完成しているが URL はまだ生きていない**。`nokku-dev/legal` (private) の Cloudflare Pages 設定が
+    完了するまで到達不能。**設定前に ASC へ入力しない** (切れた URL は Metadata Rejection になる)
+  - ホスティングは **`nokku-dev/legal` (private repo) + Cloudflare Pages + 独自ドメイン `legal.nokku.dev`**。
+    当初 GitHub Pages + public repo で作ったが、repo は README・コミット履歴・Issue を含む公開の作業場であり、
+    公開すべき HTML 以外まで露出するため作り直した。Cloudflare Pages は **無料プランで private repo から配信できる**
+    ため、public repo を建てる必要が無い。手順は `nokku-dev/legal` の README 参照
   - 内容の根拠: ADR-0001 (ローカル正準) / ADR-0003 (OS ジオフェンス・有料地図 API 不可) / ADR-0024 §3c (Notion 連携は任意)
   - **実装の事実確認済み**: `grep -rn "fetch(\|XMLHttpRequest\|sendBeacon\|axios\|WebSocket" src app` の結果、
     アプリ全体でネットワーク通信は `src/notionClient.ts` の `api.notion.com` **1 箇所のみ**。
@@ -61,7 +64,7 @@
     埋めないと提出できない。所要 5 分程度 (全項目「収集しない」で回答)
   - Data Collected: **None** (SQLite ローカルのみ、外部送信なし。上記の grep 結果が根拠)
   - Notion 連携は「ユーザー自身が設定した ID/token でユーザーのワークスペースにのみアクセス」なので開発者側のデータ収集ではない
-- [x] **利用規約 URL**: **https://nokku-dev.github.io/legal/knockon/terms.html** (Issue #255・公開済み)
+- [ ] **利用規約 URL**: **https://legal.nokku.dev/knockon/terms.html** (Issue #255・上記と同じく設定待ち)
 - [ ] **輸出コンプライアンス**: 暗号化を使わないなら `ITSAppUsesNonExemptEncryption=false` を Info.plist に。**HTTPS のみでカスタム暗号を使っていないので false でよい** (Notion API 呼び出しは標準 HTTPS)
 
 ### 1.4 権限文言 (Info.plist)
@@ -193,7 +196,7 @@ Apple のリジェクトは Resolution Center 経由でメッセージが届く�
 
 - **アイコン制作そのもの** (Issue #223)
 - **スクリーンショット撮影・加工** (Issue #224)
-- ~~**プライバシーポリシー / 利用規約の文面作成 & ホスティング**~~ → Issue #255 で完了 ([nokku-dev/legal](https://github.com/nokku-dev/legal))
+- ~~**プライバシーポリシー / 利用規約の文面作成**~~ → Issue #255 で完了 (`nokku-dev/legal` private repo)
 - **App Store Connect アプリレコードの作成** (Taku の Apple Developer 環境で手動作業)
 - **サブスク / IAP 設定** (ADR-0048 で「無料出荷・サブスク先送り」を確定・v1 非スコープ)
 - **Android 版の Play Store 提出** (別 issue が必要になった時点で本ドキュメントを Play Store 版に応用する)
@@ -206,7 +209,11 @@ Apple のリジェクトは Resolution Center 経由でメッセージが届く�
 - [x] Issue #224 (App Store スクリーンショット制作) — 完了 (#237〜#239)。6.7" のみで確定
       ([screenshots/6.7/README.md](screenshots/6.7/README.md) §0。6.5" / 6.9" は ASC の自動 scale と
       Metadata Rejection 時の追い足し §4.1 に任せる)
-- [x] プライバシーポリシー / 利用規約 URL のホスティング — Issue #255 で完了 ([nokku-dev/legal](https://github.com/nokku-dev/legal))
+- [ ] プライバシーポリシー / 利用規約 URL のホスティング (Issue #255)。文書は完成済み。
+      **`nokku-dev/legal` の Cloudflare Pages 設定 (ダッシュボード作業) が残っている** — 完了して
+      `legal.nokku.dev` が 200 を返すまで §1.3 は埋められない
+- [ ] `support@nokku.dev` の Cloudflare Email Routing 設定。サポートページとプライバシーポリシーが
+      この宛先を公開しているため、転送設定が無いと問い合わせが届かない
 - [x] Issue #254 (iOS 位置権限文言) — 完了。**未対応のまま production build を焼くと実機でクラッシュする**ため §2 の前に必須だった
 - [ ] Issue #256 (掲載情報の原稿確定 → [store-listing.md](store-listing.md))
 - [ ] Issue #259 (Notion 連携を v1 で有効にするかの判断)。案 A 以外を採る場合、
