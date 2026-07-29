@@ -46,12 +46,22 @@
 
 ### 1.3 プライバシー / 法務
 
-- [ ] **プライバシーポリシー URL**: 必須。ローカル正準 (端末内 SQLite のみ) + 任意の Notion 連携 (ユーザー自身の API token) の 2 点を明記。データを外部送信しない旨を含める
-  - 格納候補: `https://nokku.co/knockon/privacy` (要ホスティング) or GitHub Pages (`nokku-dev.github.io/knockon/privacy`)
+- [x] **プライバシーポリシー URL**: **https://nokku-dev.github.io/legal/knockon/privacy.html** (Issue #255・公開済み)
+  - ホスティングは **[nokku-dev/legal](https://github.com/nokku-dev/legal)** (public repo + GitHub Pages)。
+    knockon repo は private で、**private repo の GitHub Pages は有料プランを要する**ため法務文書だけ public repo に分離した。
+    プロダクトのコードを公開せずに公開 URL を用意できる (他プロダクトの文書もここに集約する)
+  - 内容の根拠: ADR-0001 (ローカル正準) / ADR-0003 (OS ジオフェンス・有料地図 API 不可) / ADR-0024 §3c (Notion 連携は任意)
+  - **実装の事実確認済み**: `grep -rn "fetch(\|XMLHttpRequest\|sendBeacon\|axios\|WebSocket" src app` の結果、
+    アプリ全体でネットワーク通信は `src/notionClient.ts` の `api.notion.com` **1 箇所のみ**。
+    analytics / crash reporting / 広告 SDK は `package.json` に一切無い。
+    さらに production build は Notion の secret 未注入で `isNotionConfigured()` が false になるため、
+    **出荷バイナリは外部通信を一切行わない** (Issue #259 の判断待ち。案 A 以外を採る場合はポリシー §5 の改訂が必要)
 - [ ] **プライバシー計測ラベル**: App Store Connect の Privacy Nutrition Label
-  - Data Collected: **None** (SQLite ローカルのみ、外部送信なし)
+  - **これはドキュメントではなく ASC 内のアンケートフォーム**。§1.3 のポリシー URL とは別物で、
+    埋めないと提出できない。所要 5 分程度 (全項目「収集しない」で回答)
+  - Data Collected: **None** (SQLite ローカルのみ、外部送信なし。上記の grep 結果が根拠)
   - Notion 連携は「ユーザー自身が設定した ID/token でユーザーのワークスペースにのみアクセス」なので開発者側のデータ収集ではない
-- [ ] **利用規約 URL**: 任意だが推奨
+- [x] **利用規約 URL**: **https://nokku-dev.github.io/legal/knockon/terms.html** (Issue #255・公開済み)
 - [ ] **輸出コンプライアンス**: 暗号化を使わないなら `ITSAppUsesNonExemptEncryption=false` を Info.plist に。**HTTPS のみでカスタム暗号を使っていないので false でよい** (Notion API 呼び出しは標準 HTTPS)
 
 ### 1.4 権限文言 (Info.plist)
@@ -183,7 +193,7 @@ Apple のリジェクトは Resolution Center 経由でメッセージが届く�
 
 - **アイコン制作そのもの** (Issue #223)
 - **スクリーンショット撮影・加工** (Issue #224)
-- **プライバシーポリシー / 利用規約の文面作成 & ホスティング** (要別途タスク化)
+- ~~**プライバシーポリシー / 利用規約の文面作成 & ホスティング**~~ → Issue #255 で完了 ([nokku-dev/legal](https://github.com/nokku-dev/legal))
 - **App Store Connect アプリレコードの作成** (Taku の Apple Developer 環境で手動作業)
 - **サブスク / IAP 設定** (ADR-0048 で「無料出荷・サブスク先送り」を確定・v1 非スコープ)
 - **Android 版の Play Store 提出** (別 issue が必要になった時点で本ドキュメントを Play Store 版に応用する)
@@ -192,10 +202,17 @@ Apple のリジェクトは Resolution Center 経由でメッセージが届く�
 
 本ドキュメントの §1 チェックリストを完走するには、以下の Issue が完了している必要がある:
 
-- [ ] Issue #223 (アプリアイコン制作)
-- [ ] Issue #224 (App Store スクリーンショット制作)
-- [ ] プライバシーポリシー URL のホスティング (Issue 未起票 — 必要になった時点で `/capture` 経由で起票)
+- [x] Issue #223 (アプリアイコン制作) — 完了 (#231〜#236)
+- [x] Issue #224 (App Store スクリーンショット制作) — 完了 (#237〜#239)。6.7" のみで確定
+      ([screenshots/6.7/README.md](screenshots/6.7/README.md) §0。6.5" / 6.9" は ASC の自動 scale と
+      Metadata Rejection 時の追い足し §4.1 に任せる)
+- [x] プライバシーポリシー / 利用規約 URL のホスティング — Issue #255 で完了 ([nokku-dev/legal](https://github.com/nokku-dev/legal))
+- [x] Issue #254 (iOS 位置権限文言) — 完了。**未対応のまま production build を焼くと実機でクラッシュする**ため §2 の前に必須だった
+- [ ] Issue #256 (掲載情報の原稿確定 → [store-listing.md](store-listing.md))
+- [ ] Issue #259 (Notion 連携を v1 で有効にするかの判断)。案 A 以外を採る場合、
+      §1.3 のプライバシーポリシーと Privacy Nutrition Label の記述を改訂する必要がある
 - [ ] App Store Connect アプリレコード作成 (手動作業・Issue 起票不要)
+- [ ] Apple Developer Program 加入 (手動作業・**リードタイムが読めないため最優先で着手**)
 
 これらが完了するまでは本ドキュメントは「実行待ち」状態として存置する。§1 のチェックボックスを全て埋められる状態になったら、Taku が上から順に手動実行して審査提出まで到達させる。
 
