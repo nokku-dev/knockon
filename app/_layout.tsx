@@ -10,9 +10,11 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+import { PostHogProvider } from 'posthog-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { getAnalyticsClient, initAnalytics } from '../src/analytics';
 import { initSchema } from '../src/db';
 import { getExpoSqliteClient } from '../src/db.expo';
 import {
@@ -20,6 +22,7 @@ import {
   seedScreenshotData,
 } from '../src/screenshotSeed';
 import { InAppNotificationToast } from '../src/InAppNotificationToast';
+import { ScreenTracker } from '../src/ScreenTracker';
 import { syncAllNotifications } from '../src/notifications';
 import { extractChainIdFromResponse } from '../src/notificationsDeeplink';
 import {
@@ -86,6 +89,10 @@ export default function RootLayout() {
     let cancelled = false;
     (async () => {
       try {
+        // ADR-0053: 分析クライアントを最初に用意する。DB 初期化より前に置くのは、
+        // 初期化中に起きた例外も errorTracking で拾えるようにするため。
+        // apiKey 未設定なら null が返り、以降 track() は no-op になる。
+        initAnalytics();
         // ADR-0014: 起動時の自動シード投入は廃止。チェーン CRUD で自分で作る前提。
         // 初回起動時はチェーン 0 件の空状態で、Today / チェーン一覧の empty state
         // → 「+ 新規作成」誘導で開始する。
@@ -216,6 +223,20 @@ export default function RootLayout() {
       setThemeMode={handleSetThemeMode}
     >
       <GestureHandlerRootView style={styles.root}>
+        {/* ADR-0053: 分析。
+            - captureTouches: false — タップのラベルや要素ツリーを拾うと、アクション名等が
+              混入し「記録内容を送らない」線を越える。
+            - captureScreens: false — **expo-router では SDK の自動画面捕捉が動かない**
+              (NavigationContainer を露出しないため。SDK の型定義に「手動で捕捉して
+              このオプションを無効にせよ」と明記されている)。代わりに ScreenTracker で
+              usePathname を監視し、正規化した画面名だけを送る。
+            client は analytics.ts が生成する (単一インスタンス・hook 外からも track できる)。
+            apiKey 未設定なら client は undefined で、Provider は素通しになる。 */}
+        <PostHogProvider
+          client={getAnalyticsClient() ?? undefined}
+          autocapture={{ captureScreens: false, captureTouches: false }}
+        >
+          <ScreenTracker />
         <SafeAreaProvider style={styles.root}>
           <StatusBar style={resolvedScheme === 'light' ? 'dark' : 'light'} />
           {error ? (
@@ -264,6 +285,7 @@ export default function RootLayout() {
           </>
         )}
         </SafeAreaProvider>
+        </PostHogProvider>
       </GestureHandlerRootView>
     </ThemeProvider>
   );

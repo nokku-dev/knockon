@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { track } from './analytics';
+import { ANCHOR_KIND, CHAIN_SOURCE } from './analyticsEvents';
 import { getExpoSqliteClient } from './db.expo';
 import type {
   Action,
@@ -53,6 +55,9 @@ export type EditableNode = {
   actionVariants: VariantMap | null;
   // #73 (SPEC §6): ON/OFF = 一時停止。true = 通常 (Today に出る) / false = 停止。
   active: boolean;
+  // ADR-0053: テンプレのカテゴリ picker 由来かどうか。chain_created の
+  // nodes_from_template を数えるためだけに持つ (永続化しない・UI にも出さない)。
+  fromTemplate?: boolean;
 };
 
 export type EditableAnchor = {
@@ -431,6 +436,7 @@ export const useChainEdit = (
             actionTitle: action.title,
             actionVariants: null,
             active: true,
+            fromTemplate: true,
           }));
           return { ...prev, nodes: [...prev.nodes, ...appended] };
         });
@@ -594,7 +600,25 @@ export const useChainEdit = (
     setSaving(true);
     try {
       const db = await getExpoSqliteClient();
+      const wasNew = draft.isNew;
       await persistChainDraft(db, draft);
+      // ADR-0053: 新規作成のときだけ送る (編集保存は別の行為なので送らない)。
+      // nodes_from_template は bool ではなく数 — 「テンプレを使ったか」より
+      // 「どれだけテンプレに頼ったか」の方が、2 段階テンプレピッカー (#122/#134/#137)
+      // が実際に効いているかの答えになる。
+      if (wasNew) {
+        track('chain_created', {
+          source: CHAIN_SOURCE.manual,
+          node_count: draft.nodes.length,
+          nodes_from_template: draft.nodes.filter((n) => n.fromTemplate).length,
+          anchor_kind:
+            draft.anchor.kind === 'time'
+              ? ANCHOR_KIND.time
+              : draft.anchor.kind === 'place'
+                ? ANCHOR_KIND.place
+                : ANCHOR_KIND.action,
+        });
+      }
       // #165 (ADR-0042 P1): このチェーンに新規ノード (= アクション) を追加して保存したら、
       // 立ち上げチェックリストの「アクションを 1 つ追加した」マイルストーンを満たす。
       // one-way フラグ (= 失われない指標)。失敗は握り潰す (save 自体は成功扱い)。

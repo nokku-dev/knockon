@@ -219,6 +219,28 @@ export const localIsoTimestamp = (now: Date): string => {
   return `${todayIsoDate(now)}T${hh}:${mi}:${ss}`;
 };
 
+// ADR-0053 (#259): 定着に至るまでの日数。node_settled イベントの唯一のプロパティ。
+//
+// 「そのノードを最初に達成した日」から today までの日数を返す。達成履歴が無ければ 0。
+// 定着は派生値 (ADR-0047) なので到達日を保存しておらず、履歴から毎回導出する。
+//
+// 純関数 (now を受け取らず、呼び側が today を渡す) — K-007 の domain 純粋性を維持。
+export const daysToSettle = (
+  achievements: readonly Achievement[],
+  nodeId: string,
+  today: IsoDate,
+): number => {
+  const dates = achievements
+    .filter((a) => a.nodeId === nodeId && a.achieved)
+    .map((a) => a.date)
+    .sort();
+  const first = dates[0];
+  if (!first) return 0;
+  const ms = Date.parse(`${today}T00:00:00Z`) - Date.parse(`${first}T00:00:00Z`);
+  if (!Number.isFinite(ms)) return 0;
+  return Math.max(0, Math.round(ms / 86400000));
+};
+
 // ADR-0028: ユーザー設定のリセット時刻 (HH:MM) を考慮した「今日の日付」。
 // now の時刻 (hour*60+min) が resetTime 未満なら 1 日前を返す。 = 「夜型ユーザーが
 // 自分の感覚で『まだ昨日』と思っている時間帯の操作を、 当日記録に振り分ける」。
