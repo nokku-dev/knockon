@@ -245,10 +245,10 @@ describe('localIsoTimestamp (Issue #109: メトリクス記録日時のローカ
     );
   });
 
-  test('UTC 換算 (toISOString) とは異なる値になりうる = UTC を保存していない', () => {
-    // TZ が UTC の CI でも落ちないよう「一致してはいけない」ではなく
-    // 「ローカル成分と一致する」で固定する (上の 2 test が本体)。
-    // ここでは Z が付かない秒精度フォーマットであることだけを担保する。
+  test('Z を含まない秒精度フォーマット (YYYY-MM-DDTHH:mm:ss) を返す', () => {
+    // 「UTC ではないこと」自体は上の 2 test (ローカル成分との一致) で担保する。
+    // TZ=UTC の CI では toISOString() と値が一致しうるので、 ここで
+    // 「toISOString と異なること」を検証すると環境依存の脆いテストになる。
     const now = new Date(2026, 6, 29, 8, 5, 3);
     expect(localIsoTimestamp(now)).toMatch(
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/,
