@@ -200,6 +200,25 @@ export const todayIsoDate = (now: Date): IsoDate => {
   return `${y}-${m}-${d}`;
 };
 
+// Issue #109: 観測時刻をローカルの壁時計で `YYYY-MM-DDTHH:mm:ss` にする。
+//
+// メトリクスの `recorded_at` は「いつ測ったか」という観測事実 (ADR-0024) なので、
+// 端末のローカル時刻で持つ。 旧実装は `new Date().toISOString().replace('Z','')` で
+// **UTC を local のような見た目で保存**しており、 JST (UTC+9) では 00:00〜08:59 の
+// 記録が前日の日付になっていた (体重は朝に測るので毎回踏む)。
+// 表示側 (`metricTrend.ts` の `recordedAt.slice(0, 10)`) と `useMetricsData` の
+// `today` (= `effectiveTodayIsoDate`・ローカル) が別の暦を見ていたのが原因。
+//
+// 返り値の日付部は必ず `todayIsoDate(now)` と一致する (= 記録した日に表示される)。
+// タイムゾーン情報は持たない: N=1 単機 / ローカル正準 (ADR-0001) で、 端末の
+// ローカル暦がそのままユーザーの体感する日付だから。
+export const localIsoTimestamp = (now: Date): string => {
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mi = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  return `${todayIsoDate(now)}T${hh}:${mi}:${ss}`;
+};
+
 // ADR-0028: ユーザー設定のリセット時刻 (HH:MM) を考慮した「今日の日付」。
 // now の時刻 (hour*60+min) が resetTime 未満なら 1 日前を返す。 = 「夜型ユーザーが
 // 自分の感覚で『まだ昨日』と思っている時間帯の操作を、 当日記録に振り分ける」。

@@ -2,7 +2,11 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 
 import { getExpoSqliteClient } from './db.expo';
-import { effectiveTodayIsoDate, recentDateRange } from './domain';
+import {
+  effectiveTodayIsoDate,
+  localIsoTimestamp,
+  recentDateRange,
+} from './domain';
 import type { IsoDate } from './domain';
 import { newMetricId, newMetricKindId } from './ids';
 import { BUILTIN_METRIC_KINDS } from './metricKinds';
@@ -220,11 +224,13 @@ export const useMetricsData = (): UseMetricsDataResult => {
         id: newMetricId(),
         metricKey,
         value,
-        // recorded_at は UTC ISO-like 文字列 (秒精度、 末尾 Z を剥がしただけ)。
-        // ローカル時刻ではない点に注意 (Phase 1 N=1 で同 TZ 単機運用なので実害なし)。
-        // PR-Z3b で Notion 連携を実装するとき、 Notion 側も UTC 想定なら整合する。
-        // ローカル時刻に厳密に揃えたくなったら年/月/日/時/分/秒を個別取得して組む。
-        recordedAt: new Date().toISOString().replace('Z', '').slice(0, 19),
+        // Issue #109: recorded_at はローカルの壁時計 (秒精度)。
+        // 旧実装は toISOString() = UTC を保存しており、 JST の 00:00〜08:59 に
+        // 記録すると metricTrend の日付キー (recordedAt.slice(0, 10)) が前日になって
+        // いた。 loadMetrics の `today` は effectiveTodayIsoDate (ローカル) なので
+        // 暦がズレていたのが原因。 localIsoTimestamp は日付部が todayIsoDate と
+        // 一致することを保証する。
+        recordedAt: localIsoTimestamp(new Date()),
         source: 'manual',
       });
       setRefreshTick((t) => t + 1);
