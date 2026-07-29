@@ -58,10 +58,18 @@
 
 以下の権限を要求する場合、App Store 審査で拒否されないためユーザー向け文言が必要:
 
-- [ ] `NSLocationAlwaysAndWhenInUseUsageDescription`: 場所アンカー用ジオフェンス
-  - 案:「場所アンカー機能で、指定した場所に到達したときにチェーンを提案するために使用します。」
-- [ ] `NSLocationWhenInUseUsageDescription`: 場所登録時の現在地取得
-  - 案:「アンカーとして登録する場所の座標を取得するために使用します。」
+- [x] `NSLocationAlwaysAndWhenInUseUsageDescription`: 場所アンカー用ジオフェンス (Issue #254)
+  - 「場所アンカー機能で、指定した場所に到達したときにチェーンを提案するために使用します。」
+- [x] `NSLocationWhenInUseUsageDescription`: 場所登録時の現在地取得 (Issue #254)
+  - 「アンカーとして登録する場所の座標を取得するために使用します。」
+- **設定場所**: `app.json` の `plugins` に `expo-location` を options 付きで登録する (Issue #254)。
+  expo-location の config plugin は `expo-module.config.json` に宣言が無いため **明示登録しないと適用されない**。
+  未登録だと Info.plist に usage description が入らず、`src/location.ts` の `requestLocationPermission()`
+  (AnchorEditor の「現在地を取得」) を呼んだ時点で iOS がアプリを即時終了する。
+  `NSLocationAlwaysUsageDescription` を含む 3 キーは plugin の既定値により**必ず書かれる**ので、
+  英語の既定文言が漏れないよう 3 つとも日本語で指定する。回帰は `src/appJsonLocationPlugin.test.ts` で固定。
+  `isIosBackgroundLocationEnabled` は**立てない** (バックグラウンド発火は Phase 1.6b で未実装・
+  `UIBackgroundModes` に `location` が入ると審査で説明できない)。
 - [ ] **通知権限** (`expo-notifications`): 初回起動時にプロンプト
   - 文言は OS 標準のもの (追加設定不要)
 
