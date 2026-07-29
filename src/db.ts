@@ -121,7 +121,11 @@ CREATE TABLE IF NOT EXISTS anchor_firings (
 -- ADR-0024 (PR-Z3a): メトリクス (体重 / 運動時間 / 睡眠時間 等)。
 -- 観測した事実として保存。 チェーン / アクション / ノードへの外部キーは持たない (疎結合)。
 -- 派生値 (移動平均 / 達成率) は保存しない (ADR-0001 維持、 表示時派生計算)。
--- source: 'manual' (手入力) / 'notion' (Notion Body Metrics 連携、 PR-Z3b)。
+-- source: 'manual' (手入力) のみが現行。
+-- 'notion' は ADR-0052 で Notion 連携を撤去した後も CHECK 制約に残している:
+-- (1) 制約から外すには table-copy migration (ADR-0027) が必要で、開発中に入った
+--     source='notion' の既存行があると移行が壊れる、(2) 値が使われないだけで害が無い。
+-- 新規に 'notion' が書かれることは無い (書き手が存在しない)。
 -- recorded_at format: 'YYYY-MM-DDTHH:MM:SS' (秒精度の ISO-like 文字列、 UTC ベース、
 -- timezone 標識なし)。 PR-Z3b で Notion 連携も同フォーマットに揃える。 日付のみ
 -- ('YYYY-MM-DD') は禁止 (listMetricsInRange の境界比較が壊れる)。
