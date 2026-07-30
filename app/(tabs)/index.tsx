@@ -14,7 +14,6 @@ import {
   COLOR_GROW,
 } from '../../src/tokens';
 import { useTodayData } from '../../src/useTodayData';
-import { persistNewNote } from '../../src/useNotesData';
 
 export default function TodayTab() {
   const {
@@ -26,18 +25,18 @@ export default function TodayTab() {
     dismissChecklist,
     retractSettlement,
   } = useTodayData();
-  // ADR-0044 (#181): Today アクション長押しからのメモ作成。 研究タブの useNotesData と
-  // 同じ永続化関数を共有する (= 生成ロジックの二重化回避)。 メモ一覧は研究タブで focus
-  // 時に再ロードされるため、 Today 側で再描画する必要はない (= setRefreshTick 不要)。
-  // K-010: 失敗時は silently 受容する (= UI に出さない)。 SQLite ローカル書込でほぼ失敗
-  // しない前提 + Today はメモ一覧を持たないので rollback 対象もない。 失敗の顕在化が必要に
-  // なったら (= 連携/同期が増えたら) トースト通知を判断する。
-  const handleAddNote = useCallback(
-    (nodeId: string | null, content: string) => {
-      void persistNewNote(nodeId, content);
-    },
-    [],
-  );
+  // ADR-0054: Today アクション長押しからのメモ作成を無効化した。
+  // ADR-0049 で研究タブ (メモ一覧) を非表示にした結果「書けるが読めない」状態になり、
+  // 長押しでメモが書けること自体が混乱の原因になっていた (実機確認でユーザー判断)。
+  //
+  // 非破壊: TodayScreen / ChainDetail は onAddNote が未指定なら長押しメモ動線と
+  // NoteComposeModal を描画しないスイッチ式なので、**この prop を渡さないだけ**で無効化される。
+  // notes データモデル・NoteComposeModal・ResearchScreen・useNotesData は残置。
+  // 研究タブを再有効化するときは onAddNote={handleAddNote} を戻す 1 行で復帰できる
+  // (ADR-0045 / 0049 の `href: null` と同型)。
+  //
+  // 定着ノードの長押しメニューは残る (ADR-0047 の「定着を取り下げる」)。長押し自体を
+  // 殺したのではなく、メニューからメモの選択肢が消えて取り下げ専用になる。
   const router = useRouter();
   // 通知タップで遷移してきたときの chainId を URL params から拾う (PR-1.5b-3)。
   // TodayScreen に渡したらすぐ undefined に戻す (リロード等で再 open しないため)。
@@ -100,7 +99,6 @@ export default function TodayTab() {
           checklistDismissedAt={data.checklistDismissedAt}
           checklistAddedAction={data.checklistAddedAction}
           onDismissChecklist={dismissChecklist}
-          onAddNote={handleAddNote}
           onRetractSettlement={retractSettlement}
         />
       )}

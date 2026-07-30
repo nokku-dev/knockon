@@ -99,8 +99,12 @@ const AnimatedLine = Animated.createAnimatedComponent(Line);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 // ADR-0047: ノード長押しの動作を合成する。 定着済み (settled) + 取り下げ導線ありなら
-// 「メモを追加 / 定着を取り下げる」の Alert メニューを出す (両導線・ユーザー判断)。
-// 未定着なら従来どおり直接メモ作成。 どちらの導線も無ければ undefined (長押し無効 = 既存互換)。
+// 「定着を取り下げる」の Alert メニューを出す。
+// 未定着なら直接メモ作成。 どちらの導線も無ければ undefined (長押し無効)。
+//
+// ADR-0054: 現在 onNoteLongPress は**呼び出し側から渡されていない** (Today のメモ動線を
+// 無効化した) ため、実際に効くのは「定着済みノードの取り下げメニュー」だけ。
+// メモ側の分岐はコードとして残置し、研究タブ再有効化時に prop を戻すだけで復帰できる。
 // 取り下げは latch のリセット (マイナスを指差さず本人だけが取り下げる) なので destructive 表示。
 const makeNodeLongPress = (
   nodeId: string,
