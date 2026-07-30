@@ -12,6 +12,7 @@ import {
   isNodeSettled,
   isPlaceAnchorFiringNow,
   isTimeAnchorFiringNow,
+  localIsoTimestamp,
   resolveActionForDate,
   sortChainsForDisplay,
   toAchievementMap,
@@ -469,7 +470,7 @@ export const useTodayData = (): UseTodayDataResult => {
   // K-010 受容判断)。永続化失敗は error state に出すが UI は閉じたままにする
   // (= 次の focus で再 load され、 失敗していれば再表示されるので silent には握り潰さない)。
   const dismissChecklist = useCallback(async () => {
-    const dismissedAt = new Date().toISOString();
+    const dismissedAt = localIsoTimestamp(new Date());
     setData((prev) =>
       prev ? { ...prev, checklistDismissedAt: dismissedAt } : prev,
     );
@@ -492,7 +493,8 @@ export const useTodayData = (): UseTodayDataResult => {
       if (!target) return;
       const retraction: SettlementRetraction = {
         nodeId,
-        retractedAt: new Date().toISOString(),
+        // #273: 上記 useAnalyticsData と同じ理由でローカル壁時計。
+        retractedAt: localIsoTimestamp(new Date()),
       };
       const nextRetractions = [...data.retractions, retraction];
       // ADR-0053: 取り下げはユーザーの明示的な操作 = 観測した事実 (ADR-0047 の正準軸)。
