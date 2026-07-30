@@ -1,4 +1,5 @@
 import type { DbClient } from './db';
+import { localIsoTimestamp } from './domain';
 import type { Anchor, Chain } from './domain';
 import {
   deleteNode,
@@ -71,7 +72,8 @@ export const persistChainDraft = async (
       title: draft.title.trim(),
       anchorId: draft.anchor.id,
       status: draft.status,
-      createdAt: new Date().toISOString(),
+      // #273: ローカル壁時計。#269 の chain_deleted の age_days の基準にもなる。
+      createdAt: localIsoTimestamp(new Date()),
     };
     await insertChain(db, chain);
     for (let i = 0; i < draft.nodes.length; i++) {

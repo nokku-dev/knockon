@@ -5,6 +5,7 @@ import { getExpoSqliteClient } from './db.expo';
 import {
   countSettlementStages,
   effectiveTodayIsoDate,
+  localIsoTimestamp,
   nodeSettlementStage,
   settlementStageMovements,
 } from './domain';
@@ -152,7 +153,10 @@ export const useAnalyticsData = (): UseAnalyticsDataResult => {
       const db = await getExpoSqliteClient();
       await insertRetraction(db, {
         nodeId,
-        retractedAt: new Date().toISOString(),
+        // #273: ローカル壁時計で保存する。domain.ts の lastRetractionDateForNode が
+        // slice(0, 10) で日付部を取り、ローカル日付である達成日と比較するため、
+        // UTC だと JST 00:00〜08:59 の取り下げが前日扱いになり定着判定が狂う。
+        retractedAt: localIsoTimestamp(new Date()),
       });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));

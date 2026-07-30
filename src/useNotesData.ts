@@ -1,5 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
+import { localIsoTimestamp } from './domain';
 
 import { getExpoSqliteClient } from './db.expo';
 import { newNoteId } from './ids';
@@ -31,7 +32,7 @@ export type NotesData = {
 // ISO-like (秒精度) のタイムスタンプ。 metrics.recorded_at と同フォーマット
 // (UTC ベース・標識なし、 Phase 1 N=1 同 TZ 単機運用で実害なし)。
 const nowIsoLike = (): string =>
-  new Date().toISOString().replace('Z', '').slice(0, 19);
+  localIsoTimestamp(new Date());
 
 // メモ 1 件を永続化する共通関数。 研究画面の addNote (hook 経由) と Today アクション
 // 長押し (app/(tabs)/index.tsx から直接) の両導線で再利用する (= 生成ロジックの二重化回避)。
