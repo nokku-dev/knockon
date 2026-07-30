@@ -42,6 +42,15 @@ type ToastState = { chainId: string; title: string; body: string };
 // 出荷ビルド前に必ず false に戻すこと (ADR-0014: 本番は自動 seed しない)。
 const SEED_SCREENSHOT_DATA = false;
 
+// ADR-0053: 分析クライアントを **module scope で** 初期化する。
+// useEffect 内で呼ぶと初回レンダーに間に合わず、PostHogProvider に渡す client が
+// null になる。Provider は client も apiKey も無いと自前でクライアントを作ろうとして
+// 「You must pass your PostHog project's api key. The client will be disabled.」で
+// 無効化され、captureAppLifecycleEvents が失われる (Simulator 検証で発見)。
+// track() は analytics.ts のシングルトンを使うので送信自体は動いてしまい、
+// 型チェックもテストも通るため、この不具合は実行時しか観測できない。
+initAnalytics();
+
 // ADR-0029 (Issue #53): 起動初期 (= settings DB 読み込み前) の native root bg は
 // 既存挙動の COLOR_BG (dark) で塗る。 読み込み完了後に themeMode に応じた色で
 // 上書きする (= useEffect 経由)。
@@ -89,10 +98,6 @@ export default function RootLayout() {
     let cancelled = false;
     (async () => {
       try {
-        // ADR-0053: 分析クライアントを最初に用意する。DB 初期化より前に置くのは、
-        // 初期化中に起きた例外も errorTracking で拾えるようにするため。
-        // apiKey 未設定なら null が返り、以降 track() は no-op になる。
-        initAnalytics();
         // ADR-0014: 起動時の自動シード投入は廃止。チェーン CRUD で自分で作る前提。
         // 初回起動時はチェーン 0 件の空状態で、Today / チェーン一覧の empty state
         // → 「+ 新規作成」誘導で開始する。
