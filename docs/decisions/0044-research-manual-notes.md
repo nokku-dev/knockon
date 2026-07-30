@@ -10,6 +10,10 @@ superseded-by: []
 
 # 研究画面の手動メモ — `notes` データ軸の追加 (node_id 単一 nullable / ON DELETE SET NULL)
 
+> **⚠️ 一部改訂 [ADR-0054](0054-disable-today-longpress-memo.md) (2026-07-30)**: 作成導線のうち
+> **Today アクション長押しは無効化**された（研究タブ非表示との組み合わせで「書けるが読めない」状態が
+> 混乱を生んだため）。メモのデータモデル・`ON DELETE SET NULL`・ResearchScreen の仕様は有効。
+
 > **[ADR-0049](0049-exclude-research-tab-from-release-scope.md) による部分改訂**: 研究タブ自体は v1 リリースでは `href: null` で **非表示** (リリーススコープ外)。本 ADR の `notes` データモデル・Today 長押しメモ作成・`ON DELETE SET NULL` は維持され、メモは保存され続ける (一覧表示のみ研究タブ再有効化まで見えない)。
 
 ## 文脈
