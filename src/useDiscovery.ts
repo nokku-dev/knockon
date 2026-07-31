@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { track } from './analytics';
+import { ANCHOR_KIND, CHAIN_SOURCE } from './analyticsEvents';
 import { adoptChainDraft } from './bundleAdoption';
 import type { IdGen } from './bundleAdoption';
 import {
@@ -181,6 +183,17 @@ export const useDiscovery = (idGen: IdGen = defaultIdGen): UseDiscoveryResult =>
       try {
         const db = await getExpoSqliteClient();
         const chainId = await adoptChainDraft(db, draft, now, idGen);
+        // ADR-0053 §4 (#270): discovery 経由の採用は source=discover(1)。
+        // discovery のノードは全てカタログ (CatalogAction) 由来なので nodes_from_template
+        // = draft.nodes.length。adoptChainDraft の DEFAULT_ANCHOR_SPEC が
+        // kind='behavior' のため anchor_kind = ANCHOR_KIND.action(2)。
+        // K-002: チェーン名 / アクション名は送らない (SafeValue = number | boolean のみ)。
+        track('chain_created', {
+          source: CHAIN_SOURCE.discover,
+          node_count: draft.nodes.length,
+          nodes_from_template: draft.nodes.length,
+          anchor_kind: ANCHOR_KIND.action,
+        });
         return chainId;
       } catch (e) {
         setError(e instanceof Error ? e.message : '採用に失敗しました');
