@@ -32,6 +32,14 @@ jest.mock('./repository', () => ({
   updateAction: jest.fn(async () => undefined),
   deleteAction: jest.fn(async () => undefined),
   deleteChain: jest.fn(async () => undefined),
+  // #269 (ADR-0053 §4): chain_deleted の total_completions 用。 deleteChain より
+  // 前に呼ばれることが仕様なので、 各テストで mockResolvedValue で値を差し込む。
+  countAchievementsForChain: jest.fn(async () => 0),
+}));
+
+// #269 (ADR-0053 §4): chain_deleted 送信を検証するため track を mock。
+jest.mock('./analytics', () => ({
+  track: jest.fn(),
 }));
 
 jest.mock('./location', () => ({
@@ -58,6 +66,14 @@ jest.mock('./ids', () => {
 
 import { useChainEdit } from './useChainEdit';
 import type { TemplateCategoryPickerItem } from './TemplateCategoryPicker';
+import { track } from './analytics';
+import {
+  countAchievementsForChain,
+  deleteChain as deleteChainRepo,
+  getAnchor,
+  listChains,
+  listNodes,
+} from './repository';
 
 describe('useChainEdit.addNodesFromCategory (#168 / #155 follow-up)', () => {
   beforeEach(() => {
@@ -139,5 +155,145 @@ describe('useChainEdit.addNodesFromCategory (#168 / #155 follow-up)', () => {
     expect(nodes).toHaveLength(2);
     // 別 Action ID で 2 ノードが追加される
     expect(nodes[0].actionId).not.toBe(nodes[1].actionId);
+  });
+});
+
+// #269 (ADR-0053 §4): chain_deleted 送信の検証。
+// 既存チェーンの deleteChain 呼び出し時、 track が
+// { age_days, total_completions } (どちらも number) で
+// deleteChainRepo より前に呼ばれることを固定する。
+describe('useChainEdit.deleteChain (#269 / ADR-0053 §4: chain_deleted)', () => {
+  const CHAIN_ID = 'chain-existing-1';
+
+  const setupExistingChain = (createdAt: string) => {
+    (listChains as jest.Mock).mockResolvedValueOnce([
+      {
+        id: CHAIN_ID,
+        title: '朝ルーティン',
+        anchorId: 'anchor-1',
+        status: 'active',
+        createdAt,
+      },
+    ]);
+    (getAnchor as jest.Mock).mockResolvedValueOnce({
+      id: 'anchor-1',
+      title: '起床',
+      kind: 'behavior',
+      time: null,
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    (listNodes as jest.Mock).mockResolvedValueOnce([]);
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // 日付計算を deterministic にする (todayIsoDate(new Date()) が固定日を返す)。
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-31T12:00:00Z'));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('deleteChain 成功で track("chain_deleted", { age_days, total_completions }) を送る', async () => {
+    // 30 日前に作成、 過去に 12 回達成。
+    setupExistingChain('2026-07-01T09:00:00');
+    (countAchievementsForChain as jest.Mock).mockResolvedValueOnce(12);
+
+    const { result } = renderHook(() => useChainEdit(CHAIN_ID));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let ok = false;
+    await act(async () => {
+      ok = await result.current.deleteChain();
+    });
+    expect(ok).toBe(true);
+
+    expect(track).toHaveBeenCalledTimes(1);
+    expect(track).toHaveBeenCalledWith('chain_deleted', {
+      age_days: 30,
+      total_completions: 12,
+    });
+  });
+
+  test('total_completions は countAchievementsForChain の戻り値 (0 も送る)', async () => {
+    // 作成直後 (age_days = 0) に削除、 達成 0 件。
+    setupExistingChain('2026-07-31T00:00:00');
+    (countAchievementsForChain as jest.Mock).mockResolvedValueOnce(0);
+
+    const { result } = renderHook(() => useChainEdit(CHAIN_ID));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.deleteChain();
+    });
+
+    expect(track).toHaveBeenCalledWith('chain_deleted', {
+      age_days: 0,
+      total_completions: 0,
+    });
+  });
+
+  test('countAchievementsForChain は deleteChain (CASCADE) より前に呼ばれる', async () => {
+    setupExistingChain('2026-07-24T00:00:00');
+
+    const callOrder: string[] = [];
+    (countAchievementsForChain as jest.Mock).mockImplementationOnce(async () => {
+      callOrder.push('count');
+      return 5;
+    });
+    (deleteChainRepo as jest.Mock).mockImplementationOnce(async () => {
+      callOrder.push('delete');
+    });
+
+    const { result } = renderHook(() => useChainEdit(CHAIN_ID));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.deleteChain();
+    });
+
+    // count → delete の順序が逆だと CASCADE で total_completions が常に 0 になる。
+    expect(callOrder).toEqual(['count', 'delete']);
+  });
+
+  test('送るプロパティは全て number (SafeValue = number | boolean 制約)', async () => {
+    setupExistingChain('2026-05-01T00:00:00');
+    (countAchievementsForChain as jest.Mock).mockResolvedValueOnce(3);
+
+    const { result } = renderHook(() => useChainEdit(CHAIN_ID));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.deleteChain();
+    });
+
+    const props = (track as jest.Mock).mock.calls[0]![1] as Record<
+      string,
+      unknown
+    >;
+    expect(typeof props.age_days).toBe('number');
+    expect(typeof props.total_completions).toBe('number');
+    // title / anchor などの文字列プロパティは送らない (K-002 / ADR-0053 §1)。
+    for (const value of Object.values(props)) {
+      expect(['number', 'boolean']).toContain(typeof value);
+    }
+  });
+
+  test('新規モード (isNew = true) では track も deleteChainRepo も呼ばない', async () => {
+    const { result } = renderHook(() => useChainEdit(null));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.deleteChain();
+    });
+
+    expect(ok).toBe(false);
+    expect(track).not.toHaveBeenCalled();
+    expect(deleteChainRepo).not.toHaveBeenCalled();
+    expect(countAchievementsForChain).not.toHaveBeenCalled();
   });
 });

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { track } from './analytics';
 import { ANCHOR_KIND, CHAIN_SOURCE } from './analyticsEvents';
 import { getExpoSqliteClient } from './db.expo';
+import { localIsoTimestamp, todayIsoDate } from './domain';
 import type {
   Action,
   Anchor,
@@ -28,6 +29,7 @@ import {
   scheduleNotificationForChain,
 } from './notifications';
 import {
+  countAchievementsForChain,
   deleteAction as deleteActionRepo,
   deleteChain as deleteChainRepo,
   getAction,
@@ -78,6 +80,12 @@ export type ChainEditDraft = {
   // stocked のチェーンは Today に出ず、 チェーン一覧の「休止中」タブから戻せる。
   // 新規作成時は 'active'、 編集時は既存値を引き継ぐ。
   status: ChainStatus;
+  // ADR-0053 §4 (#269): chain_deleted の age_days 計算用に持ち回る。
+  // 既存チェーンは loadExisting で chains.created_at を入れる。 新規は
+  // localIsoTimestamp(now) で埋めるが、 新規は deleteChain が isNew guard で
+  // return するため実際には使われない (安全側の初期値)。 永続化 (persistChainDraft)
+  // は独自に createdAt を生成するのでこの値は上書きされない。
+  createdAt: string;
   anchor: EditableAnchor;
   nodes: EditableNode[];
 };
@@ -89,6 +97,7 @@ const newDraft = (): ChainEditDraft => {
     isNew: true,
     title: '',
     status: 'active',
+    createdAt: localIsoTimestamp(new Date()),
     anchor: {
       id: anchorId,
       title: '起点',
@@ -129,6 +138,7 @@ const loadExisting = async (chainId: string): Promise<ChainEditDraft | null> => 
     isNew: false,
     title: chain.title,
     status: chain.status,
+    createdAt: chain.createdAt,
     anchor: {
       id: anchor.id,
       title: anchor.title,
@@ -574,6 +584,22 @@ export const useChainEdit = (
     setSaving(true);
     try {
       const db = await getExpoSqliteClient();
+      // ADR-0053 §4 (#269): chain_deleted を送る。 CASCADE で achievements が
+      // 消える前に total_completions を数える (deleteChainRepo の後だと常に 0)。
+      // age_days は draft.createdAt (YYYY-MM-DD... の ISO 文字列) の日付部分
+      // と今日 (todayIsoDate) の日数差。 SafeValue = number | boolean のみ送る
+      // (K-002 / ADR-0053 §1: title / anchor などの記録内容は送らない)。
+      const totalCompletions = await countAchievementsForChain(db, draft.chainId);
+      const createdMs = Date.parse(draft.createdAt.slice(0, 10));
+      const todayMs = Date.parse(todayIsoDate(new Date()));
+      const ageDays =
+        Number.isFinite(createdMs) && Number.isFinite(todayMs)
+          ? Math.max(0, Math.round((todayMs - createdMs) / 86400000))
+          : 0;
+      track('chain_deleted', {
+        age_days: ageDays,
+        total_completions: totalCompletions,
+      });
       await deleteChainRepo(db, draft.chainId);
       // 通知 cancel (拒否されていても no-op で安全)。
       await cancelNotificationForChain(draft.chainId).catch(() => undefined);

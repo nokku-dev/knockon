@@ -30,6 +30,7 @@ const buildDraft = (overrides: Partial<ChainEditDraft> = {}): ChainEditDraft => 
   isNew: true,
   title: '朝のルーティン',
   status: 'active',
+  createdAt: '2026-05-18T00:00:00',
   anchor: {
     id: 'a1',
     title: '起点',

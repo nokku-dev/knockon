@@ -9,6 +9,7 @@ const baseDraft = (): ChainEditDraft => ({
   isNew: true,
   title: '',
   status: 'active',
+  createdAt: '2026-05-18T00:00:00',
   anchor: {
     id: 'a1',
     title: '起点',
