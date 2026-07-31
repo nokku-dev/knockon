@@ -605,6 +605,24 @@ export const countAchievedBefore = async (
   return rows[0]?.n ?? 0;
 };
 
+// ADR-0053 §4 (#269): chain_deleted イベントの total_completions プロパティ用。
+// 指定チェーンに属するノードの achieved=true 総数を SQL COUNT + JOIN で返す。
+// CASCADE 削除で消える前に、useChainEdit.deleteChain から呼ぶ想定 (呼ぶ側は必ず
+// deleteChain 実行の前に呼ぶこと。順序を逆にすると常に 0 になる)。
+// 存在しないチェーン ID は 0 (JOIN で該当ノードが 0 件になるだけ、エラーは投げない)。
+export const countAchievementsForChain = async (
+  db: DbClient,
+  chainId: string,
+): Promise<number> => {
+  const rows = await db.all<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM achievements a
+     JOIN nodes n ON n.id = a.node_id
+     WHERE n.chain_id = ? AND a.achieved = 1`,
+    [chainId],
+  );
+  return rows[0]?.n ?? 0;
+};
+
 // ADR-0047 追補 (2026-07-07): effective 累計 (定着 auto 日を派生で数える) 用。 アプリ全体の
 // 全ノード ID と、 upToDate までの全達成レコードを取得する。 派生計算 (countEffectiveAchievedTotal)
 // に渡す。 N=1 では件数は少なく体感問題なし (K-010 受容: 多ノード化で遅延が出たら SQL 側で

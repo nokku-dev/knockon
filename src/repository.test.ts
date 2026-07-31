@@ -3,6 +3,7 @@ import { initSchema, MIGRATIONS, SCHEMA_VERSION } from './db';
 import type { DbClient } from './db';
 import {
   countAchievedBefore,
+  countAchievementsForChain,
   deleteAction,
   deleteChain,
   getAction,
@@ -248,6 +249,100 @@ describe('countAchievedBefore (#142 / ADR-0041: アプリ全体累計達成数�
   test('countAchievedBefore: 全期間を含む未来日付なら今日分も入る', async () => {
     // 5/19 より前で achieved=true: 上記 3 + n1@5/18 = 4
     expect(await countAchievedBefore(db, '2026-05-19')).toBe(4);
+  });
+});
+
+// ADR-0053 §4 (#269): chain_deleted イベントの total_completions プロパティ用。
+// 指定チェーンに属するノードの achieved=true 総数を SQL COUNT + JOIN で返す。
+// deleteChain の CASCADE で消える前に呼ぶため、削除フローの一部として使う想定。
+describe('countAchievementsForChain (#269 / ADR-0053: chain_deleted の total_completions)', () => {
+  let db: DbClient;
+
+  beforeEach(async () => {
+    db = await setup();
+    // c1 (対象): n1 に 2 件 achieved=true, 1 件 achieved=false / n2 に 1 件 achieved=true
+    await insertAnchor(db, {
+      id: 'a1',
+      title: '起床',
+      kind: 'behavior',
+      time: null,
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    await insertAction(db, { id: 'act1', title: 'A', variants: null, timerSeconds: null });
+    await insertChain(db, {
+      id: 'c1',
+      title: 'C1',
+      anchorId: 'a1',
+      status: 'active',
+      createdAt: '2026-05-18T00:00:00Z',
+    });
+    await insertNode(db, { id: 'n1', chainId: 'c1', orderIndex: 0, kind: 'action', actionId: 'act1' });
+    await insertNode(db, { id: 'n2', chainId: 'c1', orderIndex: 1, kind: 'action', actionId: 'act1' });
+    await recordAchievement(db, { nodeId: 'n1', date: '2026-05-16', achieved: true });
+    await recordAchievement(db, { nodeId: 'n1', date: '2026-05-17', achieved: true });
+    await recordAchievement(db, { nodeId: 'n1', date: '2026-05-18', achieved: false });
+    await recordAchievement(db, { nodeId: 'n2', date: '2026-05-17', achieved: true });
+
+    // c2 (無関係): 別チェーンの達成が混ざらないことを検証するため。
+    await insertAnchor(db, {
+      id: 'a2',
+      title: 'B',
+      kind: 'behavior',
+      time: null,
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    await insertChain(db, {
+      id: 'c2',
+      title: 'C2',
+      anchorId: 'a2',
+      status: 'active',
+      createdAt: '2026-05-18T00:00:00Z',
+    });
+    await insertNode(db, { id: 'n3', chainId: 'c2', orderIndex: 0, kind: 'action', actionId: 'act1' });
+    await recordAchievement(db, { nodeId: 'n3', date: '2026-05-17', achieved: true });
+  });
+
+  afterEach(async () => {
+    await teardown(db);
+  });
+
+  test('対象チェーンのノードの achieved=true のみを数える (false は除外)', async () => {
+    // c1: n1@5/16, n1@5/17, n2@5/17 = 3 (n1@5/18 は achieved=false で除外)
+    expect(await countAchievementsForChain(db, 'c1')).toBe(3);
+  });
+
+  test('別チェーンの達成は混ざらない', async () => {
+    // c2: n3@5/17 = 1 (c1 の 3 件が混ざらない)
+    expect(await countAchievementsForChain(db, 'c2')).toBe(1);
+  });
+
+  test('達成レコードが 1 件も無いチェーン (作ってすぐ削除) は 0', async () => {
+    await insertAnchor(db, {
+      id: 'a3',
+      title: 'X',
+      kind: 'behavior',
+      time: null,
+      latitude: null,
+      longitude: null,
+      radiusMeters: null,
+    });
+    await insertChain(db, {
+      id: 'c3',
+      title: 'C3',
+      anchorId: 'a3',
+      status: 'active',
+      createdAt: '2026-05-18T00:00:00Z',
+    });
+    await insertNode(db, { id: 'n4', chainId: 'c3', orderIndex: 0, kind: 'action', actionId: 'act1' });
+    expect(await countAchievementsForChain(db, 'c3')).toBe(0);
+  });
+
+  test('存在しないチェーン ID は 0 (エラーを投げない)', async () => {
+    expect(await countAchievementsForChain(db, 'nonexistent')).toBe(0);
   });
 });
 
