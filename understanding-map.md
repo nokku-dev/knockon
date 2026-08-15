@@ -25,7 +25,6 @@
 
 - **窓（ウィンドウ）の目的別固定値**: Today カード/詳細スパイン/定着 = 14D、累計 = 全期間（ADR-0041）。**7D ミニマトリクス / 60D 分析マトリクスは [ADR-0051](docs/decisions/0051-remove-matrix-and-merge-fresh-into-growing.md) で UI 撤去**（派生関数・コンポーネントは残置）なので、現行の生きた窓は 14D と全期間の 2 つだけ。「同じ目的に複数窓を持たない」原則の境界が曖昧になりやすい。
 - **メトリクス層（Phase 3 統合）の ANT 違反回避が構造的に効いているか**: 「任意 + チェーンと疎結合 + 連携 read-only」で K-004 を回避する設計（ADR-0024）。実機運用での検証が前提。
-- **Notion メトリクス同期** (`notionClient` / `notionMetricsSync` / `notionConfig`): 接続点と失敗時挙動の腹落ち。
 - **カテゴリカタログ移行の残骸**: 旧 module/link 層は撤去済み（#160）だが、catalog seed・discovery・onboarding の新カテゴリモデル（ADR-0039）への移行が全画面で一貫しているか。
 - **未解決の設計前提（SPEC §2 留意）**: ゆるい判定が「連鎖が遵守を生む」便益を薄める可能性。Phase 1 実使用で観察する論点。
 
@@ -59,7 +58,7 @@
 - **expo-notifications** — ローカル通知（`notifications.ts` / `notificationHelpers.ts` / `notificationsDeeplink.ts` / `nightSummary.ts`）。
 - **react-native-svg** — スパイン描画（`ChainDetail` / `LineChart` / `ProgressRing` / `MetricTrendChart`）。
 - **@gorhom/bottom-sheet** — Today の ChainDetail Bottom Sheet。
-- **Notion API** — メトリクス同期（`notionClient.ts` / `notionConfig.ts` / `notionMetricsSync.ts`）。任意・read-only 寄り。
+- **PostHog** — 匿名の利用統計 / エラー情報（`analyticsEvents.ts`）。個人データ・自由入力文字列は送らない（[ADR-0053](docs/decisions/0053-analytics-platform-posthog.md)）。
 - **EAS Build** — Dev Client apk / preview apk / production ビルド（ADR-0017）。
 
 ## アーキテクチャ図
@@ -102,7 +101,7 @@ graph TD
   subgraph ext["外部 SDK"]
     Loc["expo-location"]
     Notif["expo-notifications"]
-    Notion["Notion API"]
+    PostHog["PostHog"]
   end
 
   routes --> screens
@@ -117,7 +116,7 @@ graph TD
   hooks --> DbExpo
   Repo -.types.-> Domain
   screens --> Notif
-  Notif --> Notion
+  screens --> PostHog
 ```
 
 ```mermaid
