@@ -9,7 +9,7 @@ jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 
 jest.mock('expo-router', () => {
   const React = require('react');
-  const calls: Array<{ name: string; options?: { href?: unknown } }> = [];
+  const calls: { name: string; options?: { href?: unknown } }[] = [];
   const Tabs: any = ({ children }: any) =>
     React.createElement(React.Fragment, null, children);
   Tabs.Screen = (props: any) => {
@@ -19,13 +19,13 @@ jest.mock('expo-router', () => {
   return { Tabs, __screenCalls: calls };
 });
 
-// eslint-disable-next-line import/first
+
 import * as ExpoRouter from 'expo-router';
-// eslint-disable-next-line import/first
+
 import TabsLayout from '../app/(tabs)/_layout';
 
 const screenCalls = (ExpoRouter as unknown as {
-  __screenCalls: Array<{ name: string; options?: { href?: unknown } }>;
+  __screenCalls: { name: string; options?: { href?: unknown } }[];
 }).__screenCalls;
 
 function optionsFor(name: string) {

@@ -6,7 +6,7 @@ import type { MetricKind } from './metricKindsRepository';
 import type { MetricSeries } from './useMetricsData';
 
 // PR-CC: テスト fixture は BUILTIN_METRIC_KINDS から MetricKind 形式に変換 (id 含む完全形)。
-const BUILTIN_AS_KINDS: ReadonlyArray<MetricKind> = BUILTIN_METRIC_KINDS;
+const BUILTIN_AS_KINDS: readonly MetricKind[] = BUILTIN_METRIC_KINDS;
 
 const buildSeries = (
   overrides: Partial<Record<string, { latest: number | null; count: number }>> = {},

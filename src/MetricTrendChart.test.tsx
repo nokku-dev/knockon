@@ -10,7 +10,7 @@ import type { DailyMetricPoint } from './metricTrend';
 // - 2 点以上あれば testID で識別できる (= マウントされている)
 
 const makePoints = (
-  values: ReadonlyArray<number | null>,
+  values: readonly (number | null)[],
   startDate = '2026-06-01',
 ): DailyMetricPoint[] =>
   values.map((v, i) => {

@@ -36,7 +36,7 @@ const SCAN_ROOTS = ['src', 'app'];
 
 // UTC (`toISOString`) を使ってよいファイル。**ここに挙げたものだけが除外される。**
 // 追加するときは「なぜ UTC が正しいか」を必ず書くこと。
-const ALLOWED_UTC: ReadonlyArray<{ path: string; reason: string }> = [
+const ALLOWED_UTC: readonly { path: string; reason: string }[] = [
   {
     path: 'src/chainExport.ts',
     reason: '外部へ渡すエクスポート形式。ISO8601 (Z 付き) が正しい',

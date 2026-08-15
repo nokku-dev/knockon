@@ -444,7 +444,7 @@ export const MIGRATIONS: Record<number, Migration> = {
   // categoryCatalogSeed.ts の新 title と 1:1 で一致させること。UPDATE ... WHERE id は
   // 再実行安全 (冪等)。
   15: async (client) => {
-    const renames: Array<[string, string]> = [
+    const renames: [string, string][] = [
       ['act-weigh', '体重測定'],
       ['act-drink-protein', 'プロテイン摂取'],
       ['act-style-hair', 'ヘアセット'],

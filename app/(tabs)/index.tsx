@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,7 +9,6 @@ import {
   COLOR_ACCENT,
   COLOR_BG,
   COLOR_FG,
-  COLOR_FG_FAINT,
   COLOR_FG_SOFT,
   COLOR_GROW,
 } from '../../src/tokens';

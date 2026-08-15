@@ -40,7 +40,7 @@ export type TemplateCategoryPickerProps = {
   genreCategories: readonly Category[];
   actions: readonly CatalogAction[];
   recommendedItems: readonly RecommendedItem[];
-  onSelect: (items: ReadonlyArray<TemplateCategoryPickerItem>) => void;
+  onSelect: (items: readonly TemplateCategoryPickerItem[]) => void;
   onCancel: () => void;
 };
 
@@ -104,7 +104,7 @@ export const TemplateCategoryPicker = ({
     setSelectedKeys(new Set());
   }, []);
 
-  const selectedItems = useMemo<ReadonlyArray<TemplateCategoryPickerItem>>(() => {
+  const selectedItems = useMemo<readonly TemplateCategoryPickerItem[]>(() => {
     if (!preview) return [];
     return preview.items
       .filter((i) => selectedKeys.has(i.key))

@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   test:
-    name: Type-check + Jest
+    name: Lint + Type-check + Jest
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,6 +29,11 @@ jobs:
       # ローカルと同じ依存解決ルールで install できる (K-021 / K-025 整合)。
       - name: Install dependencies
         run: npm ci --include=dev
+
+      # #294: lint はブロッキング。--max-warnings=0 なので warning も落とす
+      # (warning が積むと読まれなくなり、入れた意味が消えるため)。
+      - name: Lint
+        run: npm run lint
 
       - name: Type check
         run: npm run type-check

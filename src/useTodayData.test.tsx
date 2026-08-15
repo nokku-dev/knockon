@@ -99,6 +99,9 @@ jest.mock('expo-router', () => {
   const React = require('react');
   return {
     useFocusEffect: (cb: () => void | (() => void)) => {
+      // 本物の useFocusEffect と同じく「focus 時に 1 回」にする。cb を依存に入れると
+      // 毎レンダーで再実行され、load が無限に走る。
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       React.useEffect(() => cb(), []);
     },
   };

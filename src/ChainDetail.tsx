@@ -28,7 +28,6 @@ import {
   COLOR_FG_SOFT,
   COLOR_GROW,
   COLOR_LINE_BG,
-  COLOR_OK,
   COLOR_STAR,
 } from './tokens';
 
@@ -274,7 +273,6 @@ export const ChainDetail = ({
           ) : (
             <NodeRow
               key={node.id}
-              nodeId={node.id}
               actionTitle={label}
               achieved={achievements[node.id] ?? false}
               settled={nodeIdsSettled?.has(node.id) ?? false}
@@ -392,7 +390,6 @@ const SkipNodeRow = ({ actionTitle }: { actionTitle: string }) => (
 );
 
 const NodeRow = ({
-  nodeId,
   actionTitle,
   achieved,
   settled,
@@ -401,7 +398,6 @@ const NodeRow = ({
   timerSeconds,
   onStartTimer,
 }: {
-  nodeId: string;
   actionTitle: string;
   achieved: boolean;
   settled: boolean;

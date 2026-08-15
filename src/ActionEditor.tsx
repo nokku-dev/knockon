@@ -17,11 +17,10 @@ import {
   COLOR_FG_FAINT,
   COLOR_FG_SOFT,
   COLOR_GROW,
-  COLOR_LINE_BG,
   COLOR_SURFACE,
 } from './tokens';
 
-const WEEKDAYS: ReadonlyArray<{ key: WeekdayKey; label: string }> = [
+const WEEKDAYS: readonly { key: WeekdayKey; label: string }[] = [
   { key: 'mon', label: '月' },
   { key: 'tue', label: '火' },
   { key: 'wed', label: '水' },

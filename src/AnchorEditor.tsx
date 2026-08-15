@@ -89,6 +89,10 @@ export const AnchorEditor = ({
       setHour(pad2(p.hour));
       setMinute(pad2(p.minute));
     }
+    // #294: initialTime(anchor) が読むのは anchor.time だけなので、依存は
+    // anchor.time で足りる。anchor 全体を入れると、時刻に無関係な編集
+    // (kind / 座標 / 半径) で参照が変わるたびにローカル入力が上書きされる。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchor.time]);
 
   const commitTime = (h: string, m: string) => {
