@@ -72,7 +72,7 @@ iPhone 16 Pro Max Simulator。
 
 - [x] **A-1** `Info.plist` に `NSLocationWhenInUseUsageDescription` が日本語で存在
 - [x] **A-2** `Info.plist` に `NSLocationAlwaysAndWhenInUseUsageDescription` / `NSLocationAlwaysUsageDescription` が日本語で存在（英語の既定文言が漏れていない）
-- [ ] **A-3** `UIBackgroundModes` に `location` が**存在**（#301 で `isIosBackgroundLocationEnabled` を立てた。無いと `startGeofencingAsync` が throw する）— ⚠ 次のビルドで再確認が要る
+- [x] **A-3** `UIBackgroundModes` に `location` が**存在**（#301 で `isIosBackgroundLocationEnabled` を立てた。無いと `startGeofencingAsync` が throw する）— GF パスで実ビルドの Info.plist を確認済み
 - [x] **A-4** `CFBundleIdentifier` = `co.nokku.knockon`
 - [x] **A-5** `CFBundleShortVersionString` = `1.0.0`
 - [x] **A-6** `ITSAppUsesNonExemptEncryption` = `false`
@@ -205,15 +205,47 @@ Simulator で確定済み。
 - [x] **N-2** **ADR-0054**: ノード長押しでメモモーダルが**出ない**
 - [x] **N-3** 起動 → バックグラウンド → 復帰を繰り返してクラッシュしない（#271 の実挙動確認）
 
+## GF. ジオフェンス到達 (#301・2026-08-16 追加パス)
+
+> 検証環境: iPhone 16 Pro Max Simulator (iOS 18.6) / Xcode 16.4 / **Release ビルド**
+> （`xcodebuild -configuration Release -sdk iphonesimulator`、commit `a2d39b3`）
+> JS バンドル埋め込みのため Metro 非依存で単体起動している。
+
+**手法**: `simctl` にタップ操作が無いため、チェーンは UI ではなく**アプリの SQLite に直接投入**し、
+再起動して `syncGeofences()` の起動時経路を通した。移動は `xcrun simctl location start`
+（waypoint 間を補間するので「外 → 内へ動かす」がそのまま作れる）。
+判定は通知バナーではなく **`anchor_firings` の行を読む** — ADR-0012 の「1 日 1 回の不可逆」が
+そのまま行数として観測でき、バナーより確実なため。
+
+- [x] **GF-1** ビルド成果物の `Info.plist` に `UIBackgroundModes: location` と `NSLocation*` 3 キー（到達検知の文言）
+- [x] **GF-2** 場所アンカー付きチェーンがある状態で起動してクラッシュしない
+- [x] **GF-3** region の外 → 内へ移動すると `anchor_firings` が 0 → **1 行**
+  （= `startGeofencingAsync` が実際に登録され、タスクが発火し、`handlePlaceArrival` が記録した証明）
+- [x] **GF-4** ⭐ **同じ日に 3 往復しても `1 行`のまま**（ADR-0012 の 1 日 1 回。境界での Enter 連発に耐える）
+- [x] **GF-5** 前景でアプリ内 Toast が出る（「QA 場所チェーン / QA 東京駅 に到着」= タイトルと本文の中身まで確認）
+- [x] **GF-6** 常時権限を revoke → 到達しても記録されず、**Today にはチェーンが並ぶ**（ADR-0003 の劣化動作）
+- [x] **GF-7** チェーン削除 → 再起動 → 到達しても記録されない（監視に残らない）
+
+**未実施（`simctl` にタップが無いため）**
+
+- [ ] **GF-8** 場所アンカーを保存 → 常時権限ダイアログが **1 回だけ**出る
+  ⚠ 実ユーザーが Always を許可する唯一の導線。なお「**起動のたびに出る**」（ADR-0003 §決定 第 5 項違反）は
+  本パスで否定済み — 再起動を多数回行ってダイアログは一度も出ていない
+- [ ] **GF-9** Toast をタップ → 該当チェーンの Bottom Sheet が開く（Toast 表示までは GF-5 で確認済み）
+
+⚠ **本パスで見つかった挙動（#301 の範囲外）**: 常時権限を**後から iOS の設定で許可しても、
+アプリを再起動するかチェーンを保存するまでジオフェンスが登録されない**（`syncGeofences` が
+起動時とチェーン保存時にしか走らないため）。「一度拒否 → 後から設定で許可 → 通知が来ない」経路になる。
+#301 の完了条件（Always 拒否時のフォールバック）は満たしているので欠陥ではないが、
+直すなら `AppState` の `active` 復帰で `syncGeofences` を呼ぶのが素直。**未判断**。
+
 ## M. 保留（当セッションでは検証不能）
 
 - [ ] ⏸ **M-1** 定着（★）表示 — 14D 窓に 10 日分の達成が必要。DB を直接操作すれば可能だが、正規の経路ではないため保留
 - [ ] ⏸ **M-2** 定着取り下げ — M-1 の前提が必要
 - [ ] ⏸ **M-3** 夜の達成サマリー通知（21:00・ADR-0042）— 時刻依存
 - [ ] ⏸ **M-4** 時刻アンカーの自動発火 — 07:00 まで待つ必要がある
-- [ ] **M-5** ジオフェンス到達判定 — **Simulator で検証可能**（Debug → Location / GPX）。本セッション時点では
-  #301 未実装だったため保留にしていた項目で、実装後の QA パスで実施する。⚠ 中心へ直接ジャンプさせず
-  外 → 内へ動かすこと。⚠ 同じ日に出入りを繰り返して**通知が 1 回だけ**であることまで見る（ADR-0012）
+- [x] **M-5** ジオフェンス到達判定 — **§GF（2026-08-16 追加パス）で実施済み**。GF-3 / GF-4 を参照
 - [ ] ⏸ **M-7** 実地でのジオフェンス挙動 — 実機のみ（GPS の精度・遅延が妥当か / 半径 100m が実用的か /
   アプリを完全終了した状態から OS が起こすか / 電池消費）
 - [ ] ⏸ **M-6** バックグラウンド通知配信 — 実機のみ
