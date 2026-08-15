@@ -48,7 +48,7 @@ Phase 1.5 で「ノックモーション」（達成時に線が一段スッと�
 ## 想定される影響
 
 - **同 PR で同期更新が必要**: なし。`CLAUDE.md` の技術スタック節に「描画: `react-native-svg`」を 1 行足す程度は任意（Phase 1.3 完了時にまとめても可）。
-- **Phase 1.3 着手時の作業**: `expo install react-native-svg`、[src/Spine.tsx](../../src/Spine.tsx) （または `TodayScreen` 内）に SVG ベースのスパイン描画を実装、[src/domain.ts](../../src/domain.ts) に `firstUnachievedNodeIndex` 等の純粋関数を追加（K-007 維持）。
+- **Phase 1.3 着手時の作業**: `expo install react-native-svg`、`src/Spine.tsx` （または `TodayScreen` 内）に SVG ベースのスパイン描画を実装、[src/domain.ts](../../src/domain.ts) に `firstUnachievedNodeIndex` 等の純粋関数を追加（K-007 維持）。
 - **既存 ADR との整合**: [0007](./0007-expo-react-native-stack.md) の Expo + managed workflow と整合 (Expo Go 同梱)。[0006](./0006-phase1-completion-and-scope-narrowing.md) の早期検証ゲートと整合 (Dev Build 不要)。[0001](./0001-chain-data-model.md) の正準データ原則を破壊しない (線の表示は派生計算、保存しない)。[0008](./0008-test-strategy-ts-jest-bettersqlite.md) のテスト戦略はそのまま (`jest-expo` で SVG コンポーネントテスト可能)。supersede 関係なし。
 - **後で覆すコスト**: 案B（View 矩形）に降りる場合は、SVG コンポーネントを書き換えるだけで domain 層は無修正（決定3 のリターン）。案C（Skia）に上げる場合は描画レイヤだけ切替で済むが、Dev Build 移行とセットになるため [ADR-0008](./0008-test-strategy-ts-jest-bettersqlite.md) や [ADR-0006](./0006-phase1-completion-and-scope-narrowing.md) と関連する判断が必要。
 - **これは v1 の確定事項**。Phase 1.3-1.6 着手後に「やはり View 矩形で書き直す」などの再検討は **行わない**。Phase 1 実機実使用で SVG 起因の問題（性能・描画崩れ）が出た場合のみ本 ADR と関連 ADR の両方を見直す。

@@ -85,4 +85,4 @@
 
 ## 6. デザイン
 
-`docs/DESIGN-SYSTEM.md`（v0.2）参照。サブチェーン展開・白抜き星・ウィンドウ切替は v1 非スコープに伴い実装対象外（DESIGN-SYSTEM 側の記述は将来用として残置）。
+[DESIGN-SYSTEM.md](DESIGN-SYSTEM.md)（v0.2）参照。サブチェーン展開・白抜き星・ウィンドウ切替は v1 非スコープに伴い実装対象外（DESIGN-SYSTEM 側の記述は将来用として残置）。
