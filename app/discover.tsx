@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { AdoptConfirmScreen } from '../src/AdoptConfirmScreen';
 import { BundlePreviewScreen } from '../src/BundlePreviewScreen';
 import { DiscoveryIndexScreen } from '../src/DiscoveryIndexScreen';
+import { localIsoTimestamp } from '../src/domain';
 import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../src/tokens';
 import { useDiscovery } from '../src/useDiscovery';
 
@@ -33,7 +34,11 @@ export default function DiscoverRoute() {
 
   const handleAdopt = async () => {
     // 現地時刻 ISO を採用時刻にする (createdAt)。発火判定はリセット時刻基準で別途派生。
-    const now = new Date().toISOString();
+    //
+    // #292: ここは長らく `new Date().toISOString()` だった。**コメントは「現地時刻」と
+    // 言っているのにコードは UTC** で、`chains.created_at` に手動作成 (ローカル) と
+    // 混在し、並び順が JST で 9 時間ずれていた。localIsoTimestamp を通す。
+    const now = localIsoTimestamp(new Date());
     const chainId = await adopt(now);
     if (chainId) {
       // 採用後はフローを抜けてチェーン一覧へ戻る (作成したチェーンは active で並ぶ)。

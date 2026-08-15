@@ -1,6 +1,7 @@
 import { Stack, useRouter } from 'expo-router';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import { localIsoTimestamp } from '../src/domain';
 import { OnboardingScreen } from '../src/OnboardingScreen';
 import { COLOR_ACCENT, COLOR_BG, COLOR_FG } from '../src/tokens';
 import { useOnboarding } from '../src/useOnboarding';
@@ -51,8 +52,10 @@ export default function OnboardingRoute() {
           onSelectMoment={o.selectMoment}
           onChangeTime={o.changeTime}
           onConfirmTime={o.confirmTime}
-          onAdoptFirst={() => o.adoptFirst(new Date().toISOString())}
-          onAddSecond={() => o.addSecond(new Date().toISOString())}
+          // #292: chains.created_at はローカル壁時計で書く (chainEditPersist と同じ規約)。
+          // UTC で書くと手動作成のチェーンと混在し、並び順が JST で 9 時間ずれる。
+          onAdoptFirst={() => o.adoptFirst(localIsoTimestamp(new Date()))}
+          onAddSecond={() => o.addSecond(localIsoTimestamp(new Date()))}
           onSkipSecond={o.skipSecond}
           onRequestNotify={o.requestNotify}
           onSkipNotify={o.skipNotify}
