@@ -76,10 +76,11 @@ Expo の標準慣例に従う。具体的なスクリプト・依存バージョ
 
 ## タスク連携
 
-> 注: テンプレ既定の Todoist 連携を、現行ワークフロー（Todoist 廃止・Notion Tasks DB = SSoT）に合わせて置換している。Todoist 運用へ戻す場合はこの節を差し替えること。
+> 注 (2026-08-15): 外部タスク管理ツール（Todoist / Notion）との連携は廃止した。**GitHub Issues が唯一の起票先**。
+> 以前この節にあった Todoist / Notion Tasks の手順は、いずれのツールも運用から外れたため削除している。
 
-- タスクから Issue を作成した場合、Issue 本文に Notion Tasks の該当ページ ID を記載すること
-- Issue 完了時に Notion Tasks 側の Status も更新すること
+- 作業は Issue 起点で行い、PR から `Closes #NN` で紐付ける
+- 状態は Issue / PR の open-close で表す。外部ツールへの二重記入はしない
 
 ## レビューロール
 

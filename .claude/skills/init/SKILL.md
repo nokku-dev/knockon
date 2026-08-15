@@ -93,7 +93,7 @@ CLAUDE.md を読み、`{{...}}` プレースホルダーが残っているか確
 ✅ 初期セットアップ完了
 
 次のステップ:
-- /start でTodoistタスクからIssueを作成して作業開始できます
+- GitHub Issue を作成して作業を開始できます
 - understanding-map.md は /map で更新できます
 - 作業中にハマったら /learn で知見を記録できます
 ```

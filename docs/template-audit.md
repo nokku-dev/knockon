@@ -3,12 +3,17 @@
 > 起点: Issue #121 / [docs/template-modules-spec.md](template-modules-spec.md) §9 v0 モジュールカタログ。
 > 位置づけ: 「テンプレを足す / 充実させる」を曖昧完了タスクにしないための評価フレーム ([KNOWLEDGE.md K-029](../KNOWLEDGE.md#k-029)) + 初回監査ログ。
 > 評価軸 = 完了条件: 新規モジュールの追加 / 既存の改廃は本ドキュメントの 3 軸照合に通すこと。
+>
+> **注記 (2026-08-15)**: 本ドキュメントが監査した module モデルと `src/catalogSeed.ts` は
+> [ADR-0039](decisions/0039-catalog-restructure-modules-to-categories.md) / [ADR-0040](decisions/0040-remove-edit-ui-module-concept.md)
+> で category モデルに置換され、seed の後継は [src/categoryCatalogSeed.ts](../src/categoryCatalogSeed.ts)。
+> 監査ログ (F1-F6) は当時の記録としてそのまま残す。**3 軸の評価フレームは現行カタログにも適用する。**
 
 ## 1. 目的
 
 K-029 の教訓に従い、「テンプレを足す」前に評価フレームを 1 枚で言語化する。具体的には:
 
-- **網羅性 × エビデンス可視性 × 一意性** の 3 軸で v0 カタログ ([catalogSeed.ts](../src/catalogSeed.ts) / SPEC §9) を監査する。
+- **網羅性 × エビデンス可視性 × 一意性** の 3 軸で v0 カタログ (`catalogSeed.ts` / SPEC §9) を監査する。
 - 監査結果 (F1-F6) を**今後の補充 / 改廃の照合表**として残す。
 - 同型の判断 (= モジュール追加 / 統合 / 廃止) を再度議論しないために、軸と結論をここに固定する。
 
@@ -30,7 +35,7 @@ K-029 の教訓に従い、「テンプレを足す」前に評価フレーム�
 
 ## 3. 監査スコープ
 
-- 対象: v0 catalog ([catalogSeed.ts](../src/catalogSeed.ts) `V0_CATALOG_DEFS` 14 モジュール + custom inbox 1)。SPEC §9 と 1-1。
+- 対象: v0 catalog (`catalogSeed.ts` `V0_CATALOG_DEFS` 14 モジュール + custom inbox 1)。SPEC §9 と 1-1。
 - 対象外: custom inbox (`mod-custom-inbox`) は編集 UI の受け皿で discovery には出ないため対象外 ([ADR-0030](decisions/0030-template-module-link-data-model.md))。
 - アンカー: 朝 (起床) / 昼 (ランチ) / 夜 (ディナー / 就寝) の 4 枠。
 
@@ -119,6 +124,6 @@ K-029 の教訓に従い、「テンプレを足す」前に評価フレーム�
 
 - 評価フレーム化の根拠: [KNOWLEDGE.md K-029](../KNOWLEDGE.md#k-029) (曖昧完了タスクを評価軸で閉じる)
 - 最小核原則: [KNOWLEDGE.md K-031](../KNOWLEDGE.md#k-031) (完成形は出発点ではない)
-- カタログ実装: [src/catalogSeed.ts](../src/catalogSeed.ts) / [ADR-0030](decisions/0030-template-module-link-data-model.md)
+- カタログ実装: `src/catalogSeed.ts` / [ADR-0030](decisions/0030-template-module-link-data-model.md)
 - 採用フロー: SPEC §4 discovery / [#70](https://github.com/nokku-dev/knockon/issues/70) / [#71](https://github.com/nokku-dev/knockon/issues/71)
 - 編集 UI: SPEC §6 / [ADR-0032](decisions/0032-edit-ui-two-layer-chips.md)

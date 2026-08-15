@@ -16,7 +16,7 @@ superseded-by: []
 
 Issue #151（テンプレ化と採用時評価軸フィルタ設計）の triage/dialog（2026-06-17）で、この構造に 2 つの問題が確認された:
 
-1. **採用前メタの方向が Issue の本質と逆だった。** 当初は監査（#121 / PR#127, [docs/template-audit.md](../template-audit.md)）の評価軸（一意性 / エビデンス可視性 / 網羅性）を活かし、各 link に「エビデンス属性」カラムを足してカタログ側メタが既定集合を決める案を出した（子 POST `01KV9EH1RYPG5MHA32TTFSSQDH`）。しかしこの提案は **環境由来（実 export）を既定に優先する**設計で、Taku の意図は **逆＝環境依存を既定から外し汎用のみ残す**だった。提案はお蔵入り。
+1. **採用前メタの方向が Issue の本質と逆だった。** 当初は監査（#121 / PR#127, [docs/template-audit.md](../template-audit.md)）の評価軸（一意性 / エビデンス可視性 / 網羅性）を活かし、各 link に「エビデンス属性」カラムを足してカタログ側メタが既定集合を決める案を出した（別途起票した子提案）。しかしこの提案は **環境由来（実 export）を既定に優先する**設計で、Taku の意図は **逆＝環境依存を既定から外し汎用のみ残す**だった。提案はお蔵入り。
 2. **モジュール(テーマ束)が moment を抱える構造が、採用体験と噛み合わない。** ユーザーは「朝の束」を丸ごと採るより、ジャンル（運動・スキンケア等）から個別アクションを拾い、moment（朝/夜）は自分のチェーン側で決めたい。束に moment を固定で持たせると、同じ「歯磨き」が朝モジュールと夜モジュールに重複定義され、棚卸し・一意性の管理コストが増える（[K-029](../../KNOWLEDGE.md) / [K-030](../../KNOWLEDGE.md) の「X を充実させる」「軸の混在」と同型）。
 
 [ADR-0030](0030-template-module-link-data-model.md) が確立した「catalog（テンプレ定義）と live（採用後の実チェーン）をテーブルで分離する」原則は維持したい（正準データ不変条件 [ADR-0001](0001-chain-data-model.md) と整合）。論点は **catalog の内部構造（module 概念と採用単位）をどう作り直すか**であり、catalog/live 分離そのものは覆さない。
@@ -26,7 +26,7 @@ Issue #151（テンプレ化と採用時評価軸フィルタ設計）の triage
 ## 検討した選択肢
 
 - **案A（不採用）: module(テーマ束)モデル維持 + エビデンス属性カラム追加**
-  - [ADR-0030](0030-template-module-link-data-model.md) の `modules` / `links` を保ち、`links` に評価軸（エビデンス可視性等）のメタを足して既定集合を決める（子 POST `01KV9EH1RYPG5MHA32TTFSSQDH`）。
+  - [ADR-0030](0030-template-module-link-data-model.md) の `modules` / `links` を保ち、`links` に評価軸（エビデンス可視性等）のメタを足して既定集合を決める（別途起票した子提案）。
   - 問題: 環境由来（実 export）を既定優先する方向で、「環境依存を既定から外す」という Issue の本質と逆。テーマ束に moment を固定する構造の重複問題も残る。
 
 - **案B（採用）: module 廃止 → カテゴリ2型 + 採用単位＝個別アクション**
@@ -75,7 +75,7 @@ Issue #151（テンプレ化と採用時評価軸フィルタ設計）の triage
 
 - 本 ADR は**構造と採用モデルの方針を固定する**。最終スキーマ DDL（categories テーブルの形・おすすめカテゴリの順序つき重複参照をどう持つか・live ノードの由来参照を category にするか action にするか）と seed 実装は**後続の catalog/schema 再構成トラックに委譲**する。
 - onboarding（[ADR-0031](0031-onboarding-first-run-route.md) / [ADR-0035](0035-onboarding-action-selection.md)）・discovery・編集 UI のチップ（[ADR-0032](0032-edit-ui-two-layer-chips.md)）は module 概念に依存しているため、本構造変更の波及を受ける。内容（v0 カタログ）を固めてから別トラックで対応する。
-- 旧エビデンス属性提案（子 POST `01KV9EH1RYPG5MHA32TTFSSQDH`）はお蔵入り。復活させない。
+- 旧エビデンス属性提案（別途起票した子提案）はお蔵入り。復活させない。
 
 ## 理由
 
@@ -90,5 +90,5 @@ Issue #151（テンプレ化と採用時評価軸フィルタ設計）の triage
 - **後続トラックがこの構造に依存する**: (1) catalog/schema 再構成（module/links → category モデルへの DDL 変更 + v0 seed 差し替え）、(2) 採用フロー（onboarding [ADR-0031](0031-onboarding-first-run-route.md) / [ADR-0035](0035-onboarding-action-selection.md) / discovery）の category 対応。内容（v0 カタログ）が本 ADR で固まったので着手可能。
 - **[ADR-0030](0030-template-module-link-data-model.md) との関係（[K-005](../../KNOWLEDGE.md) / [K-015](../../KNOWLEDGE.md) 適用）**: catalog/live 分離原則は継承するため ADR-0030 を全面 supersede しない。ただし ADR-0030 の `modules` / `links` スキーマと採用単位（束ベース）の前提は本 ADR で置換される。ADR-0030 側に逆参照 1 行を追加し、単体読みで誤誘導されないようにする（双方向リンク）。
 - **[docs/template-modules-spec.md](../template-modules-spec.md) §2-§9 は module モデル前提**なので、本 ADR と矛盾する。spec 本体の書き換えは catalog/schema 再構成トラックの責務とし、本 ADR では §先頭に「module モデルは ADR-0039 で category 2型に置換」の注記を入れて誤誘導を防ぐ（[spec-sync ルール](../../.claude/rules/spec-sync.md) / [K-005](../../KNOWLEDGE.md)）。
-- **マイグレーションコスト**: 現行 v0 catalog seed（[src/catalogSeed.ts](../../src/catalogSeed.ts)）は module/links ベース。検証期間（[ADR-0022](0022-phase-1-completion-and-verification-operation.md)）の運用データは live 側（採用済みチェーン）なので catalog 再構成の影響を受けない（catalog/live 分離の恩恵）。catalog テーブルの再構成は [ADR-0027](0027-non-destructive-migration.md) の ALTER ベース migration で対応する。
+- **マイグレーションコスト**: 現行 v0 catalog seed（`src/catalogSeed.ts`）は module/links ベース。検証期間（[ADR-0022](0022-phase-1-completion-and-verification-operation.md)）の運用データは live 側（採用済みチェーン）なので catalog 再構成の影響を受けない（catalog/live 分離の恩恵）。catalog テーブルの再構成は [ADR-0027](0027-non-destructive-migration.md) の ALTER ベース migration で対応する。
 - **覆す場合のコスト**: 構造（module→category）を再度覆すと catalog/schema 再構成・onboarding・discovery の全実装トラックに波及する（Issue #117 全体）。逆に v0 カタログの内容（アクションの増減・カテゴリ追加）は seed の差分なので低コストで調整できる（[docs/template-audit.md](../template-audit.md) の 3 軸照合に通すこと）。

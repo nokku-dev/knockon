@@ -26,8 +26,8 @@ Closes #
 
 - 
 
-## Todoistタスク
+## 関連 Issue
 
-<!-- Todoist起点の場合はタスクIDを記載 -->
+<!-- 起点となった Issue 番号を記載 -->
 
-TaskID: 
+Closes # 

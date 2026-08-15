@@ -80,7 +80,7 @@ ADR-0006 で「Phase 3 = チェーン詳細だけ」だったが、ADR-0024 で 
 | **3a** | チェーン詳細画面 (1 本スパイン + ノード単位進捗 + 定着で円→星 + 14D 固定) | PR-Z1 |
 | **3b** | 達成率ダッシュボード (チェーン別 / ノード別 / 14D 期間、 streak は使わない) | PR-Z2 |
 | **3c MVP** | メトリクス DB + 手入力 UI + 時系列表示 (チェーンとは疎結合) | PR-Z3a |
-| **3c 本実装** | Notion Body Metrics 連携 (read-only sync、 1 日 1 回 fetch) | PR-Z3b |
+| **3c 本実装** | ~~外部の個人記録用 DB との連携 (read-only sync)~~ → [ADR-0052](./docs/decisions/0052-remove-notion-metrics-integration.md) で**撤去** (実装したが実使用されていなかった) | PR-Z3b |
 
 派生クエリのみで実装は薄い (派生値非保存原則は [ADR-0001](./docs/decisions/0001-chain-data-model.md) 維持)。
 

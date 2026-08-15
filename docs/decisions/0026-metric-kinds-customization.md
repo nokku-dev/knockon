@@ -44,7 +44,7 @@ ADR-0024 §3c (将来の覆すコスト) では「テンプレを DB 永続化 (
 ### Notion 連携互換性
 
 - builtin 3 種の `key` ('weight' / 'exercise_minutes' / 'sleep_hours') を維持
-  - = ADR-0024 §3c [docs/notion-setup.md](../notion-setup.md) で示した Notion 側 property name 規約と一致
+  - = ADR-0024 §3c `docs/notion-setup.md` で示した Notion 側 property name 規約と一致
 - ユーザーが builtin の key を変更した場合、 Notion 連携は機能しなくなる (ユーザー責任、 UI で警告)
 
 ## 決定
@@ -103,7 +103,7 @@ ADR-0024 §3c (将来の覆すコスト) では「テンプレを DB 永続化 (
 
 ### Notion 連携への影響
 
-- ユーザーが builtin の key を変更すると、 [src/notionMetricsSync.ts](../../src/notionMetricsSync.ts) の `mapNotionPagesToMetrics` で取り込めなくなる
+- ユーザーが builtin の key を変更すると、 `src/notionMetricsSync.ts` の `mapNotionPagesToMetrics` で取り込めなくなる
 - ユーザーが builtin そのものを削除した場合は **「取り込み停止」ではなく「重複累積」リスクがある** (K-028 同型): mapNotionPagesToMetrics は `BUILTIN_METRIC_KINDS` の key 集合で照合するため、 削除済み builtin key の pages も candidate に残る。 重複判定 (existing 取得) も `BUILTIN_METRIC_KINDS` を基準にすることで対処済み ([src/useMetricsData.ts](../../src/useMetricsData.ts) syncNotionMetricsInBackground)
 - UI 警告: key 編集時に「Notion 連携を使っている場合は key 変更で sync が壊れます」
 - これはユーザー責任、 silent fallback (K-024 同型受容)

@@ -31,11 +31,12 @@
 ## K-004: 完成ゲートを非コア機能／ANT 違反機能の上に置いた
 
 - **状況**: N=1 完成判定を「目標ビュー（メトリクス手入力）で実運用が閉じる」と定義していた。
-- **問題**: (1) メトリクスは If-Then 連鎖というコアとは別系統の機能で、完成基準が中核からずれた。(2) 既存 Notion Body Metrics・/fitness と二重記録になり ANT（行動変容を要求しない）に違反。完成ゲート自体が原則違反機能に乗っていた。
+- **問題**: (1) メトリクスは If-Then 連鎖というコアとは別系統の機能で、完成基準が中核からずれた。(2) 既存の個人記録用 DB と二重記録になり ANT（行動変容を要求しない）に違反。完成ゲート自体が原則違反機能に乗っていた。
 - **原因**: 「あると良い」機能を完成の指標に組み込み、コア体験（毎日使えるか）より測りやすい代理指標を選んだ。
 - **解決**: 完成判定をコア体験の実使用（Today が実機で数日回る）に移し、ANT 違反機能は連携前提が立つまで非スコープ化。
 - **教訓**: 完成ゲートは必ずコア体験そのものに置く。測りやすい代理機能や付随機能をゲートにしない。ゲート機能が ANT 等の自分の原則に違反していないか必ず照合する。
-- **追記 (ADR-0024)**: Phase 1 完成 ([ADR-0022](docs/decisions/0022-phase-1-completion-and-verification-operation.md)) 後、目標ビュー / メトリクス / 分析を Phase 3 と統合して v1 範囲に**取り込む**判断 ([ADR-0024](docs/decisions/0024-goal-view-analytics-phase-3-unified.md))。 K-004 の本質的教訓 (「完成ゲートをコア体験に置く」) は維持 — 完成ゲートは Phase 1 のまま動かさず、機能追加だけ。 ANT 違反リスクは「メトリクスは任意 + チェーンと疎結合 + Notion 連携は read-only」で構造的に回避する。 PR-Z3 実装時は「メトリクス入力を毎日要求する UI」になっていないか自己レビュー必須。
+- **追記 (ADR-0024)**: Phase 1 完成 ([ADR-0022](docs/decisions/0022-phase-1-completion-and-verification-operation.md)) 後、目標ビュー / メトリクス / 分析を Phase 3 と統合して v1 範囲に**取り込む**判断 ([ADR-0024](docs/decisions/0024-goal-view-analytics-phase-3-unified.md))。 K-004 の本質的教訓 (「完成ゲートをコア体験に置く」) は維持 — 完成ゲートは Phase 1 のまま動かさず、機能追加だけ。 ANT 違反リスクは「メトリクスは任意 + チェーンと疎結合 + 外部連携は read-only」で構造的に回避する。 PR-Z3 実装時は「メトリクス入力を毎日要求する UI」になっていないか自己レビュー必須。
+- **追記 (ADR-0052 / 2026-08-15)**: その外部連携は実装されたものの、出荷前の確認で**実質的に使われていなかった**ことが判明し、[ADR-0052](docs/decisions/0052-remove-notion-metrics-integration.md) でコードごと撤去した。さらに参照先の外部サービス自体を組織側の判断で retire したため、**「既存の個人記録用 DB と二重記録になる」という前提そのものが消えた**。K-004 の教訓（完成ゲートはコア体験に置く）は不変で、覆ったのは ANT 違反の根拠に使った前提の側。[ADR-0006](docs/decisions/0006-phase1-completion-and-scope-narrowing.md) にも同趣旨の追記あり。
 
 ## K-005: 「supersede しない部分変更」を片側リンクだけで処理した
 
@@ -295,14 +296,6 @@
 - **原因**: FK 列は他テーブルとの関係制約を持つため、列単位の破壊的変更ができない。SQLite 公式の table-copy 手順 (新テーブル作成 → INSERT SELECT → 旧 drop → rename) が必要。
 - **解決**: `MIGRATIONS[11]` で次の順に実行: `PRAGMA foreign_keys=OFF` (TX **外**) → `BEGIN` → `CREATE nodes_new` (module_id を除いた定義) → `INSERT SELECT` → `DROP nodes` → `ALTER RENAME nodes_new → nodes` → index 再作成 → 依存テーブル (`links` → `modules`) drop → `COMMIT` → `PRAGMA foreign_keys=ON` (TX **外**)。
 - **教訓**: (1) `PRAGMA foreign_keys` は **トランザクション内では no-op** なので必ず `BEGIN` の外に置く。(2) CASCADE 子テーブル (`achievements.node_id ON DELETE CASCADE`) は、`foreign_keys=OFF` 中に親 `nodes` を DROP しても **CASCADE 誤発火せず**、rename 後に **名前ベースで親に追従**する (子データは保全される)。(3) test (better-sqlite3) / prod (expo-sqlite) 差 ([K-018](#k-018)) は接続スコープ PRAGMA で概ね吸収できるが、複文 `BEGIN;…COMMIT;` + PRAGMA トグルの実機挙動は最終的に実機確認が要る。(4) `nodes_new` の定義は SCHEMA_SQL の nodes 定義と値一致させる ([K-021](#k-021) の二重 truth source)。Phase 2 以降で別の FK 列を消すときに同型を再利用する。
-
-## K-037: pickup 系の作業で新規 issue を作るときは `gh issue create` 直接でなく Graft 経由で起票する
-
-- **状況**: カタログ再構成の残課題 (#160) を進める際、`gh issue create` で GitHub issue を直接起票し、ブランチ → PR → マージまで完了させた。
-- **問題**: #153/#154/#155 は dispatch 由来で Graft POST を持ち pickup CLI で status を追跡していたが、**#160 だけ Graft POST が無く** eng status の SoT (Graft) から漏れた。pickup CLI の逆引き (`--issue 160 --show`) が「対応する Graft POST が見つかりません」になり、status 追跡が一切できない状態だった (後からユーザー指摘で発覚)。
-- **原因**: eng status の SoT は Graft POST (graft ADR-0037 / nokku-ops ADR-0019)。pickup は「issue# → external_ref で Graft POST を逆引き」する前提で動くため、**external_ref を持つ POST が存在しない issue は pickup の管理外**になる。`gh issue create` 直接起票はこの前提を破る。
-- **解決**: 既存 issue を手動 dispatch でバックフィル: `graft posts new "<body>" entity=task area=… domain=… discipline=… product=…` → `graft item ref <ULID> gh:<issue-url>` → pickup CLI で `--to "Done"`。逆引きが通り status が SoT に載る。
-- **教訓**: pickup ワークフローの中で新規タスクを起こすときは、`gh issue create` 直接ではなく **(a) Graft POST 起票 → dispatch (issue 作成 + external_ref 付与) → pickup**、または **(b) `/capture` 経由** を通す。「issue を作る」=「Graft に POST を作って ref する」とセットで考える。直接 issue を作ると Graft SoT から漏れ、後でバックフィルが要る。次に残課題を自分で issue 化するときに再発しやすい。
 
 ## K-038: 個別禁止条文だけでは新規 UI のレビューが揺れる — 「失われうるか (+/-)」のような抽出された一般原則を ADR に書き込む
 
