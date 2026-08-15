@@ -1,12 +1,9 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
-import { track } from './analytics';
-import { SETTLEMENT_DEFINITION_VERSION } from './analyticsEvents';
 import { getExpoSqliteClient } from './db.expo';
 import {
   countSettlementStages,
-  daysToSettle,
   effectiveTodayIsoDate,
   isAnchorFiringToday,
   isNodeSettled,
@@ -40,11 +37,14 @@ import {
   listAnchorFiringsForDate,
   listChains,
   listNodes,
-  recordAchievement,
   recordAnchorFiring,
 } from './repository';
 import { getAppSettings, updateAppSettings } from './settingsRepository';
-import { insertRetraction, listRetractions } from './settlementRepository';
+import { listRetractions } from './settlementRepository';
+import {
+  persistNodeAchievement,
+  persistSettlementRetraction,
+} from './trackedPersist';
 import type { TodayNode } from './ChainDetail';
 
 // 1 つの active チェーン分の Today データ。
@@ -352,22 +352,6 @@ export const useTodayData = (): UseTodayDataResult => {
       } else {
         nextSettled.delete(nodeId);
       }
-      // ADR-0053: 計測。**達成にしたときだけ**送る (取り消しは送らない — 悪シグナルの
-      // イベントは作らず、良シグナルの不在としてクエリ側で定義する方針)。
-      if (nextAchieved) {
-        track('node_completed', {
-          node_position: target.nodes.findIndex((n) => n.node.id === nodeId),
-          chain_node_count: target.nodes.length,
-          is_settled: nowSettled,
-        });
-        // 定着は派生値なので「到達した瞬間」はこの差分でしか観測できない。
-        if (!wasSettled && nowSettled) {
-          track('node_settled', {
-            days_to_settle: daysToSettle(nextHistory, nodeId, data.today),
-            definition_version: SETTLEMENT_DEFINITION_VERSION,
-          });
-        }
-      }
       setData((prev) =>
         prev
           ? {
@@ -387,10 +371,17 @@ export const useTodayData = (): UseTodayDataResult => {
       );
       try {
         const db = await getExpoSqliteClient();
-        await recordAchievement(db, {
+        // #293: 永続化と計測は trackedPersist にまとめてある (hook 側で track を
+        // 書くと入口が増えたときに漏れる。タイマー経由の達成が実際に漏れていた)。
+        await persistNodeAchievement(db, {
           nodeId,
           date: data.today,
           achieved: nextAchieved,
+          nodePosition: target.nodes.findIndex((n) => n.node.id === nodeId),
+          chainNodeCount: target.nodes.length,
+          historyAfter: nextHistory,
+          retractions: data.retractions,
+          wasSettled,
         });
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : String(e));
@@ -428,6 +419,8 @@ export const useTodayData = (): UseTodayDataResult => {
           ];
       // ADR-0047: 定着 (latch) を再計算。 タップで 10 日目の窓が成立すれば add、 取り下げ済みで
       // 未再定着なら false のまま。 未タップに戻して窓が崩れれば delete (派生は履歴に忠実)。
+      // #293: wasSettled は node_settled を「到達の瞬間」だけ送るために要る。
+      const wasSettled = target.nodeIdsSettled.has(nodeId);
       const nextSettled = new Set(target.nodeIdsSettled);
       if (isNodeSettled(nextHistory, data.retractions, nodeId, data.today)) {
         nextSettled.add(nodeId);
@@ -453,10 +446,17 @@ export const useTodayData = (): UseTodayDataResult => {
       );
       try {
         const db = await getExpoSqliteClient();
-        await recordAchievement(db, {
+        // #293: タイマー完了経由の達成が node_completed / node_settled を送っていなかった
+        // (タイマーで達成した回数が計測上ゼロに見えていた)。trackedPersist に一本化する。
+        await persistNodeAchievement(db, {
           nodeId,
           date: data.today,
           achieved,
+          nodePosition: target.nodes.findIndex((n) => n.node.id === nodeId),
+          chainNodeCount: target.nodes.length,
+          historyAfter: nextHistory,
+          retractions: data.retractions,
+          wasSettled,
         });
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : String(e));
@@ -497,15 +497,6 @@ export const useTodayData = (): UseTodayDataResult => {
         retractedAt: localIsoTimestamp(new Date()),
       };
       const nextRetractions = [...data.retractions, retraction];
-      // ADR-0053: 取り下げはユーザーの明示的な操作 = 観測した事実 (ADR-0047 の正準軸)。
-      // 「定着まで行ったが維持できなかった」の量を見る。
-      track('settlement_retracted', {
-        days_since_settled: daysToSettle(
-          target.achievementHistory,
-          nodeId,
-          data.today,
-        ),
-      });
       const nextSettled = new Set(target.nodeIdsSettled);
       if (
         isNodeSettled(
@@ -534,7 +525,14 @@ export const useTodayData = (): UseTodayDataResult => {
       );
       try {
         const db = await getExpoSqliteClient();
-        await insertRetraction(db, retraction);
+        // #293: ログ画面側の取り下げ導線が settlement_retracted を送っていなかった。
+        // 両方の入口が同じ関数を通るようにして、送信を呼び出し側の責任にしない。
+        await persistSettlementRetraction(db, {
+          nodeId,
+          retractedAt: retraction.retractedAt,
+          today: data.today,
+          achievements: target.achievementHistory,
+        });
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : String(e));
       }

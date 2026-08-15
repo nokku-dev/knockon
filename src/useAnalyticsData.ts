@@ -23,7 +23,8 @@ import {
   listNodes,
 } from './repository';
 import { getAppSettings } from './settingsRepository';
-import { insertRetraction, listRetractions } from './settlementRepository';
+import { listRetractions } from './settlementRepository';
+import { persistSettlementRetraction } from './trackedPersist';
 
 // ADR-0047: ログ画面 = 定着ポートフォリオ。 旧「達成率ダッシュボード」(PR-Z2) を組み替え、
 // active な全チェーンのノードを「これから / 育成中 / 定着」の 3 ステージに派生分類する。
@@ -42,11 +43,14 @@ export type SettlementPortfolioNode = {
 
 export type AnalyticsData = {
   today: IsoDate;
-  // 上部カウント (クロス断面スナップショット)。 fresh も持つが画面は定着/もう少し/育成中を出す。
+  // 上部カウント (クロス断面スナップショット)。 定着 / もう少しで定着 / 育成中の 3 ステージ。
   counts: SettlementStageCounts;
   // 先週からの流入数 (定着入り / もう少しで定着入り・Celebrate フロー)。
   movements: SettlementStageMovements;
   nodes: SettlementPortfolioNode[];
+  // #293: 取り下げ時の settlement_retracted (days_since_settled) を派生するために保持する。
+  // 表示には使わない。 loadAnalytics が既に全期間分を集めているので追加の I/O は無い。
+  achievements: readonly Achievement[];
 };
 
 const loadAnalytics = async (): Promise<AnalyticsData> => {
@@ -106,7 +110,13 @@ const loadAnalytics = async (): Promise<AnalyticsData> => {
     7,
   );
 
-  return { today, counts, movements, nodes: portfolioNodes };
+  return {
+    today,
+    counts,
+    movements,
+    nodes: portfolioNodes,
+    achievements: allRecords,
+  };
 };
 
 export type UseAnalyticsDataResult = {
@@ -126,6 +136,10 @@ export const useAnalyticsData = (): UseAnalyticsDataResult => {
   // タブを開くたびの読み込み表示 (スピナー) の煩わしさ解消。 初回だけ loading を出し、
   // 2 回目以降は前回データを見せたまま背景で再取得して差し替える (stale-while-revalidate)。
   const loadedOnceRef = useRef(false);
+  // #293: retract は識別子を安定させたいので deps を空に保ちつつ、計測に要る today /
+  // achievements を ref 経由で参照する (useDiscovery の previewRef と同型)。
+  const dataRef = useRef<AnalyticsData | null>(null);
+  dataRef.current = data;
 
   const retract = useCallback(async (nodeId: string) => {
     setData((prev) => {
@@ -149,14 +163,20 @@ export const useAnalyticsData = (): UseAnalyticsDataResult => {
         },
       };
     });
+    const snapshot = dataRef.current;
     try {
       const db = await getExpoSqliteClient();
-      await insertRetraction(db, {
+      // #293: この導線は insertRetraction を直接呼んでおり settlement_retracted を
+      // 送っていなかった (Today の長押しメニューだけが送っていた)。永続化と計測を
+      // まとめた trackedPersist を通す。
+      await persistSettlementRetraction(db, {
         nodeId,
         // #273: ローカル壁時計で保存する。domain.ts の lastRetractionDateForNode が
         // slice(0, 10) で日付部を取り、ローカル日付である達成日と比較するため、
         // UTC だと JST 00:00〜08:59 の取り下げが前日扱いになり定着判定が狂う。
         retractedAt: localIsoTimestamp(new Date()),
+        today: snapshot?.today ?? effectiveTodayIsoDate(new Date(), '00:00'),
+        achievements: snapshot?.achievements ?? [],
       });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
