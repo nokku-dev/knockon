@@ -734,6 +734,105 @@ describe('スキーマの不変条件', () => {
     await teardown(db);
   });
 
+  // #292: chains.created_at に UTC (`toISOString`) とローカル壁時計が混在していた。
+  // 並び順が壊れるのは「UTC だから」ではなく「混在しているから」なので、書き込み側を
+  // 直すだけでは既存 DB は直らない。MIGRATIONS[18] で 1 度だけローカルへ揃える。
+  //
+  // ⚠ 変換をローカル値に当てると +9h (JST) ずれて壊れる。`WHERE created_at LIKE '%Z'`
+  // が load-bearing (= 飾りではない)。変換後の行は Z を持たないので再実行しても no-op。
+  describe('#292: MIGRATIONS[18] が chains.created_at の UTC 行をローカルへ揃える', () => {
+    const setupV17Chains = async (): Promise<DbClient> => {
+      const db = createBetterSqliteClient(':memory:');
+      await db.exec(`
+        CREATE TABLE anchors (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          time TEXT,
+          latitude REAL,
+          longitude REAL,
+          radius_meters REAL
+        );
+        CREATE TABLE chains (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          anchor_id TEXT NOT NULL REFERENCES anchors(id),
+          status TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+      `);
+      await db.run(
+        `INSERT INTO anchors (id, title, kind, time, latitude, longitude, radius_meters)
+         VALUES ('a1', 'a', 'behavior', NULL, NULL, NULL, NULL)`,
+      );
+      return db;
+    };
+
+    const insertChainRow = (db: DbClient, id: string, createdAt: string) =>
+      db.run(
+        `INSERT INTO chains (id, title, anchor_id, status, created_at)
+         VALUES (?, ?, 'a1', 'active', ?)`,
+        [id, id, createdAt],
+      );
+
+    type CreatedAtRow = { id: string; created_at: string };
+    const readCreatedAt = (db: DbClient) =>
+      db.all<CreatedAtRow>(`SELECT id, created_at FROM chains ORDER BY id`);
+
+    test('UTC 行 (Z 付き) がローカル壁時計の書式に変換される', async () => {
+      const db = await setupV17Chains();
+      // discovery / onboarding 経由で入った UTC 行。
+      await insertChainRow(db, 'utc', '2026-08-15T00:30:00.000Z');
+      await MIGRATIONS[18]!(db);
+      const rows = await readCreatedAt(db);
+      // localIsoTimestamp と同じ `YYYY-MM-DDTHH:mm:ss` (Z なし・ミリ秒なし)。
+      expect(rows[0]?.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
+      // 同じ瞬間を指したまま表現だけ変わる (= ローカル暦に読み替えられる)。
+      expect(Date.parse(`${rows[0]?.created_at}Z`)).not.toBeNaN();
+    });
+
+    test('既にローカルの行は変換されない (二重変換で壊さない)', async () => {
+      const db = await setupV17Chains();
+      await insertChainRow(db, 'local', '2026-08-15T09:30:00');
+      await MIGRATIONS[18]!(db);
+      const rows = await readCreatedAt(db);
+      expect(rows[0]?.created_at).toBe('2026-08-15T09:30:00');
+    });
+
+    test('再実行しても no-op (変換後の行は Z を持たない)', async () => {
+      const db = await setupV17Chains();
+      await insertChainRow(db, 'utc', '2026-08-15T00:30:00.000Z');
+      await MIGRATIONS[18]!(db);
+      const once = await readCreatedAt(db);
+      await MIGRATIONS[18]!(db);
+      const twice = await readCreatedAt(db);
+      expect(twice).toEqual(once);
+    });
+
+    test('変換後は混在が解消し、UTC 行が 1 つも残らない', async () => {
+      const db = await setupV17Chains();
+      await insertChainRow(db, 'a-utc', '2026-08-15T00:30:00.000Z');
+      await insertChainRow(db, 'b-local', '2026-08-15T09:30:00');
+      await MIGRATIONS[18]!(db);
+      const rows = await readCreatedAt(db);
+      expect(rows.filter((r) => r.created_at.endsWith('Z'))).toEqual([]);
+      expect(
+        rows.every((r) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(r.created_at)),
+      ).toBe(true);
+    });
+
+    test('日時として解釈できない値は NOT NULL 違反にせず素通しする', async () => {
+      // strftime は解釈できない入力に NULL を返す。NOT NULL カラムなので
+      // 素直に UPDATE すると migration ごと落ちて起動不能になる (ADR-0073 の
+      // 「取れなかった」を安全側に倒す)。壊れた値は残すが、落とさない。
+      const db = await setupV17Chains();
+      await insertChainRow(db, 'broken', 'not-a-date-Z');
+      await expect(MIGRATIONS[18]!(db)).resolves.toBeUndefined();
+      const rows = await readCreatedAt(db);
+      expect(rows[0]?.created_at).toBe('not-a-date-Z');
+    });
+  });
+
   test('PRAGMA user_version が SCHEMA_VERSION と一致 (PR-1.8a migration)', async () => {
     const db = await setup();
     type VersionRow = { user_version: number };

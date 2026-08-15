@@ -221,7 +221,7 @@ CREATE INDEX IF NOT EXISTS idx_recommended_items_category ON recommended_items(c
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 17;
+export const SCHEMA_VERSION = 18;
 
 const DROP_SQL = `
 DROP TABLE IF EXISTS settlement_retractions;
@@ -483,6 +483,29 @@ export const MIGRATIONS: Record<number, Migration> = {
         PRIMARY KEY (node_id, retracted_at)
       );
       CREATE INDEX IF NOT EXISTS idx_settlement_retractions_node ON settlement_retractions(node_id);
+    `);
+  },
+  // #292: chains.created_at のタイムゾーン統一。
+  //
+  // 書き込み経路が 3 つあり、`chainEditPersist.ts` (手動作成) はローカル壁時計、
+  // `app/discover.tsx` / `app/onboarding.tsx` (テンプレ採用 / onboarding) は
+  // `new Date().toISOString()` = UTC を書いていた。同じカラムに 2 つの規約が入るため、
+  // `sortChainsForDisplay` (domain.ts) と `ORDER BY created_at` (listChains) の
+  // 並び順が JST で 9 時間ずれる。#292 で書き込み側は揃えたが、**壊れる原因は
+  // 「UTC だから」ではなく「混在しているから」**なので、既存行も 1 度だけ揃える。
+  //
+  // ⚠ `WHERE created_at LIKE '%Z'` は飾りではない: この変換をローカル値に当てると
+  // JST では +9h して壊れる。変換後の行は Z を持たないので、再実行しても no-op。
+  //
+  // ⚠ `strftime` は解釈できない入力に NULL を返す。created_at は NOT NULL なので
+  // そのまま UPDATE すると migration ごと落ちて**起動不能**になる。壊れた値は
+  // 変換対象から外して残す (ADR-0073: 「取れなかった」を安全側に倒す)。
+  18: async (client) => {
+    await client.exec(`
+      UPDATE chains
+         SET created_at = strftime('%Y-%m-%dT%H:%M:%S', created_at, 'localtime')
+       WHERE created_at LIKE '%Z'
+         AND strftime('%Y-%m-%dT%H:%M:%S', created_at, 'localtime') IS NOT NULL;
     `);
   },
 };
