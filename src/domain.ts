@@ -313,8 +313,10 @@ export const distanceMeters = (
 
 // 場所アンカーが「発火状態」かを判定する純粋関数。
 // 発火 = anchor.kind='place' かつ currentPosition がアンカーの半径内。
-// Phase 1.6 は前景での距離判定のみ (Expo Go 制約で OS ジオフェンスは Phase 1.6b
-// 後送り)。位置が取得できない / 権限拒否のときは呼び出し側が false を返す経路。
+// 前景 (Today を開いたとき) の距離判定に使う。バックグラウンドの到達検知は
+// #301 で OS ジオフェンスに載せたが (geofencing.ts)、常時権限が拒否されている場合の
+// フォールバックとして本経路は残る (ADR-0003)。
+// 位置が取得できない / 権限拒否のときは呼び出し側が false を返す経路。
 export const isPlaceAnchorFiringNow = (
   anchor: Anchor,
   currentPosition: { latitude: number; longitude: number },

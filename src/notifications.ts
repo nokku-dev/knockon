@@ -115,6 +115,32 @@ export const scheduleNotificationForChain = async (
   });
 };
 
+// #301 (Phase 1.6b): 場所アンカーの到達通知。OS ジオフェンスの Enter イベントから
+// `geofencing.ts` が呼ぶ。時刻アンカーの daily 通知と違い **その場で 1 回出す**
+// (trigger: null = 即時) ので、スケジュール一覧には残らない。
+//
+// 通知 ID は `place-{chainId}` (時刻アンカーの `chain-{id}` / 夜サマリの
+// `night-summary` と衝突しない)。data.chainId は通知タップの deeplink 用で、
+// 既存の extractChainIdFromResponse がそのまま拾う。
+//
+// ⚠ 権限が無ければ silently 出ない。ADR-0003 の劣化動作 (Today 表示は不変) と整合。
+export const presentPlaceArrivalNotification = async (
+  chain: Chain,
+  anchor: Anchor,
+): Promise<void> => {
+  await Notifications.scheduleNotificationAsync({
+    identifier: `place-${chain.id}`,
+    content: {
+      title: chain.title,
+      // 煽らない / マイナスを指差さない (DESIGN-SYSTEM §0)。到着した事実だけを置く。
+      body: `${anchor.title} に到着`,
+      data: { chainId: chain.id, kind: 'place-arrival' },
+      ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : {}),
+    },
+    trigger: null,
+  });
+};
+
 // Issue #169 / ADR-0042: 夜の達成サマリ通知をスケジュール。
 // DAILY trigger で 21:00 に発火し、 本文は「今日は N 個アクションを達成済み。
 // M 個の達成チャンスがあります。」(4 象限分岐は formatNightSummaryBody 参照)。

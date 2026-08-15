@@ -79,21 +79,28 @@
 
 - [x] `NSLocationWhenInUseUsageDescription`: 場所登録時の現在地取得 (Issue #254)
   - 「場所アンカーを登録するときに、現在地の座標を取得するために使用します。」
-- [x] `NSLocationAlwaysAndWhenInUseUsageDescription` / `NSLocationAlwaysUsageDescription` (Issue #254 / #291)
-  - 「場所アンカーを登録するときに、現在地の座標を取得するために使用します。アプリを開いていない間に位置情報を使うことはありません。」
-  - ⚠️ **この 2 キーは「使うから書いている」のではなく「plugin が必ず書くから文言を埋めている」**。
-    実装は前景取得のみ (`src/location.ts` は `requestForegroundPermissionsAsync` しか呼ばない) で、
-    Always 権限は要求しない。以前の文言は「指定した場所に到達したときにチェーンを提案する」= **未実装の
-    バックグラウンド発火 (Phase 1.6b)** を説明しており、要求する用途と実装が食い違っていた (Issue #291)。
-    回帰は `src/appJsonLocationPlugin.test.ts` で固定 (Always 系に「到達」を書かせない)
+- [x] `NSLocationAlwaysAndWhenInUseUsageDescription` / `NSLocationAlwaysUsageDescription` (Issue #254 / #291 / #301)
+  - 「登録した場所に到達したときにチェーンを通知するため、アプリを開いていない間も位置情報を使用します。」
+  - **#301 (Phase 1.6b) で OS ジオフェンス (region monitoring) を実装したので、常時権限を実際に使う**。
+    #291 の時点では未実装だったため文言を現在地取得のみに狭めていたが、実装に合わせて戻した。
+    回帰は `src/appJsonLocationPlugin.test.ts` で両方向に固定 (文言の「到達」と
+    `isIosBackgroundLocationEnabled` が**常に同時に成立/不成立**であること)
+- [x] **`UIBackgroundModes: ["location"]`** (Issue #301)
+  - `app.json` の expo-location plugin に `isIosBackgroundLocationEnabled: true` を指定して付与される
+  - ⚠️ **これが無いと `startGeofencingAsync` が throw する。** Apple の region monitoring 自体は
+    background mode を要求しないが、expo-location の `LocationModule.swift` が
+    `guard try taskManager.hasBackgroundModeEnabled("location")` で弾く
+  - ⚠️ **審査で用途を聞かれうる**。§9 の App Review 情報に「登録した場所への到達検知にのみ使い、
+    継続的な位置追跡は行わない」旨を書いてある
 - **設定場所**: `app.json` の `plugins` に `expo-location` を options 付きで登録する (Issue #254)。
   expo-location の config plugin は `expo-module.config.json` に宣言が無いため **明示登録しないと適用されない**。
   未登録だと Info.plist に usage description が入らず、`src/location.ts` の `requestLocationPermission()`
   (AnchorEditor の「現在地を取得」) を呼んだ時点で iOS がアプリを即時終了する。
   `NSLocationAlwaysUsageDescription` を含む 3 キーは plugin の既定値により**必ず書かれる**ので、
   英語の既定文言が漏れないよう 3 つとも日本語で指定する。回帰は `src/appJsonLocationPlugin.test.ts` で固定。
-  `isIosBackgroundLocationEnabled` は**立てない** (バックグラウンド発火は Phase 1.6b で未実装・
-  `UIBackgroundModes` に `location` が入ると審査で説明できない)。
+  ⚠️ **#301 で `isIosBackgroundLocationEnabled` / `isAndroidBackgroundLocationEnabled` を立てた**
+  (以前は「立てない」= バックグラウンド発火が未実装だったため)。iOS はこれが無いと
+  `startGeofencingAsync` が throw するので、ジオフェンスを使う限り必須。
 - [ ] **通知権限** (`expo-notifications`): 初回起動時にプロンプト
   - 文言は OS 標準のもの (追加設定不要)
 

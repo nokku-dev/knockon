@@ -9,7 +9,7 @@ If-Then / habit stacking 型の習慣アプリ（nokku 配下）。起点アン�
 - 形態: モバイル先行（iOS 先行可）、クロスプラットフォームを後続で。
 - **フレームワーク: Expo（React Native）/ managed workflow + EAS Build**（[ADR-0007](docs/decisions/0007-expo-react-native-stack.md)）。time-to-device 最優先で確定。bare workflow へ降りるのは Phase 1 実使用で障害が出た場合のみ。
 - 永続化: **`expo-sqlite` でローカル正準**（v1 で同期は持たない）。`(ノード, 日付, bool)` のみを保存（[ADR-0001](docs/decisions/0001-chain-data-model.md)）。
-- 位置: **`expo-location`**。方式は OS 標準ジオフェンス（region monitoring）で確定・**有料地図 API 禁止**（[ADR-0003](docs/decisions/0003-firing-logic.md)）。ただし **現時点の実装は前景の現在地取得のみ**で、region monitoring は登録していない（= Phase 1.6b 未実装。Issue #291）。場所発火はアプリを開いたときにしか起きない。
+- 位置: **`expo-location` の region monitoring**（OS 標準ジオフェンス・`expo-task-manager` 併用）。**有料地図 API 禁止**（[ADR-0003](docs/decisions/0003-firing-logic.md)）。#301（Phase 1.6b）で実装済み。⚠ iOS は `UIBackgroundModes: location` が無いと `startGeofencingAsync` が throw するため `isIosBackgroundLocationEnabled: true` が必須（`app.json`・`src/appJsonLocationPlugin.test.ts` で固定）。
 - 通知: **`expo-notifications`**（ローカル通知のみ・サーバ push は v1 非スコープ）。
 - 描画: **`react-native-svg`**（1 本連続スパインの線・マーカー描画、[ADR-0009](docs/decisions/0009-react-native-svg-for-spine.md)）。Phase 1.5 のノックモーションも SVG 上で実装予定。
 - ナビゲーション: **`expo-router`** (ファイルベースルーティング、[ADR-0011](docs/decisions/0011-expo-router-for-navigation.md))。`app/` 配下が画面構成。Bottom Tabs で Today / チェーン を切替。

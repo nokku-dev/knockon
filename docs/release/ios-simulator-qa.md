@@ -23,9 +23,8 @@ iPhone 16 Pro Max Simulator。
   `lastRetractionDateForNode` がローカル日付と比較するため**定着判定が狂う**。DB を直読みして発見。
   PR #274 で修正 + `localTimestampGuard.test.ts` で機械的に再発防止）
 
-**残る 7 項目のうち 6 項目の保留はデータ / 環境前提**（定着★は 14D 窓に 10 日分の達成が必要、
-通知配信は実機のみ）で、各項目に理由を明記した。
-残る 1 項目（**M-5 ジオフェンス到達判定**）は保留ではなく **未実装のため対象外**（Issue #291）。
+**残る 7 項目の保留はいずれもデータ / 環境前提**（定着★は 14D 窓に 10 日分の達成が必要、
+通知配信は実機のみ、ジオフェンスは本セッション時点で未実装）で、各項目に理由を明記した。
 
 **提出前に検証できることは検証し尽くした。**
 
@@ -36,12 +35,17 @@ iPhone 16 Pro Max Simulator。
 | Simulator で検証できる | できない (実機のみ) |
 | --- | --- |
 | 権限 usage description の欠落 (iOS が同様にプロセスを落とす) | バックグラウンドでの通知配信 |
-| レイアウト / 画面遷移 / DB 永続化 | 実機の描画性能・電池消費 |
-| ローカル通知のスケジュール | Dynamic Island 実挙動 |
-| 分析イベントの送信 | — |
+| レイアウト / 画面遷移 / DB 永続化 | 実地での GPS 精度・遅延 |
+| ローカル通知のスケジュール | アプリ**完全終了**状態から OS が起こす経路 |
+| 分析イベントの送信 | 実機の描画性能・電池消費 / Dynamic Island 実挙動 |
+| **ジオフェンス到達判定** (Debug → Location で位置をシミュレート) | |
 
-> ジオフェンス到達判定はこの表に入らない。**実機の有無ではなく未実装だから検証できない**
-> （`src/location.ts` は前景の現在地取得のみ。region monitoring は Phase 1.6b・Issue #291）。
+> ⚠ **ジオフェンスは Simulator で検証できる。** 以前この表では「実機のみ」に置いていたが誤り。
+> Simulator は Debug → Location（Custom Location / GPX ルート）で位置をシミュレートでき、
+> region monitoring の Enter / Exit はそれで発火する（expo-location も同様）。
+> ⚠ ただし**シミュレート位置を region の中心へ直接ジャンプさせると発火しないことがある**。
+> 外 → 内へ「動かす」必要があるので、GPX ルートか Custom Location の 2 段階変更を使う。
+> 実機でしか分からないのは右列（実地の精度・遅延 / 完全終了からの復帰 / 電池）。
 
 **データ前提が必要で当セッションでは検証不能な項目**は「⏸ 保留」として理由を明記する（例: 定着は 14D 窓に 10 日分の達成が必要）。
 
@@ -68,7 +72,7 @@ iPhone 16 Pro Max Simulator。
 
 - [x] **A-1** `Info.plist` に `NSLocationWhenInUseUsageDescription` が日本語で存在
 - [x] **A-2** `Info.plist` に `NSLocationAlwaysAndWhenInUseUsageDescription` / `NSLocationAlwaysUsageDescription` が日本語で存在（英語の既定文言が漏れていない）
-- [x] **A-3** `UIBackgroundModes` が**不在**（`isIosBackgroundLocationEnabled` が立っていない・未実装機能を要求していない）
+- [x] **A-3** `UIBackgroundModes` に `location` が**存在**（#301 で `isIosBackgroundLocationEnabled` を立てた。無いと `startGeofencingAsync` が throw する）— GF パスで実ビルドの Info.plist を確認済み
 - [x] **A-4** `CFBundleIdentifier` = `co.nokku.knockon`
 - [x] **A-5** `CFBundleShortVersionString` = `1.0.0`
 - [x] **A-6** `ITSAppUsesNonExemptEncryption` = `false`
@@ -201,11 +205,47 @@ Simulator で確定済み。
 - [x] **N-2** **ADR-0054**: ノード長押しでメモモーダルが**出ない**
 - [x] **N-3** 起動 → バックグラウンド → 復帰を繰り返してクラッシュしない（#271 の実挙動確認）
 
+## GF. ジオフェンス到達 (#301・2026-08-16 追加パス)
+
+> 検証環境: iPhone 16 Pro Max Simulator (iOS 18.6) / Xcode 16.4 / **Release ビルド**
+> （`xcodebuild -configuration Release -sdk iphonesimulator`、commit `a2d39b3`）
+> JS バンドル埋め込みのため Metro 非依存で単体起動している。
+
+**手法**: `simctl` にタップ操作が無いため、チェーンは UI ではなく**アプリの SQLite に直接投入**し、
+再起動して `syncGeofences()` の起動時経路を通した。移動は `xcrun simctl location start`
+（waypoint 間を補間するので「外 → 内へ動かす」がそのまま作れる）。
+判定は通知バナーではなく **`anchor_firings` の行を読む** — ADR-0012 の「1 日 1 回の不可逆」が
+そのまま行数として観測でき、バナーより確実なため。
+
+- [x] **GF-1** ビルド成果物の `Info.plist` に `UIBackgroundModes: location` と `NSLocation*` 3 キー（到達検知の文言）
+- [x] **GF-2** 場所アンカー付きチェーンがある状態で起動してクラッシュしない
+- [x] **GF-3** region の外 → 内へ移動すると `anchor_firings` が 0 → **1 行**
+  （= `startGeofencingAsync` が実際に登録され、タスクが発火し、`handlePlaceArrival` が記録した証明）
+- [x] **GF-4** ⭐ **同じ日に 3 往復しても `1 行`のまま**（ADR-0012 の 1 日 1 回。境界での Enter 連発に耐える）
+- [x] **GF-5** 前景でアプリ内 Toast が出る（「QA 場所チェーン / QA 東京駅 に到着」= タイトルと本文の中身まで確認）
+- [x] **GF-6** 常時権限を revoke → 到達しても記録されず、**Today にはチェーンが並ぶ**（ADR-0003 の劣化動作）
+- [x] **GF-7** チェーン削除 → 再起動 → 到達しても記録されない（監視に残らない）
+
+**未実施（`simctl` にタップが無いため）**
+
+- [ ] **GF-8** 場所アンカーを保存 → 常時権限ダイアログが **1 回だけ**出る
+  ⚠ 実ユーザーが Always を許可する唯一の導線。なお「**起動のたびに出る**」（ADR-0003 §決定 第 5 項違反）は
+  本パスで否定済み — 再起動を多数回行ってダイアログは一度も出ていない
+- [ ] **GF-9** Toast をタップ → 該当チェーンの Bottom Sheet が開く（Toast 表示までは GF-5 で確認済み）
+
+⚠ **本パスで見つかった挙動（#301 の範囲外）**: 常時権限を**後から iOS の設定で許可しても、
+アプリを再起動するかチェーンを保存するまでジオフェンスが登録されない**（`syncGeofences` が
+起動時とチェーン保存時にしか走らないため）。「一度拒否 → 後から設定で許可 → 通知が来ない」経路になる。
+#301 の完了条件（Always 拒否時のフォールバック）は満たしているので欠陥ではないが、
+直すなら `AppState` の `active` 復帰で `syncGeofences` を呼ぶのが素直。**未判断**。
+
 ## M. 保留（当セッションでは検証不能）
 
 - [ ] ⏸ **M-1** 定着（★）表示 — 14D 窓に 10 日分の達成が必要。DB を直接操作すれば可能だが、正規の経路ではないため保留
 - [ ] ⏸ **M-2** 定着取り下げ — M-1 の前提が必要
 - [ ] ⏸ **M-3** 夜の達成サマリー通知（21:00・ADR-0042）— 時刻依存
 - [ ] ⏸ **M-4** 時刻アンカーの自動発火 — 07:00 まで待つ必要がある
-- [ ] ⛔ **M-5** ジオフェンス到達判定 — **未実装のため対象外**（Phase 1.6b・Issue #291）。実機があっても検証できないので、保留（⏸ = 条件が揃えば検証できる）ではなく対象外として扱う。ジオフェンスを実装したら ⏸ に戻す
+- [x] **M-5** ジオフェンス到達判定 — **§GF（2026-08-16 追加パス）で実施済み**。GF-3 / GF-4 を参照
+- [ ] ⏸ **M-7** 実地でのジオフェンス挙動 — 実機のみ（GPS の精度・遅延が妥当か / 半径 100m が実用的か /
+  アプリを完全終了した状態から OS が起こすか / 電池消費）
 - [ ] ⏸ **M-6** バックグラウンド通知配信 — 実機のみ
