@@ -56,6 +56,38 @@ describe('app.json expo-location plugin 設定 (Issue #254)', () => {
     });
   });
 
+  // Issue #291: 実装していない用途を権限文言で説明しない。
+  //
+  // src/location.ts は前景位置取得のみ (getForegroundPermissionsAsync /
+  // getCurrentPositionAsync)。 OS ジオフェンスによるバックグラウンド発火は
+  // Phase 1.6b で未実装なので、 「指定した場所に到達したらチェーンを提案する」は
+  // **アプリが実際にはしないこと**。 権限ダイアログはユーザーが最初に読む約束なので、
+  // 実装より広い説明はそのまま「果たされない約束」になる (App Store 審査
+  // Guideline 5.1.1 の観点でも、要求する用途と実装は一致している必要がある)。
+  //
+  // 文言は expo-location plugin の既定で 3 キーとも Info.plist に書かれるため
+  // (上のコメント参照)、 Always 系だけ消すことはできない。 よって「消す」ではなく
+  // 「実装と一致させる」を機械的に固定する。
+  describe('権限文言は実装の範囲を超えない (Issue #291)', () => {
+    test.each([
+      'locationWhenInUsePermission',
+      'locationAlwaysAndWhenInUsePermission',
+      'locationAlwaysPermission',
+    ])('%s が実装されている用途 (現在地の取得) を説明している', (key) => {
+      expect(locationOptions()[key] as string).toContain('現在地');
+    });
+
+    test.each([
+      'locationAlwaysAndWhenInUsePermission',
+      'locationAlwaysPermission',
+    ])('%s が到達検知を約束していない', (key) => {
+      // バックグラウンド発火を実装したら (= isIosBackgroundLocationEnabled を
+      // 立てたら) この制約は外してよい。 それまでは約束しない。
+      expect(locationOptions().isIosBackgroundLocationEnabled).toBeUndefined();
+      expect(locationOptions()[key] as string).not.toContain('到達');
+    });
+  });
+
   test('iOS のバックグラウンド位置情報は有効化しない', () => {
     // ADR-0003 / src/location.ts: v1 は前景位置取得のみ。 OS ジオフェンスによる
     // バックグラウンド発火は Phase 1.6b (未実装)。 ここで
