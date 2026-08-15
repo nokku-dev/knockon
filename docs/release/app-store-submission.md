@@ -77,10 +77,15 @@
 
 以下の権限を要求する場合、App Store 審査で拒否されないためユーザー向け文言が必要:
 
-- [x] `NSLocationAlwaysAndWhenInUseUsageDescription`: 場所アンカー用ジオフェンス (Issue #254)
-  - 「場所アンカー機能で、指定した場所に到達したときにチェーンを提案するために使用します。」
 - [x] `NSLocationWhenInUseUsageDescription`: 場所登録時の現在地取得 (Issue #254)
-  - 「アンカーとして登録する場所の座標を取得するために使用します。」
+  - 「場所アンカーを登録するときに、現在地の座標を取得するために使用します。」
+- [x] `NSLocationAlwaysAndWhenInUseUsageDescription` / `NSLocationAlwaysUsageDescription` (Issue #254 / #291)
+  - 「場所アンカーを登録するときに、現在地の座標を取得するために使用します。アプリを開いていない間に位置情報を使うことはありません。」
+  - ⚠️ **この 2 キーは「使うから書いている」のではなく「plugin が必ず書くから文言を埋めている」**。
+    実装は前景取得のみ (`src/location.ts` は `requestForegroundPermissionsAsync` しか呼ばない) で、
+    Always 権限は要求しない。以前の文言は「指定した場所に到達したときにチェーンを提案する」= **未実装の
+    バックグラウンド発火 (Phase 1.6b)** を説明しており、要求する用途と実装が食い違っていた (Issue #291)。
+    回帰は `src/appJsonLocationPlugin.test.ts` で固定 (Always 系に「到達」を書かせない)
 - **設定場所**: `app.json` の `plugins` に `expo-location` を options 付きで登録する (Issue #254)。
   expo-location の config plugin は `expo-module.config.json` に宣言が無いため **明示登録しないと適用されない**。
   未登録だと Info.plist に usage description が入らず、`src/location.ts` の `requestLocationPermission()`

@@ -36,9 +36,9 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "アンカーとして登録する場所の座標を取得するために使用します。",
-          "locationAlwaysAndWhenInUsePermission": "場所アンカー機能で、指定した場所に到達したときにチェーンを提案するために使用します。",
-          "locationAlwaysPermission": "場所アンカー機能で、指定した場所に到達したときにチェーンを提案するために使用します。"
+          "locationWhenInUsePermission": "場所アンカーを登録するときに、現在地の座標を取得するために使用します。",
+          "locationAlwaysAndWhenInUsePermission": "場所アンカーを登録するときに、現在地の座標を取得するために使用します。アプリを開いていない間に位置情報を使うことはありません。",
+          "locationAlwaysPermission": "場所アンカーを登録するときに、現在地の座標を取得するために使用します。アプリを開いていない間に位置情報を使うことはありません。"
         }
       ],
       "expo-localization"

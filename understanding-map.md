@@ -17,7 +17,7 @@
 - **レイヤー構成**: `app(画面) → hooks(use*) → repository + domain → db`。`domain.ts` は import ゼロの純粋関数（DB/UI/状態管理に非依存・K-007）。
 - **DB の3バックエンド分離**: `db.ts`（型/インターフェース）/ `db.expo.ts`（実機 expo-sqlite）/ `db.bettersqlite.ts`（テスト用 better-sqlite3）。
 - **ビューはコード上 4 タブ / リリース表示は 3 タブ**: Today（最重要）/ チェーン / ログ（**定着ポートフォリオ**＝育成中/もう少しで定着/定着のステージ別、ADR-0047 で率ダッシュボードから組み替え・v1表示に復活）/ 研究（手動メモ一覧＋FAB。**[ADR-0049](docs/decisions/0049-exclude-research-tab-from-release-scope.md) で `href: null` にしリリーススコープ外**＝ルート・画面コード・notes データは残置、出荷後に 1 行で復帰可）。Today アクション長押しのメモ作成は残るので「書けるが一覧は見えない」状態。
-- **発火ロジック**: Today に並ぶ＝ active な全チェーンのノード。アンカーは通知＋「発火中」ピルのための分類軸（ADR-0020 で旧「手動発火」概念は廃止）。場所発火は OS 標準ジオフェンス（有料 API 不要）。
+- **発火ロジック**: Today に並ぶ＝ active な全チェーンのノード。アンカーは通知＋「発火中」ピルのための分類軸（ADR-0020 で旧「手動発火」概念は廃止）。場所発火の方式は OS 標準ジオフェンス（有料 API 不要）だが、**現時点の実装は前景判定のみ**（Today を開いたときに 1 回距離を測る。region monitoring は未登録 = Phase 1.6b、Issue #291）。
 
 ## 未把握・要確認
 
@@ -54,7 +54,7 @@
 <!-- 外部API、SDK、サービスとの接続点 -->
 
 - **expo-sqlite** — ローカル正準 DB（`db.expo.ts`）。テストは better-sqlite3（`db.bettersqlite.ts`）。
-- **expo-location** — region monitoring（ジオフェンス・`location.ts`）。
+- **expo-location** — 前景の現在地取得のみ（`location.ts`）。region monitoring（ジオフェンス）は未実装＝ Phase 1.6b。
 - **expo-notifications** — ローカル通知（`notifications.ts` / `notificationHelpers.ts` / `notificationsDeeplink.ts` / `nightSummary.ts`）。
 - **react-native-svg** — スパイン描画（`ChainDetail` / `LineChart` / `ProgressRing` / `MetricTrendChart`）。
 - **@gorhom/bottom-sheet** — Today の ChainDetail Bottom Sheet。
