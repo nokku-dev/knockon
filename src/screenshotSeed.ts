@@ -265,7 +265,8 @@ const isoForOffset = (now: Date, offset: number): string => {
 };
 
 // ざっくり自然なメトリクス値 (体重は緩やかに減、睡眠 6.5-7.8h、運動 0-45分)。
-const buildMetrics = (now: Date): {
+// now は受け取らない: 値は offset (日数) で相対に決まる。日付解決は呼び出し側。
+const buildMetrics = (): {
   metricKey: string;
   value: number;
   offset: number;
@@ -367,7 +368,7 @@ export const seedScreenshotData = async (
     }
   }
 
-  for (const m of buildMetrics(now)) {
+  for (const m of buildMetrics()) {
     const d = new Date(now);
     d.setDate(d.getDate() - m.offset);
     d.setHours(8, 0, 0, 0);

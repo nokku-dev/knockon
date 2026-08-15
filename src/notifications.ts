@@ -135,7 +135,7 @@ const buildNightSummarySnapshots = async (
   const snapshots: NightSummaryChainSnapshot[] = [];
   for (const chain of activeChains) {
     const nodes = await listNodes(db, chain.id);
-    const items: Array<{ node: Node; action: Action }> = [];
+    const items: { node: Node; action: Action }[] = [];
     for (const node of nodes) {
       const action = await getAction(db, node.actionId);
       if (action) items.push({ node, action });

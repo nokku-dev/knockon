@@ -40,11 +40,11 @@ export type SettingsModalProps = {
 };
 
 // 3 ボタン segmented picker の選択肢順序。 UI 上は左から Auto / Light / Dark。
-const THEME_OPTIONS: ReadonlyArray<{
+const THEME_OPTIONS: readonly {
   value: ThemeMode;
   label: string;
   hint: string;
-}> = [
+}[] = [
   { value: 'auto', label: 'Auto', hint: 'OS 設定に追従' },
   { value: 'light', label: 'Light', hint: '明るい配色で固定' },
   { value: 'dark', label: 'Dark', hint: '暗い配色で固定' },

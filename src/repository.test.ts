@@ -1128,7 +1128,7 @@ describe('スキーマの不変条件', () => {
     await db.run(
       `INSERT INTO categories (id, name, type, color, source, order_index) VALUES ('cat-x', 'X', 'genre', '#fff', 'official', 0)`,
     );
-    const oldTitles: Array<[string, string]> = [
+    const oldTitles: [string, string][] = [
       ['act-weigh', '体重計'],
       ['act-drink-protein', 'プロテイン飲む'],
       ['act-style-hair', '髪を整える'],

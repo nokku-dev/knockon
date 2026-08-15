@@ -177,7 +177,7 @@ const SCAN_ROOTS = ['src', 'app'];
 const DIRECT_WRITE_FUNCTIONS = ['recordAchievement', 'insertRetraction'];
 
 // 生の永続化関数を直接呼んでよいファイル。
-const ALLOWED_DIRECT_CALLERS: ReadonlyArray<{ path: string; reason: string }> = [
+const ALLOWED_DIRECT_CALLERS: readonly { path: string; reason: string }[] = [
   {
     path: 'src/trackedPersist.ts',
     reason: '永続化とイベント送信をまとめる層。ここだけが直接呼ぶ',

@@ -78,7 +78,7 @@ export type ChainEditScreenProps = {
   // #168 (#155 follow-up): カテゴリ picker からのアイテム集合を末尾追加。
   // 未指定 or catalog データなしなら Footer の「+ テンプレから追加」ボタンは出ない。
   onAddNodesFromCategory?: (
-    items: ReadonlyArray<TemplateCategoryPickerItem>,
+    items: readonly TemplateCategoryPickerItem[],
   ) => void;
   // react-native-reorderable-list の onReorder({from, to}) をそのまま受ける形。
   onReorderNodes: (from: number, to: number) => void;

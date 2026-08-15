@@ -12,7 +12,7 @@ import type { MetricKind } from './metricKindsRepository';
 
 export type BuiltinMetricKindSeed = Omit<MetricKind, 'id'> & { id: string };
 
-export const BUILTIN_METRIC_KINDS: ReadonlyArray<BuiltinMetricKindSeed> = [
+export const BUILTIN_METRIC_KINDS: readonly BuiltinMetricKindSeed[] = [
   {
     id: 'metric-kind-weight',
     key: 'weight',

@@ -16,7 +16,6 @@ import {
   RECOMMENDED_CATEGORY_ID,
   buildOnboardingAdoption,
   buildOnboardingAdoptionFromSelection,
-  nextStep,
   otherMoment,
   prevStep,
 } from './onboarding';

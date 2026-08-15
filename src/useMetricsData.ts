@@ -9,7 +9,6 @@ import {
 } from './domain';
 import type { IsoDate } from './domain';
 import { newMetricId, newMetricKindId } from './ids';
-import { BUILTIN_METRIC_KINDS } from './metricKinds';
 import {
   deleteMetricKind,
   insertMetricKind,
@@ -116,6 +115,9 @@ export const useMetricsData = (): UseMetricsDataResult => {
       return () => {
         cancelled = true;
       };
+      // #294: refreshTick は本体から参照しない「再取得トリガ」なので lint は不要と
+      // 判定するが、依存から外すと更新後の再読み込みが止まる。意図的に残す。
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [refreshTick]),
   );
 

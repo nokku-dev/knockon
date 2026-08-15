@@ -184,7 +184,7 @@ export type UseChainEditResult = {
   // し、 新規 EditableNode をまとめて末尾に追加する。 timerSeconds は catalog 由来
   // (ストレッチに 5 分などのプリセット) をそのまま新規 Action にコピーする。
   addNodesFromCategory: (
-    items: ReadonlyArray<TemplateCategoryPickerItem>,
+    items: readonly TemplateCategoryPickerItem[],
   ) => Promise<void>;
   removeNode: (nodeId: string) => void;
   // #94: 直近の削除を元に戻す。undoCount = 戻せるノード数 (0 = 戻せない)。
@@ -419,7 +419,7 @@ export const useChainEdit = (
   // 追加順は items の引数順をそのまま保つ (picker 側で表示順 = カテゴリ内
   // position 昇順 / recommended の order に揃えてあるため)。
   const addNodesFromCategory = useCallback(
-    async (items: ReadonlyArray<TemplateCategoryPickerItem>) => {
+    async (items: readonly TemplateCategoryPickerItem[]) => {
       try {
         const db = await getExpoSqliteClient();
         const newActions: Action[] = [];

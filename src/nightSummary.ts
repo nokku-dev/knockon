@@ -22,7 +22,7 @@ export const NIGHT_SUMMARY_NOTIFICATION_ID = 'night-summary';
 // 1 チェーン分の「今日の fire ノード + 今日の達成 map」スナップショット。
 // computeNightSummary は複数チェーンを合算して { achieved, remaining } を出す。
 export type NightSummaryChainSnapshot = {
-  nodes: ReadonlyArray<{ node: Node; action: Action }>;
+  nodes: readonly { node: Node; action: Action }[];
   achievementsToday: Readonly<Record<string, boolean>>;
 };
 
@@ -37,7 +37,7 @@ export type NightSummary = {
 // - resolveActionForDate(action, today).kind === 'skip' (variant の休む日): どちらにも算入しない
 // 残り (= fire ノード) のうち achievementsToday[nodeId] === true なら achieved、 そうでなければ remaining。
 export const computeNightSummary = (
-  chains: ReadonlyArray<NightSummaryChainSnapshot>,
+  chains: readonly NightSummaryChainSnapshot[],
   today: IsoDate,
 ): NightSummary => {
   let achievedCount = 0;
