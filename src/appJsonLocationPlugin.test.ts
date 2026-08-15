@@ -56,44 +56,54 @@ describe('app.json expo-location plugin 設定 (Issue #254)', () => {
     });
   });
 
-  // Issue #291: 実装していない用途を権限文言で説明しない。
+  // 権限文言と実装を一致させる。**両方向に効く固定**であることが要点。
   //
-  // src/location.ts は前景位置取得のみ (getForegroundPermissionsAsync /
-  // getCurrentPositionAsync)。 OS ジオフェンスによるバックグラウンド発火は
-  // Phase 1.6b で未実装なので、 「指定した場所に到達したらチェーンを提案する」は
-  // **アプリが実際にはしないこと**。 権限ダイアログはユーザーが最初に読む約束なので、
-  // 実装より広い説明はそのまま「果たされない約束」になる (App Store 審査
-  // Guideline 5.1.1 の観点でも、要求する用途と実装は一致している必要がある)。
+  // 経緯: #291 は「実装がないのに到達検知を謳っている」を直した (文言を狭めた)。
+  // #301 (Phase 1.6b) で OS ジオフェンスを実装したので、今度は**逆向きに**
+  // 「実装したのに現在地取得としか書いていない」がずれになる。iOS は Info.plist の
+  // 説明より広い用途で位置情報を使うアプリを審査で弾く (Guideline 5.1.1)。
   //
-  // 文言は expo-location plugin の既定で 3 キーとも Info.plist に書かれるため
-  // (上のコメント参照)、 Always 系だけ消すことはできない。 よって「消す」ではなく
-  // 「実装と一致させる」を機械的に固定する。
-  describe('権限文言は実装の範囲を超えない (Issue #291)', () => {
-    test.each([
-      'locationWhenInUsePermission',
-      'locationAlwaysAndWhenInUsePermission',
-      'locationAlwaysPermission',
-    ])('%s が実装されている用途 (現在地の取得) を説明している', (key) => {
-      expect(locationOptions()[key] as string).toContain('現在地');
+  // 文言は expo-location plugin の既定で 3 キーとも Info.plist に書かれる
+  // (上のコメント参照) ので、キーの有無ではなく**内容**を実装に合わせる。
+  describe('権限文言が実装と一致している (#291 → #301)', () => {
+    test('locationWhenInUsePermission は現在地取得を説明している', () => {
+      // 前景権限の用途は変わらない: 場所アンカー登録時の現在地取得 (AnchorEditor)。
+      expect(locationOptions().locationWhenInUsePermission as string).toContain(
+        '現在地',
+      );
     });
 
     test.each([
       'locationAlwaysAndWhenInUsePermission',
       'locationAlwaysPermission',
-    ])('%s が到達検知を約束していない', (key) => {
-      // バックグラウンド発火を実装したら (= isIosBackgroundLocationEnabled を
-      // 立てたら) この制約は外してよい。 それまでは約束しない。
-      expect(locationOptions().isIosBackgroundLocationEnabled).toBeUndefined();
-      expect(locationOptions()[key] as string).not.toContain('到達');
+    ])('%s が到達検知 (常時利用) を説明している', (key) => {
+      // #301 で region monitoring を実装した = アプリを開いていない間も位置情報を
+      // 使う。その用途を書いていないと、実装が説明より広くなる (#291 の逆向き)。
+      expect(locationOptions()[key] as string).toContain('到達');
+    });
+
+    test('到達検知の文言と背景位置の有効化が食い違わない', () => {
+      // ⚠ この 2 つは常に同時に成立/不成立でなければならない。片方だけ変えると
+      // 「実装していない用途を要求する」(#291) か「説明より広く使う」のどちらかになる。
+      const opts = locationOptions();
+      const promisesArrival = (
+        opts.locationAlwaysPermission as string
+      ).includes('到達');
+      const backgroundEnabled =
+        opts.isIosBackgroundLocationEnabled === true &&
+        opts.isAndroidBackgroundLocationEnabled === true;
+      expect(promisesArrival).toBe(backgroundEnabled);
     });
   });
 
-  test('iOS のバックグラウンド位置情報は有効化しない', () => {
-    // ADR-0003 / src/location.ts: v1 は前景位置取得のみ。 OS ジオフェンスによる
-    // バックグラウンド発火は Phase 1.6b (未実装)。 ここで
-    // isIosBackgroundLocationEnabled を立てると UIBackgroundModes に 'location' が
-    // 入り、 実装していない常時位置利用を審査で説明できなくなる (スコープ拡張禁止)。
-    expect(locationOptions().isIosBackgroundLocationEnabled).toBeUndefined();
-    expect(locationOptions().isAndroidBackgroundLocationEnabled).toBeUndefined();
+  test('バックグラウンド位置情報を有効化している (#301)', () => {
+    // ⚠ **iOS では立てないと startGeofencingAsync が throw する。**
+    // expo-location の LocationModule.swift が
+    // `guard try taskManager.hasBackgroundModeEnabled("location")` で弾くため、
+    // UIBackgroundModes に 'location' が必要 (Apple の region monitoring 自体は
+    // background mode を要求しないが、expo の実装が要求する)。
+    // Android は ACCESS_BACKGROUND_LOCATION の付与に必要。
+    expect(locationOptions().isIosBackgroundLocationEnabled).toBe(true);
+    expect(locationOptions().isAndroidBackgroundLocationEnabled).toBe(true);
   });
 });

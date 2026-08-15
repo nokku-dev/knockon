@@ -31,7 +31,7 @@ If-Then で行為を連ねる「チェーン」を中心にした習慣づけア
 - React Native / Expo (expo-router)
 - TypeScript
 - expo-sqlite（記録内容は端末内で完結）
-- expo-notifications / expo-location（場所の登録は現在地取得のみ。有料の地図 API は使いません）
+- expo-notifications / expo-location / expo-task-manager（OS 標準ジオフェンス。有料の地図 API は使いません）
 - PostHog（匿名の利用統計とエラー情報のみ）
 
 ## 開発方針

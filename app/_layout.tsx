@@ -17,6 +17,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getAnalyticsClient, initAnalytics } from '../src/analytics';
 import { initSchema } from '../src/db';
 import { getExpoSqliteClient } from '../src/db.expo';
+// #301: import の副作用で TaskManager.defineTask が走る。**この import を消すと
+// OS がジオフェンス到達でアプリを起こしてもタスクを解決できない** (登録は module
+// scope で済んでいる必要がある)。syncGeofences も同じモジュールから使う。
+import { syncGeofences } from '../src/geofencing';
 import {
   isScreenshotDataSeeded,
   seedScreenshotData,
@@ -126,6 +130,11 @@ export default function RootLayout() {
         // 起動時に通知を全 active チェーンと整合させる (drift 解消の safety net、 PR-1.5b-2)。
         // 通知関係のエラーは起動を止めない (権限拒否や Expo SDK 制限の影響を分離)。
         await syncAllNotifications().catch(() => undefined);
+        // #301: ジオフェンスも同じく起動時に全体一致させる。
+        // ⚠ ここでは権限を要求しない (ADR-0003 §決定 第 5 項: 起動のたびに Always を
+        // 聞くのは許可誘導。要求は場所アンカーを保存した直後の 1 回だけ)。
+        // 権限が無ければ started=false が返るだけで、Today 表示は不変。
+        await syncGeofences().catch(() => undefined);
         if (!cancelled) setReady(true);
       } catch (e: unknown) {
         if (!cancelled) {

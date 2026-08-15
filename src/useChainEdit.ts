@@ -16,9 +16,12 @@ import type {
 import { reinsertByIndex } from './editLayout';
 import type { RemovedEntry } from './editLayout';
 import { newActionId, newAnchorId, newChainId, newNodeId } from './ids';
+import { syncGeofences } from './geofencing';
 import {
+  getBackgroundLocationPermissionStatus,
   getCurrentPosition,
   getLocationPermissionStatus,
+  requestBackgroundLocationPermission,
   requestLocationPermission,
 } from './location';
 import type { CurrentPosition, LocationPermissionStatus } from './location';
@@ -603,6 +606,8 @@ export const useChainEdit = (
       await deleteChainRepo(db, draft.chainId);
       // 通知 cancel (拒否されていても no-op で安全)。
       await cancelNotificationForChain(draft.chainId).catch(() => undefined);
+      // #301: 消したチェーンの場所アンカーを OS の監視から外す (全体一致で再登録)。
+      await syncGeofences().catch(() => undefined);
       return true;
     } catch (e: unknown) {
       if (mountedRef.current) {
@@ -675,6 +680,23 @@ export const useChainEdit = (
         },
         anchorForNotify,
       ).catch(() => undefined);
+      // #301 (Phase 1.6b): 場所アンカーを保存したら OS ジオフェンスに反映する。
+      //
+      // ⚠ 常時権限を聞くのは **ここだけ、かつ undetermined のときだけ**。
+      // ADR-0003 §決定 第 5 項が Always の再要求ループ / 許可誘導 UI を禁止している。
+      // 「場所を起点にするチェーンを保存した」はユーザーの明示的な操作なので、
+      // その直後の 1 回に限る。拒否されたら二度と聞かず、劣化動作 (通知が出ないだけ /
+      // Today 表示は不変 / 前景判定は動く) に落とす。
+      if (draft.anchor.kind === 'place') {
+        const backgroundStatus = await getBackgroundLocationPermissionStatus().catch(
+          () => 'denied' as const,
+        );
+        if (backgroundStatus === 'undetermined') {
+          await requestBackgroundLocationPermission().catch(() => undefined);
+        }
+      }
+      // 場所アンカー以外の保存でも呼ぶ (place → time に変えた場合に監視を外すため)。
+      await syncGeofences().catch(() => undefined);
       return true;
     } catch (e: unknown) {
       if (mountedRef.current) {

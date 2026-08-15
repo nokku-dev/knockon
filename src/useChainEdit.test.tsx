@@ -46,11 +46,19 @@ jest.mock('./location', () => ({
   getLocationPermissionStatus: jest.fn(async () => 'granted'),
   requestLocationPermission: jest.fn(async () => 'granted'),
   getCurrentPosition: jest.fn(async () => null),
+  // #301: 常時権限。既定は「未決定」= 場所アンカー保存時に 1 度だけ聞く経路。
+  getBackgroundLocationPermissionStatus: jest.fn(async () => 'undetermined'),
+  requestBackgroundLocationPermission: jest.fn(async () => 'granted'),
 }));
 
 jest.mock('./notifications', () => ({
   cancelNotificationForChain: jest.fn(async () => undefined),
   scheduleNotificationForChain: jest.fn(async () => undefined),
+}));
+
+// #301: geofencing は expo-task-manager (native) を module scope で触るため mock する。
+jest.mock('./geofencing', () => ({
+  syncGeofences: jest.fn(async () => ({ started: false, reason: 'no-regions' })),
 }));
 
 // ID 生成は expo-crypto に依存して jest 環境で失敗するため、 単純な順序付き文字列に差し替える。
@@ -67,6 +75,7 @@ jest.mock('./ids', () => {
 import { useChainEdit } from './useChainEdit';
 import type { TemplateCategoryPickerItem } from './TemplateCategoryPicker';
 import { track } from './analytics';
+import { syncGeofences } from './geofencing';
 import {
   countAchievementsForChain,
   deleteChain as deleteChainRepo,
@@ -216,6 +225,30 @@ describe('useChainEdit.deleteChain (#269 / ADR-0053 §4: chain_deleted)', () => 
       age_days: 30,
       total_completions: 12,
     });
+  });
+
+  // #301: 消したチェーンの場所アンカーが OS の監視に残ると、存在しないチェーンの
+  // 到達通知が飛ぶ。削除後に必ず全体一致を取り直す。
+  test('deleteChain 成功後に syncGeofences を呼ぶ (監視に残さない)', async () => {
+    setupExistingChain('2026-07-01T09:00:00');
+    (countAchievementsForChain as jest.Mock).mockResolvedValueOnce(0);
+
+    const { result } = renderHook(() => useChainEdit(CHAIN_ID));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current.deleteChain();
+    });
+
+    expect(syncGeofences).toHaveBeenCalledTimes(1);
+  });
+
+  test('新規モードでは syncGeofences を呼ばない (DB に何も無い)', async () => {
+    const { result } = renderHook(() => useChainEdit(null));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current.deleteChain();
+    });
+    expect(syncGeofences).not.toHaveBeenCalled();
   });
 
   test('total_completions は countAchievementsForChain の戻り値 (0 も送る)', async () => {

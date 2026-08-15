@@ -70,9 +70,9 @@
 ## 4. 発火ロジック
 
 - Today に並ぶノード = **active な全チェーンのノード** ([ADR-0020](docs/decisions/0020-deprecate-manual-firing-concept.md) で旧「手動発火」概念は廃止)。「Today を開く → 並ぶ → タップ達成」の日常フローで運用が成立する。 アンカー (時刻 / 場所 / 行動) は通知 + 「発火中」ピル表示のための分類軸で、 Today に表示するかどうかとは独立。
-- 場所発火の方式: OS 標準ジオフェンス。**有料 API 不要**（[ADR-0003](docs/decisions/0003-firing-logic.md)）。場所登録は v1 は現在地のみ。
-- **⚠ 現時点の実装は前景判定のみ（ジオフェンスは未実装）**: `src/location.ts` は `getForegroundPermissionsAsync` / `getCurrentPositionAsync` しか使っておらず、region monitoring は登録していない。発火判定は **Today を開いたときに 1 回だけ**距離を測る（`useTodayData.detectPlaceFiringByGps`）。したがって **アプリを開かない限り場所発火は起きない**。OS ジオフェンスによるバックグラウンド発火は **Phase 1.6b**（[PLAN.md](PLAN.md) / [ADR-0019](docs/decisions/0019-local-notifications-architecture.md) §PR-1.6b）。
-- 制約（ジオフェンス実装後に効くもの）: ジオフェンス上限のキューイング、Always 拒否時は通知が出ないだけ (Today 表示は不変)、精度/遅延は OS 任せ前提。
+- 場所発火: OS 標準ジオフェンス（region monitoring）。**有料 API 不要**（[ADR-0003](docs/decisions/0003-firing-logic.md)）。場所登録は v1 は現在地のみ。**#301（Phase 1.6b）で実装済み** — `src/geofencing.ts` が active チェーンの場所アンカーを OS に登録し、到達時にアンカー発火を記録して通知を出す。登録すべき region の決定は純関数 `src/geofenceRegions.ts`。
+- **二重の検出経路**: バックグラウンドの OS ジオフェンス（常時権限が要る）と、Today を開いたときの前景判定（`useTodayData.detectPlaceFiringByGps`）。どちらも同じ `(anchor_id, 日付)` を書き、ADR-0012 の「1 日 1 回の不可逆」で二重発火しない。**常時権限が拒否されていても前景判定は動く** = ADR-0003 の手動フォールバック。
+- 制約: **iOS の同時監視は 20 件まで**（超過分は登録されず、`syncGeofences` が `droppedForLimit` で返す。キューイングは Phase 2）、Always 拒否時は通知が出ないだけ (Today 表示は不変)、精度/遅延は OS 任せ前提。
 
 ## 5. v1 非スコープ（出荷後レイヤー / 今回のレビューで拡大）
 

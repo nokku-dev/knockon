@@ -23,9 +23,8 @@ iPhone 16 Pro Max Simulator。
   `lastRetractionDateForNode` がローカル日付と比較するため**定着判定が狂う**。DB を直読みして発見。
   PR #274 で修正 + `localTimestampGuard.test.ts` で機械的に再発防止）
 
-**残る 7 項目のうち 6 項目の保留はデータ / 環境前提**（定着★は 14D 窓に 10 日分の達成が必要、
-通知配信は実機のみ）で、各項目に理由を明記した。
-残る 1 項目（**M-5 ジオフェンス到達判定**）は保留ではなく **未実装のため対象外**（Issue #291）。
+**残る 7 項目の保留はいずれもデータ / 環境前提**（定着★は 14D 窓に 10 日分の達成が必要、
+通知配信とジオフェンスは実機のみ）で、各項目に理由を明記した。
 
 **提出前に検証できることは検証し尽くした。**
 
@@ -36,12 +35,9 @@ iPhone 16 Pro Max Simulator。
 | Simulator で検証できる | できない (実機のみ) |
 | --- | --- |
 | 権限 usage description の欠落 (iOS が同様にプロセスを落とす) | バックグラウンドでの通知配信 |
-| レイアウト / 画面遷移 / DB 永続化 | 実機の描画性能・電池消費 |
-| ローカル通知のスケジュール | Dynamic Island 実挙動 |
-| 分析イベントの送信 | — |
-
-> ジオフェンス到達判定はこの表に入らない。**実機の有無ではなく未実装だから検証できない**
-> （`src/location.ts` は前景の現在地取得のみ。region monitoring は Phase 1.6b・Issue #291）。
+| レイアウト / 画面遷移 / DB 永続化 | ジオフェンス到達判定 |
+| ローカル通知のスケジュール | 実機の描画性能・電池消費 |
+| 分析イベントの送信 | Dynamic Island 実挙動 |
 
 **データ前提が必要で当セッションでは検証不能な項目**は「⏸ 保留」として理由を明記する（例: 定着は 14D 窓に 10 日分の達成が必要）。
 
@@ -68,7 +64,7 @@ iPhone 16 Pro Max Simulator。
 
 - [x] **A-1** `Info.plist` に `NSLocationWhenInUseUsageDescription` が日本語で存在
 - [x] **A-2** `Info.plist` に `NSLocationAlwaysAndWhenInUseUsageDescription` / `NSLocationAlwaysUsageDescription` が日本語で存在（英語の既定文言が漏れていない）
-- [x] **A-3** `UIBackgroundModes` が**不在**（`isIosBackgroundLocationEnabled` が立っていない・未実装機能を要求していない）
+- [ ] **A-3** `UIBackgroundModes` に `location` が**存在**（#301 で `isIosBackgroundLocationEnabled` を立てた。無いと `startGeofencingAsync` が throw する）— ⚠ 次のビルドで再確認が要る
 - [x] **A-4** `CFBundleIdentifier` = `co.nokku.knockon`
 - [x] **A-5** `CFBundleShortVersionString` = `1.0.0`
 - [x] **A-6** `ITSAppUsesNonExemptEncryption` = `false`
@@ -207,5 +203,5 @@ Simulator で確定済み。
 - [ ] ⏸ **M-2** 定着取り下げ — M-1 の前提が必要
 - [ ] ⏸ **M-3** 夜の達成サマリー通知（21:00・ADR-0042）— 時刻依存
 - [ ] ⏸ **M-4** 時刻アンカーの自動発火 — 07:00 まで待つ必要がある
-- [ ] ⛔ **M-5** ジオフェンス到達判定 — **未実装のため対象外**（Phase 1.6b・Issue #291）。実機があっても検証できないので、保留（⏸ = 条件が揃えば検証できる）ではなく対象外として扱う。ジオフェンスを実装したら ⏸ に戻す
+- [ ] ⏸ **M-5** ジオフェンス到達判定 — 実機のみ（#301 で実装済み。Simulator では region monitoring が発火しない）
 - [ ] ⏸ **M-6** バックグラウンド通知配信 — 実機のみ
