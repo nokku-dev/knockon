@@ -149,7 +149,15 @@ eas submit --profile production --platform ios --latest
 # → 直近のプロダクションビルドを App Store Connect にアップロード
 ```
 
-`eas.json` の `submit.production.ios` に Apple ID / ASC App ID / Team ID を設定していない場合は対話で入力を求められる。**secret を repo にコミットしないため対話入力を選ぶ** (envs は `eas.json` 直書きしない・PR-Z3 の Notion secret と同型)。
+`eas.json` の `submit.production.ios` に Apple ID / ASC App ID / Team ID を設定していない場合は対話で入力を求められる。
+
+- **`ascAppId` は `eas.json` にコミット済み** (`6796213204`)。⚠ これは **secret ではない** —
+  App Store の公開 URL (`https://apps.apple.com/jp/app/knockon/id6796213204`) にそのまま含まれている。
+  未設定だと `--non-interactive` での submit が
+  `Set ascAppId in the submit profile (eas.json) or re-run this command in interactive mode.` で失敗する
+  (2026-08-17 の v1.0.1 提出で実際に踏んだ)。回帰は `src/easJsonSubmitIos.test.ts` で固定
+- **Apple ID (メールアドレス) と Team ID は引き続きコミットしない**。対話入力で渡す
+  (envs は `eas.json` 直書きしない)
 
 ## 3. App Store Connect 提出フォーム
 
@@ -163,7 +171,11 @@ Web (https://appstoreconnect.apple.com/) でアプリを選び「App Store」タ
 - [ ] **App Review 情報**:
   - 連絡先メールアドレス
   - デモアカウント: **不要** (ログイン機能なし)
-  - メモ: 「ローカル完結のオフライン習慣アプリ。初回起動 → チェーン作成 → Today でタップ達成、が主要フロー。Notion 連携は任意で、未設定時は非表示になる」
+  - メモ: ⚠ **[store-listing.md](store-listing.md) §9 の全文を貼る**。ここに要約を書かない
+    (v1.0.0 の例文は **ADR-0052 で撤去済みの Notion 連携**に言及したまま残っていた。
+    二重 truth source にすると、片方だけ古くなって「存在しない機能を審査担当者に説明する」ことになる)
+  - ⚠ v1.0.1 以降は **位置情報の段落が必須**。`UIBackgroundModes: location` が入ったので、
+    用途 (到達検知のみ / 継続追跡なし) を先回りして書かないと Guideline 5.1.1 で往復する
 - [ ] **バージョンリリース**: 「手動でリリース」を選択 (審査通過後にリリースタイミングをコントロールできる)
 - [ ] **輸出コンプライアンス**: `ITSAppUsesNonExemptEncryption=false` の宣言 (§1.3)
 - [ ] **審査提出ボタン** をクリック
