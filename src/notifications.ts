@@ -9,6 +9,7 @@ import { getExpoSqliteClient } from './db.expo';
 import type { Action, Anchor, Chain, Node } from './domain';
 import { effectiveTodayIsoDate } from './domain';
 import { parseTimeString, shouldNotifyForChain } from './notificationHelpers';
+import { PRODUCT_NAME } from './productName';
 import {
   computeNightSummary,
   formatNightSummaryBody,
@@ -201,7 +202,9 @@ export const scheduleNightSummaryNotification = async (
   await Notifications.scheduleNotificationAsync({
     identifier: NIGHT_SUMMARY_NOTIFICATION_ID,
     content: {
-      title: 'knockon',
+      // ADR-0056: user-facing なプロダクト名は PRODUCT_NAME に集約する
+      // (CLAUDE.md §6: ハードコードしない)。
+      title: PRODUCT_NAME,
       body,
       data: { kind: 'night-summary' },
       ...(Platform.OS === 'android'
