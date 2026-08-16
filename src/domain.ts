@@ -64,11 +64,19 @@ export type Achievement = {
   achieved: boolean;
 };
 
+// ADR-0055 (#301): その発火を **どちらの経路が観測したか**。
+// - 'foreground' : Today の focus 復帰時の GPS 距離判定 (detectPlaceFiringByGps)。通知は出さない
+// - 'geofence'   : OS の region Enter (handlePlaceArrival)。通知を出す
+// 経路は観測時にしか分からない情報で、履歴から導出できない = 派生値ではない (ADR-0001 と整合)。
+// 表示には使わない。診断と「ジオフェンスが実運用で効いているか」の測定にのみ使う。
+export type AnchorFiringSource = 'foreground' | 'geofence';
+
 // ADR-0012: アンカー発火イベント。1 日 1 回の不可逆事実。
-// 時刻/場所共通の発火モデル。
+// 時刻/場所共通の発火モデル。ADR-0055 で source を追加 (核は変わらない)。
 export type AnchorFiring = {
   anchorId: string;
   date: IsoDate;
+  source: AnchorFiringSource;
 };
 
 // ADR-0044 (#181): 手動メモ。ユーザーが書いた「観測した事実」軸 (派生値ではない)。

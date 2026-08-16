@@ -364,6 +364,9 @@ export const seedScreenshotData = async (
       await recordAnchorFiring(db, {
         anchorId: spec.anchor.id,
         date: isoForOffset(now, 0),
+        // dev 専用のダミーデータ。実際の観測ではないが、経路を持たせないと
+        // NOT NULL に反する。前景相当として置く。
+        source: 'foreground',
       });
     }
   }

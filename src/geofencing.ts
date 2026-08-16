@@ -55,7 +55,8 @@ export const handlePlaceArrival = async (
   // 記録も通知もしない。次の sync で region 自体が外れる。
   if (!anchor) return;
 
-  await recordAnchorFiring(db, { anchorId, date: today });
+  // ADR-0055: OS の region Enter = ジオフェンス経路。この経路だけが通知を出す。
+  await recordAnchorFiring(db, { anchorId, date: today, source: 'geofence' });
 
   // このアンカーを起点にする active チェーンにだけ通知する。
   // stocked は planGeofences で登録対象外だが、登録後に stocked へ変わった場合に
