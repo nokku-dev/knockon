@@ -114,12 +114,18 @@ CREATE TABLE IF NOT EXISTS recommended_items (
 -- 時刻/場所共通。発火 record があれば「今日発火済み」扱い (Today の発火中ピル表示)。
 -- ADR-0055 (#301): source = その発火をどちらの経路が観測したか。
 -- 経路が残らないと「通知が来ない」の切り分け (ジオフェンスが壊れているのか、
--- 前景判定が先に書いただけなのか) ができない。DEFAULT は付けない —
--- 呼び出し側が必ず渡す (渡し忘れを型と NOT NULL の両方で止める)。
+-- 前景判定が先に書いただけなのか) ができない。
+--
+-- ⚠ DEFAULT 'foreground' は MIGRATIONS[19] と **値を一致させる**ために必要
+-- (K-021 の二重 truth source)。ALTER TABLE ADD COLUMN に NOT NULL を付けるには
+-- DEFAULT が必須 (K-034) なので migration 側からは外せない。ここに付けないと
+-- 「既存ユーザーは source 省略の INSERT が黙って通り、新規ユーザーは NOT NULL 違反で
+-- 落ちる」というユーザー母集団で割れる乖離になる (K-018 同型・より気付きにくい)。
+-- 渡し忘れは DEFAULT ではなく **AnchorFiring 型の必須フィールド**で止める。
 CREATE TABLE IF NOT EXISTS anchor_firings (
   anchor_id TEXT NOT NULL REFERENCES anchors(id) ON DELETE CASCADE,
   date TEXT NOT NULL,
-  source TEXT NOT NULL CHECK(source IN ('foreground', 'geofence')),
+  source TEXT NOT NULL DEFAULT 'foreground' CHECK(source IN ('foreground', 'geofence')),
   PRIMARY KEY (anchor_id, date)
 );
 

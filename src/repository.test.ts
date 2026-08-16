@@ -895,6 +895,45 @@ describe('スキーマの不変条件', () => {
       await teardown(db);
     });
 
+    // ⚠ K-021: SCHEMA_SQL (新規インストール) と MIGRATIONS (既存ユーザー) は
+    // 二重 truth source なので、**値が一致していること**を機械的に固定する。
+    // レビューで実際に食い違いを見つけた: SCHEMA_SQL に DEFAULT が無く migration に
+    // だけあると、source を省いた INSERT が既存ユーザーでは通り新規ユーザーでは
+    // 落ちる (ユーザー母集団で割れる乖離・K-018 同型で気付きにくい)。
+    test('新規インストールと migration で anchor_firings の定義が一致する', async () => {
+      const fresh = createBetterSqliteClient(':memory:');
+      await initSchema(fresh);
+
+      const migrated = createBetterSqliteClient(':memory:');
+      await migrated.exec(`
+        CREATE TABLE anchor_firings (
+          anchor_id TEXT NOT NULL,
+          date TEXT NOT NULL,
+          PRIMARY KEY (anchor_id, date)
+        );
+      `);
+      await MIGRATIONS[19]!(migrated);
+
+      type ColumnRow = {
+        name: string;
+        type: string;
+        notnull: number;
+        dflt_value: string | null;
+      };
+      const shape = (rows: ColumnRow[]) =>
+        rows
+          .map((c) => `${c.name}:${c.type}:${c.notnull}:${c.dflt_value}`)
+          .sort();
+      const a = await fresh.all<ColumnRow>(`PRAGMA table_info(anchor_firings)`);
+      const b = await migrated.all<ColumnRow>(
+        `PRAGMA table_info(anchor_firings)`,
+      );
+      expect(shape(a)).toEqual(shape(b));
+
+      await teardown(fresh);
+      await teardown(migrated);
+    });
+
     test('MIGRATIONS[19] が既存行を foreground で埋める', async () => {
       // #301 以前はジオフェンス経路が存在しなかったので、過去の発火は全て前景判定。
       // 推測ではなく事実として確定できる。
