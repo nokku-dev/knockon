@@ -12,6 +12,19 @@
 
 **すべて ✅ にならないと審査提出できない。**
 
+### 1.0 対応言語 (Issue #288)
+
+- [ ] **App Store の「情報 > 言語」に日本語が出ている**
+  - v1.0.0 では **英語のみ**と表示されていた。掲載情報もアプリ UI も全文日本語なのに、
+    バンドル側のローカライズ宣言が無く `CFBundleDevelopmentRegion` が既定 (= en) だったため
+  - `app.json` の `expo.ios.infoPlist` に `CFBundleLocalizations: ["ja"]` と
+    `CFBundleDevelopmentRegion: "ja"` を設定する (Expo managed workflow なので `ios/` は触らない)
+  - ⚠️ **`en` は宣言しない**。英語 UI が無いので、宣言すると実態に無い対応言語を謳うことになる
+  - 回帰は `src/appJsonLocalization.test.ts` で固定 (prebuild が `ios/` を再生成するため、
+    app.json に無い設定は消える)
+  - ⚠️ **メタデータのみの修正だが再ビルドが要る** (Info.plist に載るため)。ビルド後、
+    App Store Connect のビルド詳細で対応言語に日本語が入っていることを確認する
+
 ### 1.1 アセット / 素材
 
 - [ ] **アプリアイコン**: 1024×1024 マスター (App Store 用) を Expo `app.json` 経由で組み込み (Issue #223 / 提案 #228)
