@@ -390,10 +390,12 @@ describe('isPlaceAnchorFiringNow (場所アンカーの発火判定)', () => {
 });
 
 describe('isAnchorFiringToday (発火イベント記録の有無判定: ADR-0012)', () => {
+  // ADR-0055 で source が増えたが、isAnchorFiringToday は行の有無しか見ない
+  // (経路は表示にも判定にも使わない)。fixture では両方の経路を混ぜておく。
   const firings: AnchorFiring[] = [
-    { anchorId: 'a1', date: '2026-05-18' },
-    { anchorId: 'a1', date: '2026-05-19' },
-    { anchorId: 'a2', date: '2026-05-19' },
+    { anchorId: 'a1', date: '2026-05-18', source: 'foreground' },
+    { anchorId: 'a1', date: '2026-05-19', source: 'geofence' },
+    { anchorId: 'a2', date: '2026-05-19', source: 'foreground' },
   ];
 
   test('該当 anchor の今日 record があれば true', () => {

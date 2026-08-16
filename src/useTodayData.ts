@@ -160,7 +160,12 @@ const loadChainForToday = async (
   // 時刻アンカーは loadChainForToday の中で発火判定 + record 投入まで完結。
   let anchorFiredToday = alreadyFired;
   if (!alreadyFired && isTimeAnchorFiringNow(anchor, now)) {
-    await recordAnchorFiring(db, { anchorId: anchor.id, date: today });
+    // ADR-0055: 時刻アンカーの発火判定は Today の focus 時にしか走らない = 前景経路。
+    await recordAnchorFiring(db, {
+      anchorId: anchor.id,
+      date: today,
+      source: 'foreground',
+    });
     anchorFiredToday = true;
   }
 
@@ -268,6 +273,9 @@ export const useTodayData = (): UseTodayDataResult => {
                 await recordAnchorFiring(db, {
                   anchorId: chainData.anchor.id,
                   date: d.today,
+                  // ADR-0055: Today の focus 復帰時の GPS 距離判定 = 前景経路。
+                  // この経路は通知を出さない (ジオフェンス経路との違い)。
+                  source: 'foreground',
                 });
               } catch {
                 // record 失敗時の rollback は K-010 同様に入れない。次の focus で再試行可能。

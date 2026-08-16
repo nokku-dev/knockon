@@ -98,9 +98,11 @@ describe('handlePlaceArrival — 到達を正準の事実として 1 日 1 回�
 
     await handlePlaceArrival(db, 'a1', NOW);
 
+    // ADR-0055: この経路は必ず 'geofence' で記録する (前景判定と区別できるように)。
     expect(mockRecordAnchorFiring).toHaveBeenCalledWith(db, {
       anchorId: 'a1',
       date: '2026-08-16',
+      source: 'geofence',
     });
     expect(mockPresentArrival).toHaveBeenCalledTimes(1);
     expect(mockPresentArrival).toHaveBeenCalledWith(chain('c1', 'a1'), anchor);
@@ -149,6 +151,7 @@ describe('handlePlaceArrival — 到達を正準の事実として 1 日 1 回�
     expect(mockRecordAnchorFiring).toHaveBeenCalledWith(db, {
       anchorId: 'a1',
       date: '2026-08-15',
+      source: 'geofence',
     });
   });
 });

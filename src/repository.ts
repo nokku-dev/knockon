@@ -4,6 +4,7 @@ import type {
   Action,
   Anchor,
   AnchorFiring,
+  AnchorFiringSource,
   CatalogAction,
   CatalogSource,
   Category,
@@ -58,6 +59,7 @@ type AchievementRow = {
 type AnchorFiringRow = {
   anchor_id: string;
   date: string;
+  source: AnchorFiringSource;
 };
 
 const rowToAnchor = (r: AnchorRow): Anchor => ({
@@ -105,6 +107,7 @@ const rowToAchievement = (r: AchievementRow): Achievement => ({
 const rowToAnchorFiring = (r: AnchorFiringRow): AnchorFiring => ({
   anchorId: r.anchor_id,
   date: r.date,
+  source: r.source,
 });
 
 export const insertAnchor = (db: DbClient, anchor: Anchor): Promise<void> =>
@@ -650,8 +653,10 @@ export const recordAnchorFiring = (
   firing: AnchorFiring,
 ): Promise<void> =>
   db.run(
-    `INSERT OR IGNORE INTO anchor_firings (anchor_id, date) VALUES (?, ?)`,
-    [firing.anchorId, firing.date],
+    // ADR-0012 の 1 日 1 回は INSERT OR IGNORE で維持。2 回目は無視されるので
+    // **先に観測した経路が残る** (ADR-0055: 後から上書きしない)。
+    `INSERT OR IGNORE INTO anchor_firings (anchor_id, date, source) VALUES (?, ?, ?)`,
+    [firing.anchorId, firing.date, firing.source],
   );
 
 // 指定アンカーの指定日付の発火 record を取得 (今日発火済み判定に使う)。

@@ -358,14 +358,17 @@ describe('スキーマの不変条件', () => {
     await teardown(db);
   });
 
-  test('アンカー発火テーブル (ADR-0012): カラムは anchor_id と date のみ (2 カラム固定)', async () => {
+  test('アンカー発火テーブル (ADR-0012 / ADR-0055): カラムは anchor_id / date / source のみ (3 カラム固定)', async () => {
+    // ADR-0012 は 2 カラムで固定していたが、ADR-0055 (#301) で source を足した
+    // (発火をどちらの経路が観測したか)。⚠ 増やしてよいのは **観測した事実** だけで、
+    // 達成率 / 発火回数 / 最終発火日のような派生値カラムは引き続き禁止 (K-006)。
     const db = await setup();
     type ColumnRow = { name: string };
     const firingCols = await db.all<ColumnRow>(
       `PRAGMA table_info(anchor_firings)`,
     );
     const colNames = firingCols.map((c) => c.name).sort();
-    expect(colNames).toEqual(['anchor_id', 'date']);
+    expect(colNames).toEqual(['anchor_id', 'date', 'source']);
     await teardown(db);
   });
 
@@ -833,6 +836,89 @@ describe('スキーマの不変条件', () => {
     });
   });
 
+  // ADR-0055 (#301): 発火をどちらの経路が観測したかを同じ行に持つ。
+  // 前景判定 (detectPlaceFiringByGps) と ジオフェンス (handlePlaceArrival) の
+  // どちらが書いたかが記録に残らないと、「通知が来ない」の切り分けができない。
+  describe('ADR-0055: anchor_firings.source', () => {
+    test('source 列があり、2 値の CHECK 制約が効いている', async () => {
+      const db = await setup();
+      await insertAnchor(db, {
+        id: 'a1', title: 'a', kind: 'place', time: null,
+        latitude: 35.6, longitude: 139.7, radiusMeters: 100,
+      });
+      await expect(
+        db.run(
+          `INSERT INTO anchor_firings (anchor_id, date, source) VALUES ('a1','2026-08-16','bogus')`,
+        ),
+      ).rejects.toThrow(/CHECK/i);
+      await teardown(db);
+    });
+
+    test.each(['foreground', 'geofence'] as const)(
+      'recordAnchorFiring が source=%s を保存する',
+      async (source) => {
+        const db = await setup();
+        await insertAnchor(db, {
+          id: 'a1', title: 'a', kind: 'place', time: null,
+          latitude: 35.6, longitude: 139.7, radiusMeters: 100,
+        });
+        await recordAnchorFiring(db, {
+          anchorId: 'a1',
+          date: '2026-08-16',
+          source,
+        });
+        const rows = await listAnchorFiringsForDate(db, 'a1', '2026-08-16');
+        expect(rows).toEqual([
+          { anchorId: 'a1', date: '2026-08-16', source },
+        ]);
+        await teardown(db);
+      },
+    );
+
+    test('1 日 1 回は変わらない — 2 回目は無視され source も上書きされない', async () => {
+      // ADR-0012 の PRIMARY KEY (anchor_id, date) は維持。先に書いた経路が残る。
+      const db = await setup();
+      await insertAnchor(db, {
+        id: 'a1', title: 'a', kind: 'place', time: null,
+        latitude: 35.6, longitude: 139.7, radiusMeters: 100,
+      });
+      await recordAnchorFiring(db, {
+        anchorId: 'a1', date: '2026-08-16', source: 'geofence',
+      });
+      await recordAnchorFiring(db, {
+        anchorId: 'a1', date: '2026-08-16', source: 'foreground',
+      });
+      const rows = await listAnchorFiringsForDate(db, 'a1', '2026-08-16');
+      expect(rows).toEqual([
+        { anchorId: 'a1', date: '2026-08-16', source: 'geofence' },
+      ]);
+      await teardown(db);
+    });
+
+    test('MIGRATIONS[19] が既存行を foreground で埋める', async () => {
+      // #301 以前はジオフェンス経路が存在しなかったので、過去の発火は全て前景判定。
+      // 推測ではなく事実として確定できる。
+      const db = createBetterSqliteClient(':memory:');
+      await db.exec(`
+        CREATE TABLE anchor_firings (
+          anchor_id TEXT NOT NULL,
+          date TEXT NOT NULL,
+          PRIMARY KEY (anchor_id, date)
+        );
+      `);
+      await db.run(
+        `INSERT INTO anchor_firings (anchor_id, date) VALUES ('old','2026-07-01')`,
+      );
+      await MIGRATIONS[19]!(db);
+      type Row = { anchor_id: string; date: string; source: string };
+      const rows = await db.all<Row>(`SELECT * FROM anchor_firings`);
+      expect(rows).toEqual([
+        { anchor_id: 'old', date: '2026-07-01', source: 'foreground' },
+      ]);
+      await teardown(db);
+    });
+  });
+
   test('PRAGMA user_version が SCHEMA_VERSION と一致 (PR-1.8a migration)', async () => {
     const db = await setup();
     type VersionRow = { user_version: number };
@@ -1250,7 +1336,7 @@ describe('deleteChain — チェーン削除 + 関連レコードの CASCADE', (
       date: '2026-05-19',
       achieved: true,
     });
-    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' });
+    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' , source: 'foreground' });
   };
 
   test('チェーン削除で関連ノードも CASCADE で消える', async () => {
@@ -1416,9 +1502,11 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
       longitude: null,
       radiusMeters: null,
     });
-    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' });
+    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' , source: 'foreground' });
     const rows = await listAnchorFiringsForDate(db, 'a1', '2026-05-19');
-    expect(rows).toEqual([{ anchorId: 'a1', date: '2026-05-19' }]);
+    expect(rows).toEqual([
+      { anchorId: 'a1', date: '2026-05-19', source: 'foreground' },
+    ]);
     await teardown(db);
   });
 
@@ -1433,8 +1521,8 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
       longitude: null,
       radiusMeters: null,
     });
-    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' });
-    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' });
+    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' , source: 'foreground' });
+    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' , source: 'foreground' });
     const rows = await listAnchorFiringsForDate(db, 'a1', '2026-05-19');
     expect(rows).toHaveLength(1);
     await teardown(db);
@@ -1451,8 +1539,8 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
       longitude: null,
       radiusMeters: null,
     });
-    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-18' });
-    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' });
+    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-18' , source: 'foreground' });
+    await recordAnchorFiring(db, { anchorId: 'a1', date: '2026-05-19' , source: 'foreground' });
     expect(
       await listAnchorFiringsForDate(db, 'a1', '2026-05-18'),
     ).toHaveLength(1);
@@ -1679,7 +1767,7 @@ describe('recordAnchorFiring / listAnchorFiringsForDate (ADR-0012)', () => {
     // 乖離が存在することの注意喚起 (K-006 の限界事例)。
     const db = await setup();
     await expect(
-      recordAnchorFiring(db, { anchorId: 'nonexistent', date: '2026-05-19' }),
+      recordAnchorFiring(db, { anchorId: 'nonexistent', date: '2026-05-19' , source: 'foreground' }),
     ).rejects.toThrow(/FOREIGN KEY/);
     await teardown(db);
   });

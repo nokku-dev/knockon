@@ -112,9 +112,14 @@ CREATE TABLE IF NOT EXISTS recommended_items (
 
 -- ADR-0012: アンカー発火イベント。1 日 1 回の不可逆事実。
 -- 時刻/場所共通。発火 record があれば「今日発火済み」扱い (Today の発火中ピル表示)。
+-- ADR-0055 (#301): source = その発火をどちらの経路が観測したか。
+-- 経路が残らないと「通知が来ない」の切り分け (ジオフェンスが壊れているのか、
+-- 前景判定が先に書いただけなのか) ができない。DEFAULT は付けない —
+-- 呼び出し側が必ず渡す (渡し忘れを型と NOT NULL の両方で止める)。
 CREATE TABLE IF NOT EXISTS anchor_firings (
   anchor_id TEXT NOT NULL REFERENCES anchors(id) ON DELETE CASCADE,
   date TEXT NOT NULL,
+  source TEXT NOT NULL CHECK(source IN ('foreground', 'geofence')),
   PRIMARY KEY (anchor_id, date)
 );
 
@@ -221,7 +226,7 @@ CREATE INDEX IF NOT EXISTS idx_recommended_items_category ON recommended_items(c
 // Phase 1 N=1 開発中の判断: スキーマ変更時は drop + recreate で済ませる
 // (試作データの再作成は許容範囲)。Phase 2 以降で migration 履歴を残す必要が
 // 出てきたら ALTER TABLE 系に切替。
-export const SCHEMA_VERSION = 18;
+export const SCHEMA_VERSION = 19;
 
 const DROP_SQL = `
 DROP TABLE IF EXISTS settlement_retractions;
@@ -507,6 +512,19 @@ export const MIGRATIONS: Record<number, Migration> = {
        WHERE created_at LIKE '%Z'
          AND strftime('%Y-%m-%dT%H:%M:%S', created_at, 'localtime') IS NOT NULL;
     `);
+  },
+  // ADR-0055 (#301): anchor_firings に観測経路を追加。
+  //
+  // 既存行は 'foreground' で埋める。#301 以前はジオフェンス経路が存在しなかったので、
+  // これは **デフォルト値による埋め合わせではなく事実の確定**。
+  //
+  // ⚠ K-034: ALTER TABLE ADD COLUMN に NOT NULL を付けるには DEFAULT が必須。
+  // ここでは既存行を埋める目的も兼ねる。新規作成側 (SCHEMA_SQL) には DEFAULT を
+  // 置かない — 呼び出し側に必ず渡させるため (二重 truth source の値は CHECK 制約で一致)。
+  19: async (client) => {
+    await client.exec(
+      `ALTER TABLE anchor_firings ADD COLUMN source TEXT NOT NULL DEFAULT 'foreground' CHECK(source IN ('foreground', 'geofence'));`,
+    );
   },
 };
 
