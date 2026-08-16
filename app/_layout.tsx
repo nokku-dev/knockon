@@ -21,6 +21,7 @@ import { getExpoSqliteClient } from '../src/db.expo';
 // OS がジオフェンス到達でアプリを起こしてもタスクを解決できない** (登録は module
 // scope で済んでいる必要がある)。syncGeofences も同じモジュールから使う。
 import { syncGeofences } from '../src/geofencing';
+import { startGeofenceResyncOnForeground } from '../src/geofenceResync';
 import {
   isScreenshotDataSeeded,
   seedScreenshotData,
@@ -187,6 +188,13 @@ export default function RootLayout() {
       router.push({ pathname: '/(tabs)', params: { openChainId: chainId } });
     }
   }, [ready, lastResponse, router]);
+
+  // #301 follow-up: 前面復帰でジオフェンスを取り直す。常時権限を後から設定アプリで
+  // 許可した場合、これが無いと再起動するまで region が登録されない。
+  useEffect(() => {
+    if (!ready) return;
+    return startGeofenceResyncOnForeground();
+  }, [ready]);
 
   useEffect(() => {
     if (!ready) return;
