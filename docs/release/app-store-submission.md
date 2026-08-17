@@ -176,6 +176,18 @@ Web (https://appstoreconnect.apple.com/) でアプリを選び「App Store」タ
     二重 truth source にすると、片方だけ古くなって「存在しない機能を審査担当者に説明する」ことになる)
   - ⚠ v1.0.1 以降は **位置情報の段落が必須**。`UIBackgroundModes: location` が入ったので、
     用途 (到達検知のみ / 継続追跡なし) を先回りして書かないと Guideline 5.1.1 で往復する
+- [ ] **バージョンの最新情報 (リリースノート)**: 2 回目以降のリリースで必須
+  - ⚠️ **書く前に「前バージョンから何が変わったか」を git で確定させる。記憶で書かない**
+  - ⚠️ **EAS が記録する commit は main のものではない**。`eas build:list` の `Commit` は
+    **squash merge 前のブランチ側 commit** で、main の祖先ではない。そのまま
+    `git log <その commit>..HEAD` すると **範囲指定が効かず全履歴が出る**
+    (v1.0.1 の作業で実際に踏んだ: `bf1385d..HEAD` が 196 件を返した)
+  - 正しい手順: `eas build:list` で前バージョンの commit を取る →
+    `git log --format="%h %s" main | grep "<その commit の subject の PR 番号>"` で
+    **main 上の等価コミット**を見つける → その範囲で `git log --reverse ... | grep -E " (feat|fix): "`
+  - ⚠️ **内部変更は書かない**。計測イベント / ガードテスト / スキーマ変更はユーザーに見えない。
+    v1.0.1 は 21 コミットのうち**ユーザーに見えるのは 2 つ**だった
+  - トーンは DESIGN-SYSTEM §0 (煽らない / Celebrate 主) に合わせ、機能を宣伝せず事実だけ書く
 - [ ] **バージョンリリース**: 「手動でリリース」を選択 (審査通過後にリリースタイミングをコントロールできる)
 - [ ] **輸出コンプライアンス**: `ITSAppUsesNonExemptEncryption=false` の宣言 (§1.3)
 - [ ] **審査提出ボタン** をクリック
@@ -250,11 +262,53 @@ Apple のリジェクトは Resolution Center 経由でメッセージが届く�
 - **配信方法は「公開」**。⚠️ これは**承認後に変更できない**
 - Apple School Manager の一括購入割引は無効 (無料アプリに割引価格は存在しないため)
 
-### ⚠️ 次バージョンで直す
+### ⚠️ 次バージョンで直す (v1.0.0 時点の記録)
 
-- **表示名が `Knockon` (K 大文字) になっている**。ADR-0005 / `app.json` は `knockon` (全小文字) で
+- ~~**表示名が `Knockon` (K 大文字) になっている**。ADR-0005 / `app.json` は `knockon` (全小文字) で
   固定しているため、ブランド表記とずれている。審査中のメタデータ変更は審査やり直しになるため
-  今回は触らない
+  今回は触らない~~
+  → **v1.0.1 で解消**。ただし**小文字に直すのではなく `Knockon` に統一**した
+  ([ADR-0056](../decisions/0056-display-name-title-case.md))。ADR-0005 は §想定される影響で
+  レターケースを**明示的に未決**として残しており、「小文字で確定済み」は解釈だった。
+  ASC の掲載名は据え置き、`app.json` の `expo.name` 側を `Knockon` に変更した
+
+## 4.8 提出記録 (v1.0.1)
+
+| | |
+| --- | --- |
+| ビルド / アップロード | **2026-08-17 08:36 (JST)** |
+| 審査提出 | **2026-08-18** |
+| バージョン | 1.0.1 (build 1) |
+| ビルド ID | `a67b8b80-56e4-4155-a739-4a9f440effc7` |
+| main commit | `5429842` |
+| 提出 ID (EAS) | `61371889-dc1b-415f-8906-92fa4433f556` |
+| ステータス | 審査待ち |
+
+**このバージョンの中身** (21 コミット / ユーザーに見えるのは 2 つ):
+
+- **OS ジオフェンス (region monitoring) の実装** ([#301](https://github.com/nokku-dev/knockon/issues/301))。
+  Phase 1 で唯一の未対応だった部分で、これで Phase 1 が完結した。
+  ⚠️ **`UIBackgroundModes: ["location"]` が Info.plist に新規で入った**
+- チェーンの並び順のズレ修正 ([#292](https://github.com/nokku-dev/knockon/issues/292))
+- 表示名の統一 / 日本語ローカライズ宣言 / 権限文言の修正 / 計測の穴埋め (内部)
+
+**⚠️ このバージョン固有の審査リスク**:
+
+- **Guideline 5.1.1 (位置情報)**。`UIBackgroundModes: location` は v1.0.0 に無かった申告。
+  App Review メモに用途 (到達検知のみ / 継続追跡なし / 端末外に送信しない / 拒否しても中心機能は使える)
+  を先回りして書いてある ([store-listing.md](store-listing.md) §9)。指摘が来たらそのまま返せる
+
+### ⚠️ 次バージョンで直す (v1.0.1 時点)
+
+- **アクセシビリティ 3 件が未達**。#289 の事前調査で判明:
+  [#312](https://github.com/nokku-dev/knockon/issues/312) コントラスト AA 未達 3 箇所 /
+  [#313](https://github.com/nokku-dev/knockon/issues/313) Reduce Motion 未対応 /
+  [#314](https://github.com/nokku-dev/knockon/issues/314) 最大文字サイズで進捗リングが見切れる
+  → アクセシビリティ栄養ラベルで申告できるのは現状 **2 項目のみ**
+  (ダークインターフェイス / 色だけに依存しない区別)
+- **実地でのジオフェンス挙動が未確認** (`ios-simulator-qa.md` §M-7)。iOS 実機が無いため
+  未確認のまま提出する判断をした。[#309](https://github.com/nokku-dev/knockon/issues/309) で
+  Android 実機の UX 確認を行う
 
 ## 5. 提出後の運用
 
